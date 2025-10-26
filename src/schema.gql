@@ -1,0 +1,186 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type SocialAccount {
+  id: ID!
+  userId: String!
+  platform: PlatformType!
+  platformUserId: String!
+  platformUsername: String!
+  profileImageUrl: String
+  tokenExpiresAt: DateTime
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""Supported social media platforms for published posts"""
+enum PlatformType {
+  INSTAGRAM
+  FACEBOOK
+  X
+  TIKTOK
+  YOUTUBE
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type Insight {
+  id: ID!
+  userId: String!
+  sourceTweetId: String
+  type: InsightType!
+  title: String!
+  description: String!
+  metadata: JSON
+  relevanceScore: Float!
+  isRead: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  user: User!
+  sourceTweet: Tweet
+}
+
+"""Types of insights generated from analyzed tweets or profiles"""
+enum InsightType {
+  TRENDING_TOPIC
+  CONTENT_SUGGESTION
+  ENGAGEMENT_PATTERN
+  OPTIMAL_POSTING_TIME
+  AUDIENCE_INTEREST
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+type Tweet {
+  id: ID!
+  monitoredProfileId: String!
+  tweetId: String!
+  content: String!
+  createdAt: DateTime!
+  likes: Int!
+  retweets: Int!
+  replies: Int!
+  views: Int!
+  mediaUrls: [String!]
+  hashtags: [String!]
+  mentions: [String!]
+  urls: [String!]
+
+  """Raw tweet data (JSON as object)"""
+  rawData: String
+  fetchedAt: DateTime!
+  monitoredProfile: MonitoredProfile!
+  insights: [Insight!]
+}
+
+type MonitoredProfile {
+  id: ID!
+  userId: String!
+  xUsername: String!
+  xUserId: String!
+  displayName: String
+  profileImageUrl: String
+  isActive: Boolean!
+  lastFetchedAt: DateTime
+
+  """JSON metadata as stringified object"""
+  fetchMetadata: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  user: User!
+  tweets: [Tweet!]!
+}
+
+type User {
+  id: ID!
+  email: String!
+  firstName: String!
+  lastName: String!
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  socialAccounts: [SocialAccount!]
+  posts: [Post!]
+  monitoredProfiles: [MonitoredProfile!]
+}
+
+type PublishedPost {
+  id: ID!
+  postId: String!
+  platform: PlatformType!
+  platformPostId: String!
+  platformPostUrl: String!
+  publishMetadata: JSON
+  publishedAt: DateTime!
+  post: Post!
+}
+
+type Post {
+  id: ID!
+  userId: String!
+  content: String!
+  mediaUrls: [String!]
+  platformSpecificContent: String
+  status: PostStatus!
+  targetPlatforms: [String!]!
+  scheduledFor: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  user: User!
+  publishedPosts: [PublishedPost!]
+}
+
+"""PostStatus enum representing the status of a post"""
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+type AuthPayload {
+  user: User!
+  accessToken: String!
+}
+
+type Query {
+  hello: String!
+  getUserPosts(limit: Int): [Post!]!
+  getPost(postId: String!): Post!
+  getConnectedAccounts: [SocialAccount!]!
+  me: User!
+}
+
+type Mutation {
+  createPost(input: CreatePostInput!): Post!
+  updatePost(postId: String!, input: UpdatePostInput!): Post!
+  deletePost(postId: String!): Boolean!
+  publishPost(postId: String!): Post!
+  disconnectAccount(accountId: String!): Boolean!
+  register(email: String!, password: String!, firstName: String!, lastName: String!): AuthPayload!
+  login(email: String!, password: String!): AuthPayload!
+}
+
+input CreatePostInput {
+  content: String!
+  mediaUrls: [String!]
+  targetPlatforms: [String!]!
+  platformSpecificContent: JSON
+  scheduledFor: DateTime
+}
+
+input UpdatePostInput {
+  content: String
+  mediaUrls: [String!]
+  targetPlatforms: [String!]
+  platformSpecificContent: JSON
+  scheduledFor: DateTime
+}

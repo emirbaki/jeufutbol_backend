@@ -1,0 +1,60 @@
+import { ObjectType, Field, ID } from '@nestjs/graphql';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
+import { SocialAccount } from './social-account.entity';
+import { Post } from './post.entity';
+import { MonitoredProfile } from './monitored-profile.entity';
+
+@ObjectType() // 👈 This makes it a valid GraphQL type
+@Entity('users')
+export class User {
+  @Field(() => ID)
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Field()
+  @Column({ unique: true })
+  email: string;
+
+  // ⚠️ passwordHash is sensitive — do NOT expose it to GraphQL
+  @Column()
+  passwordHash: string;
+
+  @Field()
+  @Column()
+  firstName: string;
+
+  @Field()
+  @Column()
+  lastName: string;
+
+  @Field()
+  @Column({ default: true })
+  isActive: boolean;
+
+  @Field(() => Date)
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @Field(() => Date)
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @Field(() => [SocialAccount], { nullable: true })
+  @OneToMany(() => SocialAccount, (account) => account.user)
+  socialAccounts: SocialAccount[];
+
+  @Field(() => [Post], { nullable: true })
+  @OneToMany(() => Post, (post) => post.user)
+  posts: Post[];
+
+  @Field(() => [MonitoredProfile], { nullable: true })
+  @OneToMany(() => MonitoredProfile, (profile) => profile.user)
+  monitoredProfiles: MonitoredProfile[];
+}
