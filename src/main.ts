@@ -14,7 +14,7 @@ async function bootstrap() {
     origin: process.env.FRONTEND_URL || 'http://localhost:4200',
     credentials: true,
   });
-
+  app.setGlobalPrefix('api');
   // Enable validation
   app.useGlobalPipes(
     new ValidationPipe({
