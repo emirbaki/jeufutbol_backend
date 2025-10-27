@@ -14,7 +14,7 @@ services:
     environment:
       NODE_ENV: production
     ports:
-      - 3000:3000
+      - 3001:3000
     labels:
       - traefik.http.routers.jeufutbol-backend-motr1t-4-web.middlewares=redirect-to-www@file
 
