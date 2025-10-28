@@ -42,6 +42,7 @@ export class InstagramPostGateway implements PostGateway {
       //creating multiple media containers for carousel posts or single media post
       for (const url of media) {
         this.logger.log(`[Instagram] Media URL: ${url}`);
+        this.logger.log(`[Instagram] Access Token: ${access_token}`);
         const mediaContainer = await axios
           .post(
             `${GRAPH_API_BASE}/${userId}/media`,
