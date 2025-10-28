@@ -85,14 +85,15 @@ export class InstagramPostGateway implements PostGateway {
         );
         containerIds.push(mediaContainer.data.id);
       }
-      // Step 2: Create a media container
-      const mediaCreation = await axios
-        .post(
-          `${GRAPH_API_BASE}/${accountID}/media`,
+      const CAROUSEL_OR_SINGLE = containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE';
+
+      if (CAROUSEL_OR_SINGLE === 'IMAGE') {
+        // Step 2: Publish the single media container
+        const publish = await axios.post(
+          `${GRAPH_API_BASE}/${accountID}/media_publish`,
           {
-            children: containerIds.join(','),
+            creation_id: containerIds[0],
             caption: content,
-            media_type: containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE',
           },
           {
             headers: {
@@ -100,39 +101,63 @@ export class InstagramPostGateway implements PostGateway {
               Authorization: `Bearer ${access_token}`,
             },
           },
-        )
-        .catch((err) => {
-          const errortext = JSON.stringify(err.toJSON());
-          const req = err.request;
-          this.logger.error('Request:', req && req._header);
-          this.logger.error(
-            `[Instagram] Error creating media carousel container second: ${errortext || err.message}`,
-          );
-          throw err;
-        });
-      this.logger.log(
-        `[Instagram] Media Carousel Container ID: ${mediaCreation.data.id}`,
-      );
-      // Step 2: Publish the media container
-      const publish = await axios.post(
-        `${GRAPH_API_BASE}/${accountID}/media_publish`,
-        {
-          creation_id: mediaCreation.data.id,
-          // caption: content,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${access_token}`,
+        );
+
+        this.logger.log(
+          `[Instagram] Media published successfully: ${publish.data.id}`,
+        );
+
+        return publish.data;
+      } else {
+        // Step 2: Create a media container
+        const mediaCreation = await axios
+          .post(
+            `${GRAPH_API_BASE}/${accountID}/media`,
+            {
+              children: containerIds.join(','),
+              caption: content,
+              media_type: CAROUSEL_OR_SINGLE,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${access_token}`,
+              },
+            },
+          )
+          .catch((err) => {
+            const errortext = JSON.stringify(err.toJSON());
+            const req = err.request;
+            this.logger.error('Request:', req && req._header);
+            this.logger.error(
+              `[Instagram] Error creating media carousel container second: ${errortext || err.message}`,
+            );
+            throw err;
+          });
+        this.logger.log(
+          `[Instagram] Media Carousel Container ID: ${mediaCreation.data.id}`,
+        );
+        // Step 2: Publish the media container
+        const publish = await axios.post(
+          `${GRAPH_API_BASE}/${accountID}/media_publish`,
+          {
+            creation_id: mediaCreation.data.id,
+            // caption: content,
           },
-        },
-      );
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${access_token}`,
+            },
+          },
+        );
 
-      this.logger.log(
-        `[Instagram] Media published successfully: ${publish.data.id}`,
-      );
+        this.logger.log(
+          `[Instagram] Media published successfully: ${publish.data.id}`,
+        );
 
-      return publish.data;
+        return publish.data;
+      }
     } catch (err: any) {
       await this.notifyPostFailed('unknown', err.message);
       throw err;
