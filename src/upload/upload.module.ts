@@ -10,7 +10,7 @@ import { existsSync, mkdirSync } from 'fs';
   imports: [
     MulterModule.registerAsync({
       useFactory: () => {
-        const uploadPath = join(process.cwd(), 'uploads');
+        const uploadPath = process.env.UPLOAD_DIR ||join(__dirname, '..', '..', 'uploads');
         if (!existsSync(uploadPath)) mkdirSync(uploadPath, { recursive: true });
 
         return {
