@@ -50,7 +50,7 @@ import { CredentialsModule } from './credentials/credential.module';
     PostModule,
     SocialAccountsModule,
     AuthModule,
-    // StaticFilesModule,
+    StaticFilesModule,
     UploadModule,
     CredentialsModule,
   ],
