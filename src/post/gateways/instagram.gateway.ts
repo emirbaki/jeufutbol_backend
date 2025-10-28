@@ -46,11 +46,8 @@ export class InstagramPostGateway implements PostGateway {
           },
         })
         .catch((err) => {
-          const errortext = JSON.stringify(err.toJSON());
-          const req = err.request;
-          this.logger.error('Request:', req && req._header);
           this.logger.error(
-            `[Instagram] Error fetching account ID: ${errortext || err.message}`,
+            `[Instagram] Error fetching account ID: ${err.message}`,
           );
           throw err;
         });
@@ -77,8 +74,11 @@ export class InstagramPostGateway implements PostGateway {
             },
           )
           .catch((err) => {
+            const errortext = JSON.stringify(err.toJSON());
+            const req = err.request;
+            this.logger.error('Request:', req && req._header);
             this.logger.error(
-              `[Instagram] Error creating media container first: ${err.toJSON() || err.message}`,
+              `[Instagram] Error creating media container first: ${errortext || err.message}`,
             );
             throw err;
           });
