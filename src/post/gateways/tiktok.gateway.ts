@@ -35,7 +35,6 @@ export class TiktokPostGateway implements PostGateway {
     media: { videoUrl: string },
   ): Promise<any> {
     try {
-
       // Step 1: Initialize upload session
       const initRes = await axios.post(
         'https://open-api.tiktok.com/v2/post/publish/content/init/',

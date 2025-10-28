@@ -90,7 +90,10 @@ export class OAuthService {
           authUrl: 'https://www.instagram.com/oauth/authorize',
           tokenUrl: 'https://api.instagram.com/oauth/access_token',
           redirectUri: `${baseUrl}/credentials/oauth/callback`,
-          scope: ['instagram_business_basic', 'instagram_business_content_publish'],
+          scope: [
+            'instagram_business_basic',
+            'instagram_business_content_publish',
+          ],
         },
       ],
       [

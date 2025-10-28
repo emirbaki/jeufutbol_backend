@@ -42,26 +42,31 @@ export class InstagramPostGateway implements PostGateway {
       //creating multiple media containers for carousel posts or single media post
       for (const url of media) {
         this.logger.log(`[Instagram] Media URL: ${url}`);
-        const mediaContainer = await axios.post(
-          `${GRAPH_API_BASE}/${userId}/media`,
-          {
-            image_url: url,
-            caption: content,
-            // access_token: access_token,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${access_token}`,
+        const mediaContainer = await axios
+          .post(
+            `${GRAPH_API_BASE}/${userId}/media`,
+            {
+              image_url: url,
+              caption: content,
+              // access_token: access_token,
             },
-          },
-        ).catch((err) => {
-          this.logger.error(`[Instagram] Error creating media container: ${err.response?.data?.error?.toJSON() || err.message}`);
-          throw err;
-        });
-        this.logger.log(`[Instagram] Media Container ID: ${mediaContainer.data.id}`);
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${access_token}`,
+              },
+            },
+          )
+          .catch((err) => {
+            this.logger.error(
+              `[Instagram] Error creating media container: ${err.response?.data?.error?.toJSON() || err.message}`,
+            );
+            throw err;
+          });
+        this.logger.log(
+          `[Instagram] Media Container ID: ${mediaContainer.data.id}`,
+        );
         containerIds.push(mediaContainer.data.id);
-        
       }
       // Step 2: Create a media container
       const mediaCreation = await axios.post(
@@ -79,7 +84,9 @@ export class InstagramPostGateway implements PostGateway {
           },
         },
       );
-      this.logger.log(`[Instagram] Media Carousel Container ID: ${mediaCreation.data.id}`);
+      this.logger.log(
+        `[Instagram] Media Carousel Container ID: ${mediaCreation.data.id}`,
+      );
       // Step 2: Publish the media container
       const publish = await axios.post(
         `${GRAPH_API_BASE}/${userId}/media_publish`,
