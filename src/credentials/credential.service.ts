@@ -127,7 +127,7 @@ export class CredentialsService {
       if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
         throw new Error('Access token expired and no refresh token available');
       }
-      return credential.accessToken!;
+      return this.decrypt(credential.accessToken!);
     }
     // Check if token is expired and refresh if needed
     if (this.isTokenExpired(credential)) {
