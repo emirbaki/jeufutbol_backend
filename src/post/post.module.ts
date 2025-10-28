@@ -14,14 +14,18 @@ import { XPostGateway } from './gateways/x.gateway';
 import { Credential } from 'src/entities/credential.entity';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { CredentialsModule } from 'src/credentials/credential.module';
+import { UploadModule } from 'src/upload/upload.module';
+import { UploadService } from 'src/upload/upload.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Post, PublishedPost, SocialAccount, Credential]),
     HttpModule,
     CredentialsModule,
+    UploadModule,
   ],
   providers: [
+    UploadService,
     CredentialsService,
     PostsService,
     PostsResolver,
