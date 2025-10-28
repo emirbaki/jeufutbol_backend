@@ -17,19 +17,19 @@ services:
       - traefik.enable=true
 
       # jeufutbol.com.tr (no www)
-      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.rule=Host(`jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.rule=Host(`jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`) || PathPrefix(`/static`))
       - traefik.http.routers.jeufutbol-backend-motr1t-4-web.entrypoints=web
       - traefik.http.routers.jeufutbol-backend-motr1t-4-web.middlewares=redirect-to-www@file,jeufutbol-cors@docker
-      - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.rule=Host(`jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.rule=Host(`jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`) || PathPrefix(`/static`))
       - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.entrypoints=websecure
       - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.tls.certresolver=letsencrypt
       - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.middlewares=jeufutbol-cors@docker
 
       # www.jeufutbol.com.tr
-      - traefik.http.routers.jeufutbol-backend-motr1t-6-web.rule=Host(`www.jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-web.rule=Host(`www.jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`) || PathPrefix(`/static`))
       - traefik.http.routers.jeufutbol-backend-motr1t-6-web.entrypoints=web
       - traefik.http.routers.jeufutbol-backend-motr1t-6-web.middlewares=redirect-to-https@file,jeufutbol-cors@docker
-      - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.rule=Host(`www.jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.rule=Host(`www.jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`) || PathPrefix(`/static`))
       - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.entrypoints=websecure
       - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.tls.certresolver="JeuFutbol Certificate"
       - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.middlewares=jeufutbol-cors@docker

@@ -15,7 +15,7 @@ async function bootstrap() {
     origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
     credentials: true,
   });
-  app.useStaticAssets(process.env['UPLOAD_DIR']!, { prefix: '/uploads/' ,
+  app.useStaticAssets('var/www/uploads', { prefix: '/uploads/' ,
 
     setHeaders: (res, path, stat) => {
       // res is the Express Response object
@@ -29,7 +29,6 @@ async function bootstrap() {
       Client IP: ${res.req.ip}
       File Size: ${stat.size} bytes
       `);
-      
       // Optionally, you can set custom headers here if needed
       // res.set('X-Static-Logged', 'true');
     },
