@@ -89,7 +89,7 @@ export class InstagramPostGateway implements PostGateway {
       const mediaCreation = await axios.post(
         `${GRAPH_API_BASE}/${accountID}/media`,
         {
-          children: containerIds,
+          children: containerIds.join(','),
           caption: content,
           media_type: containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE',
         },
@@ -108,7 +108,7 @@ export class InstagramPostGateway implements PostGateway {
         `${GRAPH_API_BASE}/${accountID}/media_publish`,
         {
           creation_id: mediaCreation.data.id,
-          caption: content,
+          // caption: content,
         },
         {
           headers: {
