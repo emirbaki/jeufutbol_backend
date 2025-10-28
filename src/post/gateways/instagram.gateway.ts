@@ -89,19 +89,29 @@ export class InstagramPostGateway implements PostGateway {
 
       if (CAROUSEL_OR_SINGLE === 'IMAGE') {
         // Step 2: Publish the single media container
-        const publish = await axios.post(
-          `${GRAPH_API_BASE}/${accountID}/media_publish`,
-          {
-            creation_id: containerIds[0],
-            caption: content,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${access_token}`,
+        const publish = await axios
+          .post(
+            `${GRAPH_API_BASE}/${accountID}/media_publish`,
+            {
+              creation_id: containerIds[0],
+              caption: content,
             },
-          },
-        );
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${access_token}`,
+              },
+            },
+          )
+          .catch((err) => {
+            const errortext = JSON.stringify(err.toJSON());
+            const req = err.request;
+            this.logger.error('Request:', req && req._header);
+            this.logger.error(
+              `[Instagram] Error creating media carousel container second: ${errortext || err.message}`,
+            );
+            throw err;
+          });
 
         this.logger.log(
           `[Instagram] Media published successfully: ${publish.data.id}`,
