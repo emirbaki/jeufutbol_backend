@@ -3,7 +3,7 @@ import axios from 'axios';
 import { PostGateway } from './post-base.gateway';
 import { PlatformType } from 'src/entities/social-account.entity';
 
-const GRAPH_API_BASE = 'https://api.instagram.com/v24.0';
+const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0';
 
 @Injectable()
 export class InstagramPostGateway implements PostGateway {
