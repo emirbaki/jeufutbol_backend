@@ -23,10 +23,14 @@ import { CredentialsModule } from './credentials/credential.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    GraphQLModule.forRoot<ApolloDriverConfig>({
+    GraphQLModule.forRoot({
       driver: ApolloDriver,
       playground: true,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+      cors: {
+        origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
+        credentials: true,
+      },
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

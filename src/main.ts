@@ -11,7 +11,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: '*', //process.env.FRONTEND_URL || 'http://localhost:4200',
+    origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
     credentials: true,
   });
   app.setGlobalPrefix('api');
