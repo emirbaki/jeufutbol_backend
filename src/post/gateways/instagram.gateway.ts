@@ -48,7 +48,7 @@ export class InstagramPostGateway implements PostGateway {
         .catch((err) => {
           const errortext = JSON.stringify(err.toJSON());
           const req = err.request;
-          this.logger.log('Request:', req && req._header);
+          this.logger.error('Request:', req && req._header);
           this.logger.error(
             `[Instagram] Error fetching account ID: ${errortext || err.message}`,
           );
