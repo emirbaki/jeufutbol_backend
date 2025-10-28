@@ -8,7 +8,10 @@ import { ServeStaticModule } from '@nestjs/serve-static';
     ServeStaticModule.forRoot({
       rootPath: process.env['UPLOAD_DIR'],
       serveRoot: '/uploads', // URL prefix
-      exclude: ['/api(.*)'], // API route’ları ile çakışmasın
+      exclude: ['/api/{*test}'], // API route’ları ile çakışmasın
+      serveStaticOptions: {
+        fallthrough: false,
+      },
     }),
   ],
 })
