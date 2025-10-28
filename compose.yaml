@@ -11,20 +11,36 @@ services:
   server:
     build:
       context: .
-    environment:
-      NODE_ENV: production
     ports:
       - 3001:3000
     labels:
-      # Existing redirect middleware (keep it)
-      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.middlewares=redirect-to-www@file,jeufutbol-cors@docker
+      - traefik.enable=true
 
-      # 👇 Define the CORS middleware
-      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowOriginList=http://localhost:4200,https://jeufutbol.com.tr"
-      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowMethods=GET,OPTIONS,POST,PUT,PATCH,DELETE"
-      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowHeaders=*"
-      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowCredentials=true"
-      - "traefik.http.middlewares.jeufutbol-cors.headers.addVaryHeader=true"
+      # jeufutbol.com.tr (no www)
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.rule=Host(`jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.entrypoints=web
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.middlewares=redirect-to-www@file,jeufutbol-cors@docker
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.rule=Host(`jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.entrypoints=websecure
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.tls.certresolver=letsencrypt
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-websecure.middlewares=jeufutbol-cors@docker
+
+      # www.jeufutbol.com.tr
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-web.rule=Host(`www.jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-web.entrypoints=web
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-web.middlewares=redirect-to-https@file,jeufutbol-cors@docker
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.rule=Host(`www.jeufutbol.com.tr`) && (PathPrefix(`/api`) || PathPrefix(`/graphql`))
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.entrypoints=websecure
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.tls.certresolver="JeuFutbol Certificate"
+      - traefik.http.routers.jeufutbol-backend-motr1t-6-websecure.middlewares=jeufutbol-cors@docker
+
+      # Shared CORS middleware
+      - traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowOriginList=http://localhost:4200,https://jeufutbol.com.tr
+      - traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowMethods=GET,OPTIONS,POST,PUT,PATCH,DELETE
+      - traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowHeaders=*
+      - traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowCredentials=true
+      - traefik.http.middlewares.jeufutbol-cors.headers.addVaryHeader=true
+
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
