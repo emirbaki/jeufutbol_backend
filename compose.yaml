@@ -16,7 +16,15 @@ services:
     ports:
       - 3001:3000
     labels:
-      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.middlewares=redirect-to-www@file
+      # Existing redirect middleware (keep it)
+      - traefik.http.routers.jeufutbol-backend-motr1t-4-web.middlewares=redirect-to-www@file,jeufutbol-cors@docker
+
+      # 👇 Define the CORS middleware
+      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowOriginList=http://localhost:4200,https://jeufutbol.com.tr"
+      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowMethods=GET,OPTIONS,POST,PUT,PATCH,DELETE"
+      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowHeaders=*"
+      - "traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowCredentials=true"
+      - "traefik.http.middlewares.jeufutbol-cors.headers.addVaryHeader=true"
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
