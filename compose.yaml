@@ -40,7 +40,10 @@ services:
       - traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowHeaders=*
       - traefik.http.middlewares.jeufutbol-cors.headers.accessControlAllowCredentials=true
       - traefik.http.middlewares.jeufutbol-cors.headers.addVaryHeader=true
-
+    volumes:
+      - uploads_data:/var/www/uploads 
+    environment:
+      - UPLOAD_DIR=/var/www/uploads
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
