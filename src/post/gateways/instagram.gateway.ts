@@ -75,7 +75,7 @@ export class InstagramPostGateway implements PostGateway {
           )
           .catch((err) => {
             this.logger.error(
-              `[Instagram] Error creating media container: ${err.response?.data || err.message}`,
+              `[Instagram] Error creating media container first: ${err.response?.data || err.message}`,
             );
             throw err;
           });
@@ -110,7 +110,6 @@ export class InstagramPostGateway implements PostGateway {
         {
           creation_id: mediaCreation.data.id,
           caption: content,
-          access_token: access_token,
         },
         {
           headers: {
