@@ -56,4 +56,52 @@ export class UploadService {
       filenames: originalName.toString(),
     };
   }
+
+  async deleteFileByUrl(fileUrls: string | string[]): Promise<void> {
+    const urlsToDelete = Array.isArray(fileUrls) ? fileUrls : [fileUrls];
+
+    for (const url of urlsToDelete) {
+      // 1. Dosya adını URL'den çıkar
+      // publicBaseUrl'den sonraki kısmı al
+      const urlParts = url.split(this.publicBaseUrl);
+      if (urlParts.length !== 2) {
+        this.logger.error(
+          `Invalid file URL format: ${url}. Skipping deletion.`,
+        );
+        continue;
+      }
+
+      // Baştaki '/' karakterini kaldır (örneğin: "/filename.jpg" -> "filename.jpg")
+      const fileName = urlParts[1].startsWith('/')
+        ? urlParts[1].substring(1)
+        : urlParts[1];
+
+      // Güvenlik kontrolü: Dosya adında yol geçişi (path traversal) olmamasını sağla
+      if (!fileName || fileName.includes('..') || path.isAbsolute(fileName)) {
+        this.logger.warn(
+          `Suspicious or empty filename extracted from URL: ${url}. Skipping.`,
+        );
+        continue;
+      }
+
+      // 2. Yerel dosya yolunu oluştur
+      const filePath = path.join(this.uploadDir, fileName);
+
+      // 3. Dosyayı sil
+      try {
+        await fs.promises.unlink(filePath);
+        this.logger.log(`File deleted successfully: ${filePath}`);
+      } catch (error) {
+        // ENOENT (Error NO ENTry) hatası, dosyanın zaten mevcut olmadığı anlamına gelir.
+        if (error.code === 'ENOENT') {
+          this.logger.warn(
+            `File not found on disk, skipping deletion: ${filePath}`,
+          );
+        } else {
+          // Diğer tüm hataları logla
+          this.logger.error(`Error deleting file ${filePath}:`, error.message);
+        }
+      }
+    }
+  }
 }

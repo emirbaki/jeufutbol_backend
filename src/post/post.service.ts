@@ -7,6 +7,7 @@ import { SocialAccount, PlatformType } from '../entities/social-account.entity';
 import { PostGatewayFactory } from './post-gateway.factory';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
+import { UploadService } from 'src/upload/upload.service';
 export interface CreatePostDto {
   content: string;
   mediaUrls?: string[];
@@ -28,6 +29,7 @@ export class PostsService {
     private socialAccountRepository: Repository<SocialAccount>,
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
+    private readonly uploadService: UploadService,
   ) {}
 
   async createPost(userId: string, dto: CreatePostDto): Promise<Post> {
@@ -79,6 +81,8 @@ export class PostsService {
 
   async deletePost(postId: string, userId: string): Promise<boolean> {
     const post = await this.getPost(postId, userId);
+    const urls = post.mediaUrls || [];
+    await this.uploadService.deleteFileByUrl(urls);
     await this.postRepository.remove(post);
     return true;
   }
