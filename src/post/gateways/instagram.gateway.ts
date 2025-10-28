@@ -96,7 +96,6 @@ export class InstagramPostGateway implements PostGateway {
               params: {
                 creation_id: containerIds[0],
                 caption: content,
-                access_token: access_token,
               },
             },
             {
