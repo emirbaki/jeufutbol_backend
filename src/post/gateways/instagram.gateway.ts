@@ -92,16 +92,16 @@ export class InstagramPostGateway implements PostGateway {
         const publish = await axios
           .post(`${GRAPH_API_BASE}/${accountID}/media_publish`, null, {
             params: {
-              access_token: access_token,
+              // access_token: access_token,
               creation_id: containerIds.join(','),
-              caption: content,
+              caption: content.replace('+', ' '),
             },
             headers: {
               'Content-Type': 'application/json',
               'Content-Length': 0,
               Accept: '*/*',
               'Accept-Encoding': 'gzip, deflate, br',
-              // Authorization: `Bearer ${access_token}`,
+              Authorization: `Bearer ${access_token}`,
             },
           })
           .catch((err) => {
