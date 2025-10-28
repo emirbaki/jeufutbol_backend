@@ -15,7 +15,7 @@ async function bootstrap() {
     origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
     credentials: true,
   });
-  app.useStaticAssets('uploads', { prefix: '/uploads/' });
+  app.useStaticAssets(process.env['UPLOAD_DIR']!, { prefix: '/uploads/' });
   app.setGlobalPrefix('api');
   // Enable validation
   app.useGlobalPipes(
