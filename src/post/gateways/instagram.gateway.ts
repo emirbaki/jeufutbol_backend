@@ -61,9 +61,10 @@ export class InstagramPostGateway implements PostGateway {
           .post(
             `${GRAPH_API_BASE}/${accountID}/media`,
             {
-              image_url: url,
-              caption: content,
-              // access_token: access_token,
+              params: {
+                image_url: url,
+                caption: content,
+              },
             },
             {
               headers: {
@@ -87,10 +88,12 @@ export class InstagramPostGateway implements PostGateway {
       const mediaCreation = await axios.post(
         `${GRAPH_API_BASE}/${accountID}/media`,
         {
-          children: containerIds,
-          caption: content,
-          access_token: access_token,
-          media_type: containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE',
+          params: {
+            children: containerIds,
+            caption: content,
+            access_token: access_token,
+            media_type: containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE',
+          },
         },
         {
           headers: {
