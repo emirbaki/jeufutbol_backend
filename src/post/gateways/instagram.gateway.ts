@@ -94,12 +94,12 @@ export class InstagramPostGateway implements PostGateway {
             params: {
               creation_id: containerIds.join(','),
               caption: content,
-              // access_token: access_token,
+              access_token: access_token,
             },
             headers: {
               'Content-Type': 'application/json',
               'Content-Length': 0,
-              Authorization: `Bearer ${access_token}`,
+              // Authorization: `Bearer ${access_token}`,
             },
           })
           .catch((err) => {
