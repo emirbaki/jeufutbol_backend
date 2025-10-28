@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 // import * as fs from 'fs';
 
 async function bootstrap() {
@@ -9,11 +10,12 @@ async function bootstrap() {
   //   cert: fs.readFileSync('./cert/cert.pem'),
   // };
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors({
     origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
     credentials: true,
   });
+  app.useStaticAssets('uploads', { prefix: '/uploads/' });
   app.setGlobalPrefix('api');
   // Enable validation
   app.useGlobalPipes(

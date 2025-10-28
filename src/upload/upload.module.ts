@@ -3,14 +3,13 @@ import { UploadService } from './upload.service';
 import { UploadController } from './upload.controller';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
 @Module({
   imports: [
     MulterModule.registerAsync({
       useFactory: () => {
-        const uploadPath = process.env.UPLOAD_DIR ||join(__dirname, '..', '..', 'uploads');
+        const uploadPath = process.env.UPLOAD_DIR!;
         if (!existsSync(uploadPath)) mkdirSync(uploadPath, { recursive: true });
 
         return {
