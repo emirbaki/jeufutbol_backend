@@ -94,14 +94,15 @@ export class InstagramPostGateway implements PostGateway {
             `${GRAPH_API_BASE}/${accountID}/media_publish`,
             {
               params: {
-                creation_id: containerIds.join(',') as unknown as number,
+                creation_id: containerIds.join(','),
                 caption: content,
+                access_token: access_token,
               },
             },
             {
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${access_token}`,
+                // Authorization: `Bearer ${access_token}`,
               },
             },
           )
@@ -110,7 +111,7 @@ export class InstagramPostGateway implements PostGateway {
             const req = err.request;
             this.logger.error('Request:', req && req._header);
             this.logger.error(
-              `[Instagram] Error creating media carousel container second: ${errortext || err.message}`,
+              `[Instagram] Error publishing media carousel container second: ${errortext || err.message}`,
             );
             throw err;
           });
