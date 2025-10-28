@@ -86,20 +86,30 @@ export class InstagramPostGateway implements PostGateway {
         containerIds.push(mediaContainer.data.id);
       }
       // Step 2: Create a media container
-      const mediaCreation = await axios.post(
-        `${GRAPH_API_BASE}/${accountID}/media`,
-        {
-          children: containerIds.join(','),
-          caption: content,
-          media_type: containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE',
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${access_token}`,
+      const mediaCreation = await axios
+        .post(
+          `${GRAPH_API_BASE}/${accountID}/media`,
+          {
+            children: containerIds.join(','),
+            caption: content,
+            media_type: containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE',
           },
-        },
-      );
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${access_token}`,
+            },
+          },
+        )
+        .catch((err) => {
+          const errortext = JSON.stringify(err.toJSON());
+          const req = err.request;
+          this.logger.error('Request:', req && req._header);
+          this.logger.error(
+            `[Instagram] Error creating media carousel container second: ${errortext || err.message}`,
+          );
+          throw err;
+        });
       this.logger.log(
         `[Instagram] Media Carousel Container ID: ${mediaCreation.data.id}`,
       );
