@@ -100,6 +100,7 @@ export class InstagramPostGateway implements PostGateway {
             {
               headers: {
                 'Content-Type': 'application/json',
+                'Content-Length': 0,
                 Authorization: `Bearer ${access_token}`,
               },
             },
