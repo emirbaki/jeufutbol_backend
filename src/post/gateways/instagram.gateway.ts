@@ -38,7 +38,7 @@ export class InstagramPostGateway implements PostGateway {
   ): Promise<any> {
     try {
       const containerIds: string[] = [];
-      const accountID = await axios
+      const accountID_response = await axios
         .get(`https://graph.instagram.com/v24.0/me`, {
           params: {
             fields: 'user_id',
@@ -51,13 +51,15 @@ export class InstagramPostGateway implements PostGateway {
           );
           throw err;
         });
+      const accountID = accountID_response.data.user_id;
       //creating multiple media containers for carousel posts or single media post
       for (const url of media) {
+        this.logger.log(`[Instagram] Media URL: ${accountID}`);
         this.logger.log(`[Instagram] Media URL: ${url}`);
         this.logger.log(`[Instagram] Access Token: ${access_token}`);
         const mediaContainer = await axios
           .post(
-            `${GRAPH_API_BASE}/${accountID.data.user_id}/media`,
+            `${GRAPH_API_BASE}/${accountID}/media`,
             {
               image_url: url,
               caption: content,
@@ -83,7 +85,7 @@ export class InstagramPostGateway implements PostGateway {
       }
       // Step 2: Create a media container
       const mediaCreation = await axios.post(
-        `${GRAPH_API_BASE}/${accountID.data.user_id}/media`,
+        `${GRAPH_API_BASE}/${accountID}/media`,
         {
           children: containerIds,
           caption: content,
@@ -102,7 +104,7 @@ export class InstagramPostGateway implements PostGateway {
       );
       // Step 2: Publish the media container
       const publish = await axios.post(
-        `${GRAPH_API_BASE}/${accountID.data.user_id}/media_publish`,
+        `${GRAPH_API_BASE}/${accountID}/media_publish`,
         {
           creation_id: mediaCreation.data.id,
           caption: content,
