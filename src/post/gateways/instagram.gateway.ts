@@ -83,7 +83,7 @@ export class InstagramPostGateway implements PostGateway {
       }
       // Step 2: Create a media container
       const mediaCreation = await axios.post(
-        `${GRAPH_API_BASE}/${userId}/media`,
+        `${GRAPH_API_BASE}/${accountID.data.user_id}/media`,
         {
           children: containerIds,
           caption: content,
@@ -102,7 +102,7 @@ export class InstagramPostGateway implements PostGateway {
       );
       // Step 2: Publish the media container
       const publish = await axios.post(
-        `${GRAPH_API_BASE}/${userId}/media_publish`,
+        `${GRAPH_API_BASE}/${accountID.data.user_id}/media_publish`,
         {
           creation_id: mediaCreation.data.id,
           caption: content,
