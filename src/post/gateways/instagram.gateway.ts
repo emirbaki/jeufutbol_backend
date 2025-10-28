@@ -75,7 +75,7 @@ export class InstagramPostGateway implements PostGateway {
           )
           .catch((err) => {
             this.logger.error(
-              `[Instagram] Error creating media container first: ${err.response?.data || err.message}`,
+              `[Instagram] Error creating media container first: ${err.toJSON() || err.message}`,
             );
             throw err;
           });
