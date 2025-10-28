@@ -39,7 +39,7 @@ export class InstagramPostGateway implements PostGateway {
     try {
       const containerIds: string[] = [];
       const accountID = await axios
-        .get(`graph.instagram.com/v24.0/me`, {
+        .get(`https://graph.instagram.com/v24.0/me`, {
           params: {
             fields: 'user_id',
             access_token: access_token,
