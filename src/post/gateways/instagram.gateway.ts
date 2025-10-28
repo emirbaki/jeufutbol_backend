@@ -93,9 +93,11 @@ export class InstagramPostGateway implements PostGateway {
           .post(
             `${GRAPH_API_BASE}/${accountID}/media_publish`,
             {
-              creation_id: containerIds[0],
-              caption: content,
-              access_token: access_token,
+              params: {
+                creation_id: containerIds[0],
+                caption: content,
+                access_token: access_token,
+              },
             },
             {
               headers: {
