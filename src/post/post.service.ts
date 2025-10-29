@@ -136,6 +136,7 @@ export class PostsService {
             platform,
             publishedAt: new Date(),
             platformPostId: result.id,
+            platformPostUrl: result.url,
             metadata: result,
           } as unknown as PublishedPost);
 

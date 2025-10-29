@@ -118,7 +118,16 @@ export class InstagramPostGateway implements PostGateway {
           `[Instagram] Media published successfully: ${publish.data.id}`,
         );
 
-        return publish.data;
+        const postUrl = await axios.get(`https://graph.instagram.com/v24.0/${publish.data.id}`,
+          {
+            params: {
+              fields: 'media_url',
+              access_token: access_token,
+            },
+          },
+        );
+
+        return { id: publish.data.id, url: postUrl.data.media_url };
       } else {
         // Step 2: Create a media container
         const mediaCreation = await axios
@@ -167,7 +176,16 @@ export class InstagramPostGateway implements PostGateway {
           `[Instagram] Media published successfully: ${publish.data.id}`,
         );
 
-        return publish.data;
+        const postUrl = await axios.get(`https://graph.instagram.com/v24.0/${publish.data.id}`,
+          {
+            params: {
+              fields: 'media_url',
+              access_token: access_token,
+            },
+          },
+        );
+
+        return { id: publish.data.id, url: postUrl.data.media_url };
       }
     } catch (err: any) {
       await this.notifyPostFailed('unknown', err.message);
