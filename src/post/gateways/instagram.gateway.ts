@@ -94,7 +94,7 @@ export class InstagramPostGateway implements PostGateway {
             params: {
               // access_token: access_token,
               creation_id: containerIds.join(','),
-              caption: encodeURIComponent(content),
+              caption: decodeURIComponent(content),
             },
             headers: {
               'Content-Type': 'application/json',
@@ -118,7 +118,8 @@ export class InstagramPostGateway implements PostGateway {
           `[Instagram] Media published successfully: ${publish.data.id}`,
         );
 
-        const postUrl = await axios.get(`https://graph.instagram.com/v24.0/${publish.data.id}`,
+        const postUrl = await axios.get(
+          `https://graph.instagram.com/v24.0/${publish.data.id}`,
           {
             params: {
               fields: 'media_url',
