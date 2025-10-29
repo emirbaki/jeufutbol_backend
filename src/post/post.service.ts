@@ -173,7 +173,7 @@ export class PostsService {
       );
     }
 
-    await this.postRepository.save(post);
+    await this.postRepository.update(post.id, { status: post.status });
     return this.getPost(postId, userId);
   }
 }

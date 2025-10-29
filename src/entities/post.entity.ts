@@ -74,7 +74,7 @@ export class Post {
 
   @Field(() => [PublishedPost], { nullable: true })
   @OneToMany(() => PublishedPost, (published) => published.post, {
-    cascade: true,
+    cascade: false,
   })
   publishedPosts?: PublishedPost[];
 }
