@@ -90,7 +90,8 @@ export class InstagramPostGateway implements PostGateway {
       if (CAROUSEL_OR_SINGLE === 'IMAGE') {
         // Step 2: Publish the single media container
         const publish = await axios
-          .post(`${GRAPH_API_BASE}/${accountID}/media_publish`, 
+          .post(
+            `${GRAPH_API_BASE}/${accountID}/media_publish`,
             {
               // access_token: access_token,
               creation_id: containerIds.join(','),
@@ -129,7 +130,9 @@ export class InstagramPostGateway implements PostGateway {
             },
           },
         );
-
+        await new Promise((resolve, reject) => {
+          setTimeout(() => resolve('Promise is resolved'), 500);
+        });
         return { id: publish.data.id, url: postUrl.data.media_url };
       } else {
         // Step 2: Create a media container
@@ -179,7 +182,8 @@ export class InstagramPostGateway implements PostGateway {
           `[Instagram] Media published successfully: ${publish.data.id}`,
         );
 
-        const postUrl = await axios.get(`https://graph.instagram.com/v24.0/${publish.data.id}`,
+        const postUrl = await axios.get(
+          `https://graph.instagram.com/v24.0/${publish.data.id}`,
           {
             params: {
               fields: 'media_url',
@@ -187,6 +191,9 @@ export class InstagramPostGateway implements PostGateway {
             },
           },
         );
+        await new Promise((resolve, reject) => {
+          setTimeout(() => resolve('Promise is resolved'), 500);
+        });
 
         return { id: publish.data.id, url: postUrl.data.media_url };
       }
