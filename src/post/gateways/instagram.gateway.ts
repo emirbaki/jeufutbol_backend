@@ -24,7 +24,6 @@ export class InstagramPostGateway implements PostGateway {
   async notifyPostFailed(postId: string, error: string): Promise<void> {
     this.logger.error(`[Instagram] Post failed: ${error}`);
   }
-
   /**
    * @param userId Instagram Business Account ID
    * @param content Caption text
@@ -86,6 +85,12 @@ export class InstagramPostGateway implements PostGateway {
         containerIds.push(mediaContainer.data.id);
       }
       const CAROUSEL_OR_SINGLE = containerIds.length > 1 ? 'CAROUSEL' : 'IMAGE';
+
+      await this.pollMediaContainerStatus(
+        containerIds.join(','),
+        access_token,
+        this.logger,
+      );
 
       if (CAROUSEL_OR_SINGLE === 'IMAGE') {
         // Step 2: Publish the single media container
@@ -201,5 +206,73 @@ export class InstagramPostGateway implements PostGateway {
       await this.notifyPostFailed('unknown', err.message);
       throw err;
     }
+  }
+
+  /**
+   * Polls the Instagram Graph API to check the processing status of a media container.
+   * Throws an error if the container fails processing or times out.
+   * * @param containerId The ID of the media container (child or parent carousel).
+   * @param accessToken The access token.
+   * @param logger Your logging instance (e.g., this.logger in NestJS).
+   */
+  async pollMediaContainerStatus(
+    containerId: string,
+    accessToken: string,
+    logger: any,
+  ): Promise<void> {
+    const MAX_ATTEMPTS = 12; // Max wait time of 60 seconds (12 * 5s)
+    const DELAY_MS = 5000;
+    const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0'; // Define if not globally available
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      // 1. Wait 5 seconds before the check
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
+      }
+
+      logger.log(
+        `[Instagram] Polling status for ${containerId}. Attempt ${attempt + 1}/${MAX_ATTEMPTS}`,
+      );
+
+      try {
+        // 2. GET the container status
+        const statusResponse = await axios.get(
+          `${GRAPH_API_BASE}/${containerId}`, // Note: using the containerId here
+          {
+            params: {
+              fields: 'status_code',
+              access_token: accessToken,
+            },
+          },
+        );
+
+        const statusCode = statusResponse.data.status_code;
+
+        if (statusCode === 'FINISHED') {
+          logger.log(
+            `[Instagram] Container ${containerId} status is FINISHED. Ready to publish.`,
+          );
+          return; // Exit successfully!
+        }
+
+        if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+          throw new Error(
+            `Media container ${containerId} failed processing with status: ${statusCode}.`,
+          );
+        }
+
+        // If IN_PROGRESS, loop again
+      } catch (error) {
+        logger.error(
+          `[Instagram] Polling failed for ${containerId}: ${error.message}`,
+        );
+        // Re-throw if it's a critical error (like token expiry)
+        throw error;
+      }
+    }
+
+    throw new Error(
+      `Media container ${containerId} timed out after ${(MAX_ATTEMPTS * DELAY_MS) / 1000} seconds. Status still IN_PROGRESS.`,
+    );
   }
 }
