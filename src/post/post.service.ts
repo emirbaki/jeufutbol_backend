@@ -165,7 +165,7 @@ export class PostsService {
     // 4️⃣ Update post status
     if (publishResults.length > 0) {
       post.status = PostStatus.PUBLISHED;
-      await this.publishedPostRepository.save(publishResults);
+      await this.publishedPostRepository.insert(publishResults);
     } else {
       post.status = PostStatus.FAILED;
       this.logger.error(
