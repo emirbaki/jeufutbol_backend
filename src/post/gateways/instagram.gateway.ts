@@ -131,7 +131,7 @@ export class InstagramPostGateway implements PostGateway {
           },
         );
         await new Promise((resolve, reject) => {
-          setTimeout(() => resolve('Promise is resolved'), 500);
+          setTimeout(() => resolve('Promise is resolved'), 1000);
         });
         return { id: publish.data.id, url: postUrl.data.media_url };
       } else {
@@ -192,7 +192,7 @@ export class InstagramPostGateway implements PostGateway {
           },
         );
         await new Promise((resolve, reject) => {
-          setTimeout(() => resolve('Promise is resolved'), 500);
+          setTimeout(() => resolve('Promise is resolved'), 1000);
         });
 
         return { id: publish.data.id, url: postUrl.data.media_url };
