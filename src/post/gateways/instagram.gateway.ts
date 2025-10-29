@@ -94,7 +94,7 @@ export class InstagramPostGateway implements PostGateway {
             params: {
               // access_token: access_token,
               creation_id: containerIds.join(','),
-              caption: content.replace('+', ' '),
+              caption: encodeURIComponent(content),
             },
             headers: {
               'Content-Type': 'application/json',
