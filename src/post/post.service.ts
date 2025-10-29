@@ -132,13 +132,13 @@ export class PostsService {
           await gateway.notifyPostPublished(post.id, platform, result);
 
           const publishedPost = this.publishedPostRepository.create({
-            post,
-            platform,
+            post: post,
+            platform: platform,
             publishedAt: new Date(),
             platformPostId: result.id,
             platformPostUrl: result.url,
             postId: post.id,
-            metadata: result,
+            publishedMetadata: result,
           } as unknown as PublishedPost);
 
           publishResults.push(publishedPost);
