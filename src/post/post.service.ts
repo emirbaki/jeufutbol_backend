@@ -133,12 +133,12 @@ export class PostsService {
 
           const publishedPost = this.publishedPostRepository.create({
             post: post,
+            postId: post.id,
             platform: platform,
             publishedAt: new Date(),
             platformPostId: result.id,
             platformPostUrl: result.url,
-            postId: post.id,
-            publishedMetadata: result,
+            publishMetadata: result,
           } as unknown as PublishedPost);
 
           publishResults.push(publishedPost);
