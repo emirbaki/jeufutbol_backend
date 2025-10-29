@@ -16,6 +16,16 @@ export interface CreatePostDto {
   scheduledFor?: Date;
 }
 
+interface IPublishedPostCreate {
+  post: Post;
+  postId: string; // optional if you use post relation
+  platform: PlatformType;
+  platformPostId: string;
+  platformPostUrl: string;
+  publishMetadata?: Record<string, any>;
+  publishedAt?: Date;
+}
+
 @Injectable()
 export class PostsService {
   private readonly logger = new Logger(PostsService.name);
@@ -133,13 +143,13 @@ export class PostsService {
 
           const publishedPost = this.publishedPostRepository.create({
             post: post,
-            postId: post.id,
+            // postId: post.id,
             platform: platform,
             publishedAt: new Date(),
             platformPostId: result.id,
             platformPostUrl: result.url,
             publishMetadata: result,
-          } as unknown as PublishedPost);
+          });
 
           publishResults.push(publishedPost);
         } catch (err: any) {
