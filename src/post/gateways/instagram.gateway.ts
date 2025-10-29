@@ -90,20 +90,22 @@ export class InstagramPostGateway implements PostGateway {
       if (CAROUSEL_OR_SINGLE === 'IMAGE') {
         // Step 2: Publish the single media container
         const publish = await axios
-          .post(`${GRAPH_API_BASE}/${accountID}/media_publish`, null, {
-            params: {
+          .post(`${GRAPH_API_BASE}/${accountID}/media_publish`, 
+            {
               // access_token: access_token,
               creation_id: containerIds.join(','),
-              caption: decodeURIComponent(content),
+              caption: content,
             },
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Length': 0,
-              Accept: '*/*',
-              'Accept-Encoding': 'gzip, deflate, br',
-              Authorization: `Bearer ${access_token}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': 0,
+                Accept: '*/*',
+                'Accept-Encoding': 'gzip, deflate, br',
+                Authorization: `Bearer ${access_token}`,
+              },
             },
-          })
+          )
           .catch((err) => {
             const errortext = JSON.stringify(err.toJSON());
             const req = err.request;
