@@ -35,6 +35,14 @@ export class MonitoredProfile {
   @Column({ nullable: true })
   displayName?: string;
 
+  @Field()
+  @Column()
+  followerCount: number;
+
+  @Field()
+  @Column()
+  description: string;
+
   @Field({ nullable: true })
   @Column({ nullable: true })
   profileImageUrl?: string;

@@ -87,6 +87,8 @@ type MonitoredProfile {
   xUsername: String!
   xUserId: String!
   displayName: String
+  followerCount: Float!
+  description: String!
   profileImageUrl: String
   isActive: Boolean!
   lastFetchedAt: DateTime
@@ -157,6 +159,10 @@ type Query {
   getPost(postId: String!): Post!
   getConnectedAccounts: [SocialAccount!]!
   me: User!
+  getMonitoredProfiles: [MonitoredProfile!]!
+  getMonitoredProfile(profileId: String!): MonitoredProfile!
+  getProfileTweets(profileId: String!, limit: Int): [Tweet!]!
+  getProfileStats(profileId: String!): JSON!
 }
 
 type Mutation {
@@ -167,6 +173,9 @@ type Mutation {
   disconnectAccount(accountId: String!): Boolean!
   register(email: String!, password: String!, firstName: String!, lastName: String!): AuthPayload!
   login(email: String!, password: String!): AuthPayload!
+  addMonitoredProfile(xUsername: String!): MonitoredProfile!
+  removeMonitoredProfile(profileId: String!): Boolean!
+  refreshProfileTweets(profileId: String!): Int!
 }
 
 input CreatePostInput {

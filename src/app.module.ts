@@ -17,6 +17,8 @@ import { UploadController } from './upload/upload.controller';
 import { StaticFilesModule } from './staticfiles/staticfiles.module';
 import { UploadModule } from './upload/upload.module';
 import { CredentialsModule } from './credentials/credential.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { TweetsModule } from './tweets/tweets.module';
 
 @Module({
   imports: [
@@ -53,6 +55,8 @@ import { CredentialsModule } from './credentials/credential.module';
     StaticFilesModule,
     UploadModule,
     CredentialsModule,
+    MonitoringModule,
+    TweetsModule,
   ],
   controllers: [AppController, UploadController],
   providers: [AppService, GraphqlResolver, UploadService],

@@ -16,16 +16,6 @@ export interface CreatePostDto {
   scheduledFor?: Date;
 }
 
-interface IPublishedPostCreate {
-  post: Post;
-  postId: string; // optional if you use post relation
-  platform: PlatformType;
-  platformPostId: string;
-  platformPostUrl: string;
-  publishMetadata?: Record<string, any>;
-  publishedAt?: Date;
-}
-
 @Injectable()
 export class PostsService {
   private readonly logger = new Logger(PostsService.name);
