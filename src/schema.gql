@@ -87,18 +87,14 @@ type MonitoredProfile {
   xUsername: String!
   xUserId: String!
   displayName: String
-  followerCount: Float!
-  description: String!
+  followerCount: Int
+  description: String
   profileImageUrl: String
   isActive: Boolean!
   lastFetchedAt: DateTime
-
-  """JSON metadata as stringified object"""
-  fetchMetadata: String
+  fetchMetadata: JSON
   createdAt: DateTime!
   updatedAt: DateTime!
-  user: User!
-  tweets: [Tweet!]!
 }
 
 type User {

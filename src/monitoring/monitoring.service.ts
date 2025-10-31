@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DeepPartial, Repository } from 'typeorm';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
 import { TweetsService } from '../tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
@@ -30,10 +30,11 @@ export class MonitoringService {
     id: string;
     username: string;
     displayName: string;
-    profileImage?: string;
     description?: string;
+    profileImage?: string;
     followersCount?: number;
     followingCount?: number;
+    verified?: boolean;
   }> {
     try {
       this.logger.log(`Fetching profile info for @${username}`);
@@ -43,11 +44,12 @@ export class MonitoringService {
       return {
         id: userDetails!.id,
         username: userDetails!.userName,
-        displayName: userDetails!.fullName,
+        displayName: userDetails!.fullName || userDetails!.userName,
+        description: userDetails!.description || '',
         profileImage: userDetails!.profileImage,
-        description: userDetails!.description,
-        followersCount: userDetails!.followersCount,
-        followingCount: userDetails!.followingsCount,
+        followersCount: userDetails!.followersCount || 0,
+        followingCount: userDetails!.followingsCount || 0,
+        verified: userDetails!.isVerified || false,
       };
     } catch (error) {
       this.logger.error(
@@ -92,33 +94,52 @@ export class MonitoringService {
       // Fetch profile info from Twitter
       const profileInfo = await this.getUserProfile(username);
 
-      // Create monitored profile
+      this.logger.log(`Profile info fetched: ${JSON.stringify(profileInfo)}`);
+
+      // Create monitored profile with proper field mapping
       const profile = this.monitoredProfileRepository.create({
         userId,
         xUsername: username,
         xUserId: profileInfo.id,
         displayName: profileInfo.displayName,
-        profileImageUrl: profileInfo.profileImage,
+        description: profileInfo.description || null,
+        profileImageUrl: profileInfo.profileImage || null,
+        followerCount: profileInfo.followersCount || 0, // ✅ Map to column
         isActive: true,
         fetchMetadata: {
-          description: profileInfo.description,
-          followersCount: profileInfo.followersCount,
-          followingCount: profileInfo.followingCount,
-          addedAt: new Date(),
+          followingCount: profileInfo.followingCount || 0,
+          verified: profileInfo.verified || false,
+          addedAt: new Date().toISOString(),
         },
-      });
+      } as DeepPartial<MonitoredProfile>);
+
+      this.logger.log(
+        `Creating profile with data: ${JSON.stringify({
+          username: profile.xUsername,
+          displayName: profile.displayName,
+          followerCount: profile.followerCount,
+        })}`,
+      );
 
       const savedProfile = await this.monitoredProfileRepository.save(profile);
-      this.logger.log(`Created monitored profile: @${username}`);
+      this.logger.log(
+        `Created monitored profile: @${username} (ID: ${savedProfile[0].id})`,
+      );
 
       // Fetch initial tweets (last 20)
       if (data.fetchTweets !== false) {
-        await this.fetchAndStoreTweets(savedProfile.id);
+        try {
+          await this.fetchAndStoreTweets(savedProfile[0].id);
+        } catch (tweetError) {
+          this.logger.error(`Failed to fetch tweets: ${tweetError.message}`);
+          // Don't fail the entire operation if tweet fetching fails
+        }
       }
 
-      return savedProfile;
+      return savedProfile[0];
     } catch (error) {
       this.logger.error(`Error adding profile @${username}: ${error.message}`);
+      this.logger.error(`Stack trace: ${error.stack}`);
       throw error;
     }
   }
@@ -160,6 +181,11 @@ export class MonitoringService {
         count,
       );
 
+      if (!rettiwtTweets || rettiwtTweets.length === 0) {
+        this.logger.warn(`No tweets found for @${profile.xUsername}`);
+        return 0;
+      }
+
       // Convert to our Tweet entities
       const tweets = rettiwtTweets.map((rt) =>
         this.tweetsService.convertRettiwtTweetToEntity(rt, profile.id),
@@ -174,6 +200,7 @@ export class MonitoringService {
         ...profile.fetchMetadata,
         lastFetchCount: savedTweets.length,
         lastFetchStatus: 'success',
+        lastFetchTime: new Date().toISOString(),
         totalTweetsFetched:
           (profile.fetchMetadata?.totalTweetsFetched || 0) + savedTweets.length,
       };
@@ -188,12 +215,14 @@ export class MonitoringService {
       this.logger.error(
         `Error fetching tweets for @${profile.xUsername}: ${error.message}`,
       );
+      this.logger.error(`Stack trace: ${error.stack}`);
 
       // Update error status
       profile.fetchMetadata = {
         ...profile.fetchMetadata,
         lastFetchStatus: 'error',
         lastFetchError: error.message,
+        lastFetchTime: new Date().toISOString(),
       };
       await this.monitoredProfileRepository.save(profile);
 
@@ -250,6 +279,39 @@ export class MonitoringService {
   }
 
   /**
+   * Update profile information from Twitter
+   */
+  async updateProfileInfo(profileId: string): Promise<MonitoredProfile> {
+    const profile = await this.monitoredProfileRepository.findOne({
+      where: { id: profileId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    try {
+      const profileInfo = await this.getUserProfile(profile.xUsername);
+
+      profile.displayName = profileInfo.displayName;
+      profile.description = profileInfo.description!;
+      profile.profileImageUrl = profileInfo.profileImage!;
+      profile.followerCount = profileInfo.followersCount || 0;
+      profile.fetchMetadata = {
+        ...profile.fetchMetadata,
+        followingCount: profileInfo.followingCount || 0,
+        verified: profileInfo.verified || false,
+        lastProfileUpdate: new Date().toISOString(),
+      };
+
+      return this.monitoredProfileRepository.save(profile);
+    } catch (error) {
+      this.logger.error(`Failed to update profile info: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Refresh tweets for all active profiles
    */
   async refreshAllProfiles(): Promise<{ success: number; failed: number }> {
@@ -272,6 +334,9 @@ export class MonitoringService {
         );
         failed++;
       }
+
+      // Add delay to avoid rate limiting
+      await this.delay(2000); // 2 second delay between requests
     }
 
     this.logger.log(`Refresh complete: ${success} success, ${failed} failed`);
@@ -292,5 +357,12 @@ export class MonitoringService {
     const stats = await this.tweetsService.getTweetStats(profileId);
 
     return { profile, stats };
+  }
+
+  /**
+   * Helper: Delay execution
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

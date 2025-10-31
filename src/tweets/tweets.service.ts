@@ -143,7 +143,10 @@ export class TweetsService {
   private extractMentions(tweet: RettiwtTweet): string[] {
     const mentions: string[] = [];
 
-    if (tweet.entities?.mentionedUsers && Array.isArray(tweet.entities.mentionedUsers)) {
+    if (
+      tweet.entities?.mentionedUsers &&
+      Array.isArray(tweet.entities.mentionedUsers)
+    ) {
       tweet.entities.mentionedUsers.forEach((mention: any) => {
         if (mention.username) {
           mentions.push(mention.username);

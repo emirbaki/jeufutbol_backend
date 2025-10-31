@@ -8,18 +8,19 @@ import {
   JoinColumn,
   OneToMany,
 } from 'typeorm';
-import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { User } from './user.entity';
 import { Tweet } from './tweet.entity';
+import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
+import GraphQLJSON from 'graphql-type-json';
 
-@ObjectType() // <-- Expose this entity as a GraphQL type
+@ObjectType()
 @Entity('monitored_profiles')
 export class MonitoredProfile {
   @Field(() => ID)
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Field(() => String)
+  @Field()
   @Column({ type: 'uuid' })
   userId: string;
 
@@ -33,19 +34,19 @@ export class MonitoredProfile {
 
   @Field({ nullable: true })
   @Column({ nullable: true })
-  displayName?: string;
+  displayName: string;
 
-  @Field()
-  @Column()
+  @Field(() => Int, { nullable: true })
+  @Column({ type: 'int', nullable: true, default: 0 })
   followerCount: number;
 
-  @Field()
-  @Column()
+  @Field({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   description: string;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
-  profileImageUrl?: string;
+  @Column({ type: 'text', nullable: true })
+  profileImageUrl: string;
 
   @Field()
   @Column({ default: true })
@@ -53,14 +54,11 @@ export class MonitoredProfile {
 
   @Field({ nullable: true })
   @Column({ nullable: true })
-  lastFetchedAt?: Date;
+  lastFetchedAt: Date;
 
-  @Field(() => String, {
-    nullable: true,
-    description: 'JSON metadata as stringified object',
-  })
+  @Field(() => GraphQLJSON, { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
-  fetchMetadata?: Record<string, any>;
+  fetchMetadata: Record<string, any>;
 
   @Field()
   @CreateDateColumn()
@@ -70,16 +68,12 @@ export class MonitoredProfile {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  // --- RELATIONS ---
-
-  @Field(() => User)
   @ManyToOne(() => User, (user) => user.monitoredProfiles, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Field(() => [Tweet])
   @OneToMany(() => Tweet, (tweet) => tweet.monitoredProfile)
   tweets: Tweet[];
 }

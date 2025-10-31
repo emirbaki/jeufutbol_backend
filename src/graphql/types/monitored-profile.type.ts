@@ -1,4 +1,5 @@
-import { ObjectType, Field, ID } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
+import { GraphQLJSONObject } from 'graphql-type-json';
 
 @ObjectType()
 export class MonitoredProfileType {
@@ -14,6 +15,12 @@ export class MonitoredProfileType {
   @Field({ nullable: true })
   displayName?: string;
 
+  @Field(() => Int, { nullable: true, description: 'Number of followers' })
+  followerCount?: number;
+
+  @Field({ nullable: true, description: 'Profile bio/description' })
+  description?: string;
+
   @Field({ nullable: true })
   profileImageUrl?: string;
 
@@ -23,8 +30,14 @@ export class MonitoredProfileType {
   @Field({ nullable: true })
   lastFetchedAt?: Date;
 
+  @Field(() => GraphQLJSONObject, { nullable: true })
+  fetchMetadata?: Record<string, any>;
+
   @Field()
   createdAt: Date;
+
+  @Field()
+  updatedAt: Date;
 }
 
 @ObjectType()
