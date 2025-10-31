@@ -19,7 +19,9 @@ export class MonitoringService {
     @InjectRepository(MonitoredProfile)
     private monitoredProfileRepository: Repository<MonitoredProfile>,
     private tweetsService: TweetsService,
-  ) {}
+  ) {
+    this.rettiwt = tweetsService.rettiwt;
+  }
 
   /**
    * Get user profile info from Twitter
