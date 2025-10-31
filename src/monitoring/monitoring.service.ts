@@ -123,20 +123,20 @@ export class MonitoringService {
 
       const savedProfile = await this.monitoredProfileRepository.save(profile);
       this.logger.log(
-        `Created monitored profile: @${username} (ID: ${savedProfile[0].id})`,
+        `Created monitored profile: @${username} (ID: ${savedProfile.id})`,
       );
 
       // Fetch initial tweets (last 20)
       if (data.fetchTweets !== false) {
         try {
-          await this.fetchAndStoreTweets(savedProfile[0].id);
+          await this.fetchAndStoreTweets(savedProfile.id);
         } catch (tweetError) {
           this.logger.error(`Failed to fetch tweets: ${tweetError.message}`);
           // Don't fail the entire operation if tweet fetching fails
         }
       }
 
-      return savedProfile[0];
+      return savedProfile;
     } catch (error) {
       this.logger.error(`Error adding profile @${username}: ${error.message}`);
       this.logger.error(`Stack trace: ${error.stack}`);
