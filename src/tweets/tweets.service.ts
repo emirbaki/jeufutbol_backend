@@ -19,14 +19,14 @@ const API_KEY: string = process.env.RETTIWT_API_KEY || '';
 export class TweetsService {
   private readonly logger = new Logger(TweetsService.name);
 
-  public rettiwt: Rettiwt = new Rettiwt({ apiKey: API_KEY });
+  public rettiwt: Rettiwt;
 
   constructor(
     @InjectRepository(Tweet)
     private tweetRepository: Repository<Tweet>,
   ) {
     // Initialize Rettiwt-API (no auth needed for public tweets)
-    this.rettiwt = new Rettiwt();
+    this.rettiwt = new Rettiwt({ apiKey: API_KEY });
     this.logger.log('Rettiwt-API initialized');
   }
 
