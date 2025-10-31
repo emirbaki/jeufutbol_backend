@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository } from 'typeorm';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
@@ -18,6 +18,7 @@ export class MonitoringService {
   constructor(
     @InjectRepository(MonitoredProfile)
     private monitoredProfileRepository: Repository<MonitoredProfile>,
+    @Inject()
     private tweetsService: TweetsService,
   ) {
     this.rettiwt = tweetsService.rettiwt;
