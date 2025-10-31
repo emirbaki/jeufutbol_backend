@@ -18,7 +18,6 @@ export class MonitoringService {
   constructor(
     @InjectRepository(MonitoredProfile)
     private monitoredProfileRepository: Repository<MonitoredProfile>,
-    @Inject()
     private tweetsService: TweetsService,
   ) {}
 
