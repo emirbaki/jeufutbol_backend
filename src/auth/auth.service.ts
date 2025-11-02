@@ -76,7 +76,10 @@ export class AuthService {
 
   async validateUser(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user || !user.isActive) {
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    if (!user.isActive) {
       throw new UnauthorizedException('User not found or inactive');
     }
     return user;

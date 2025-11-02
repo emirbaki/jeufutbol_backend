@@ -19,6 +19,7 @@ import { UploadModule } from './upload/upload.module';
 import { CredentialsModule } from './credentials/credential.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { TweetsModule } from './tweets/tweets.module';
+import { AIInsightsModule } from './insights/ai-insights.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { TweetsModule } from './tweets/tweets.module';
     CredentialsModule,
     TweetsModule,
     MonitoringModule,
+    AIInsightsModule,
   ],
   controllers: [AppController, UploadController],
   providers: [AppService, GraphqlResolver, UploadService],

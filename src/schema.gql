@@ -159,6 +159,7 @@ type Query {
   getMonitoredProfile(profileId: String!): MonitoredProfile!
   getProfileTweets(profileId: String!, limit: Int): [Tweet!]!
   getProfileStats(profileId: String!): JSON!
+  analyzeTrends(topic: String, timeRange: String): JSON!
 }
 
 type Mutation {
@@ -172,6 +173,9 @@ type Mutation {
   addMonitoredProfile(xUsername: String!): MonitoredProfile!
   removeMonitoredProfile(profileId: String!): Boolean!
   refreshProfileTweets(profileId: String!): Int!
+  generateAIInsights(topic: String, llmProvider: String): [Insight!]!
+  generatePostTemplate(insights: [String!]!, platform: String!, tone: String): JSON!
+  indexTweetsToVector(profileId: String!): Int!
 }
 
 input CreatePostInput {
