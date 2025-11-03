@@ -185,11 +185,11 @@ Posts data:
 ${JSON.stringify(tweetsSummary, null, 2)}
 
 Generate exactly 5 different types of insights:
-1. TRENDING_TOPIC: Identify what's currently trending
-2. CONTENT_SUGGESTION: Suggest specific content ideas
-3. ENGAGEMENT_PATTERN: Analyze what drives engagement
-4. OPTIMAL_POSTING_TIME: Suggest best times to post
-5. AUDIENCE_INTEREST: Identify what the audience cares about
+1. trending_topic: Identify what's currently trending
+2. content_suggestion: Suggest specific content ideas
+3. engagement_pattern: Analyze what drives engagement
+4. optimal_posting_time: Suggest best times to post
+5. audience_interest: Identify what the audience cares about
 
 For each insight, provide:
 - type: One of the insight types above
