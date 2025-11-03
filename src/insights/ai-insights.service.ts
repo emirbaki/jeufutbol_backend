@@ -202,8 +202,8 @@ Return ONLY a valid JSON array of insights, no additional text.`;
 
     try {
       const response = await this.llmService.generateCompletion(
-        prompt,
         userId,
+        prompt,
         llmProvider || LLMTypes.OPENAI,
       );
 
