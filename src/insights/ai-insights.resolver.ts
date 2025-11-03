@@ -60,4 +60,12 @@ export class AIInsightsResolver {
   ) {
     return this.aiInsightsService.indexTweetsToVectorDb(profileId);
   }
+
+  @Query(() => [Insight])
+  async getInsights(
+    @CurrentUser() user: User,
+    @Args('limit', { nullable: true }) limit?: number,
+  ) {
+    return this.aiInsightsService.getInsightsForUser(user.id, limit);
+  }
 }
