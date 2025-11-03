@@ -289,6 +289,8 @@ Include suggested hashtags and estimate the potential reach.
 
 Return as JSON with: content, hashtags (array), estimatedReach
 
+Content should be in Turkish.
+
 Example format:
 {
   "content": "Your post content here...",
