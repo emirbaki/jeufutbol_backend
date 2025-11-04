@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import { PostGateway } from './post-base.gateway';
 import { PlatformType } from 'src/entities/social-account.entity';
 import { TweetsService } from 'src/tweets/tweets.service';
