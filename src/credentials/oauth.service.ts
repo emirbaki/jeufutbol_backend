@@ -58,8 +58,8 @@ export class OAuthService {
       [
         PlatformName.TWITTER,
         {
-          clientId: this.configService.get('TWITTER_CLIENT_ID')!,
-          clientSecret: this.configService.get('TWITTER_CLIENT_SECRET')!,
+          clientId: this.configService.get('X_CLIENT_ID')!,
+          clientSecret: this.configService.get('X_CLIENT_SECRET')!,
           authUrl: 'https://twitter.com/i/oauth2/authorize',
           tokenUrl: 'https://api.twitter.com/2/oauth2/token',
           redirectUri: `${baseUrl}/api/credentials/oauth/callback`,
