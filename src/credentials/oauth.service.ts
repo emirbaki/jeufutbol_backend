@@ -56,7 +56,7 @@ export class OAuthService {
 
     this.configs = new Map([
       [
-        PlatformName.TWITTER,
+        PlatformName.X,
         {
           clientId: this.configService.get('X_CLIENT_ID')!,
           clientSecret: this.configService.get('X_CLIENT_SECRET')!,
@@ -140,7 +140,7 @@ export class OAuthService {
     // }
 
     // Platform-specific additions
-    if (platform === PlatformName.TWITTER) {
+    if (platform === PlatformName.X) {
       params.append('code_challenge', 'challenge');
       params.append('code_challenge_method', 'plain');
       params.set('scope', config.scope.join('%20'));
@@ -174,7 +174,7 @@ export class OAuthService {
       redirect_uri: config.redirectUri,
     });
 
-    if (platform === PlatformName.TWITTER) {
+    if (platform === PlatformName.X) {
       params.set('code_verifier', 'challenge');
     }
     const credentials = Buffer.from(
@@ -187,7 +187,7 @@ export class OAuthService {
     const response = await firstValueFrom(
       this.httpService.post(config.tokenUrl, params.toString(), {
         headers:
-          platform === PlatformName.TWITTER
+          platform === PlatformName.X
             ? headers
             : {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -215,7 +215,7 @@ export class OAuthService {
     image?: string;
   }> {
     switch (platform) {
-      case PlatformName.TWITTER:
+      case PlatformName.X:
         return this.getTwitterAccountInfo(accessToken);
       case PlatformName.FACEBOOK:
         return this.getFacebookAccountInfo(accessToken);

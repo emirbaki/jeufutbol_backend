@@ -17,7 +17,7 @@ export enum CredentialType {
 }
 
 export enum PlatformName {
-  TWITTER = 'twitter',
+  X = 'x',
   INSTAGRAM = 'instagram',
   FACEBOOK = 'facebook',
   TIKTOK = 'tiktok',

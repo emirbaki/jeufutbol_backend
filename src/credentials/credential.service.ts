@@ -193,7 +193,7 @@ export class CredentialsService {
   }> {
     // Implement platform-specific refresh logic
     switch (platform) {
-      case PlatformName.TWITTER:
+      case PlatformName.X:
         return this.refreshTwitterToken(refreshToken);
       case PlatformName.FACEBOOK:
       case PlatformName.INSTAGRAM:
@@ -248,7 +248,7 @@ export class CredentialsService {
 
     // Test based on platform
     switch (credential!.platform) {
-      case PlatformName.TWITTER:
+      case PlatformName.X:
         return this.testTwitterConnection(accessToken);
       case PlatformName.FACEBOOK:
         return this.testFacebookConnection(accessToken);
