@@ -60,8 +60,8 @@ export class OAuthService {
         {
           clientId: this.configService.get('X_CLIENT_ID')!,
           clientSecret: this.configService.get('X_CLIENT_SECRET')!,
-          authUrl: 'https://twitter.com/i/oauth2/authorize',
-          tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+          authUrl: 'https://x.com/i/oauth2/authorize',
+          tokenUrl: 'https://api.x.com/2/oauth2/token',
           redirectUri: `${baseUrl}/api/credentials/oauth/callback`,
           scope: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
         },
