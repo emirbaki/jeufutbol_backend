@@ -174,6 +174,10 @@ export class OAuthService {
       redirect_uri: config.redirectUri,
     });
 
+    if (platform === PlatformName.TWITTER) {
+      params.set('code_verifier', 'challenge');
+    }
+
     const response = await firstValueFrom(
       this.httpService.post(config.tokenUrl, params.toString(), {
         headers: {
