@@ -2,10 +2,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { PostGateway } from './post-base.gateway';
 import { PlatformType } from 'src/entities/social-account.entity';
+import { TweetsService } from 'src/tweets/tweets.service';
+import { Rettiwt } from 'rettiwt-api';
+import { TwitterApi } from 'twitter-api-v2';
 
 @Injectable()
 export class XPostGateway implements PostGateway {
   private readonly logger = new Logger(XPostGateway.name);
+
+  private twitterClient = new TwitterApi();
+  private rettiwt: Rettiwt;
+  constructor(private tweetsService: TweetsService) {
+    this.rettiwt = tweetsService.rettiwt;
+  }
 
   async notifyPostPublished(
     postId: string,
@@ -27,17 +36,39 @@ export class XPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
-    media?: any,
+    media?: string[],
   ): Promise<any> {
     try {
-      const res = await axios.post(
-        'https://api.x.com/2/tweets',
-        { text: content },
-        { headers: { Authorization: `Bearer ${access_token}` } },
-      );
+      this.twitterClient = new TwitterApi(access_token);
+      const uploadStrings: string[] = [];
+      if (media !== undefined && media.length > 4) {
+        this.logger.log(`[X] A tweet only can have 4 images:`);
+      }
 
-      this.logger.log(`[X] Tweet created successfully: ${res.data.data?.id}`);
-      return res.data.data;
+      if (media && media.length > 0) {
+        // upload up to 4 media items sequentially
+        const toUpload = media.slice(0, 4);
+        for (const mediaString of toUpload) {
+          const res = await this.twitterClient.v1.uploadMedia(mediaString);
+          uploadStrings.push(res);
+        }
+      }
+
+      const payload: any = { text: content };
+      if (uploadStrings.length > 0) {
+        payload.media = { media_ids: uploadStrings };
+      }
+      const _post = await this.twitterClient.v2.tweet(payload);
+      const details = await this.rettiwt.tweet.details(_post.data.id);
+      // const post = await this.rettiwt.tweet.post({
+      //   text: content,
+      //   media: uploadStrings.map((val) => {
+      //     return { id: val };
+      //   }),
+      // });
+
+      this.logger.log(`[X] Tweet created successfully: ${_post.data.id}`);
+      return { id: _post.data.id, url: details?.url };
     } catch (err: any) {
       await this.notifyPostFailed('unknown', err.message);
       throw err;

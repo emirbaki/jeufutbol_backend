@@ -16,6 +16,7 @@ import { CredentialsService } from 'src/credentials/credential.service';
 import { CredentialsModule } from 'src/credentials/credential.module';
 import { UploadModule } from 'src/upload/upload.module';
 import { UploadService } from 'src/upload/upload.service';
+import { TweetsModule } from 'src/tweets/tweets.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { UploadService } from 'src/upload/upload.service';
     HttpModule,
     CredentialsModule,
     UploadModule,
+    TweetsModule,
   ],
   providers: [
     UploadService,

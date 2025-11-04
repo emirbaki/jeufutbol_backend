@@ -160,6 +160,7 @@ type Query {
   getProfileTweets(profileId: String!, limit: Int): [Tweet!]!
   getProfileStats(profileId: String!): JSON!
   analyzeTrends(topic: String, timeRange: String): JSON!
+  getInsights(limit: Float): [Insight!]!
 }
 
 type Mutation {
