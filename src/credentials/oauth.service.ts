@@ -178,7 +178,7 @@ export class OAuthService {
       params.set('code_verifier', 'challenge');
     }
     const credentials = Buffer.from(
-      `${this.configService.get('X_CLIENT_SECRET')}:${this.configService.get('X_CLIENT_SECRET')}`,
+      `${this.configService.get('X_CLIENT_ID')}:${this.configService.get('X_CLIENT_SECRET')}`,
     ).toString('base64');
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded',
