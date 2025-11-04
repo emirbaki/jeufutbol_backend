@@ -141,8 +141,8 @@ export class OAuthService {
 
     // Platform-specific additions
     if (platform === PlatformName.TWITTER) {
-      params.append('code_challenge', 'challenge');
-      params.append('code_challenge_method', 'plain');
+      // params.append('code_challenge', 'challenge');
+      // params.append('code_challenge_method', 'plain');
     }
     console.log(`${config.authUrl}?${decodeURIComponent(params.toString())}`);
     return `${config.authUrl}?${decodeURIComponent(params.toString())}`;
