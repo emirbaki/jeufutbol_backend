@@ -177,12 +177,21 @@ export class OAuthService {
     if (platform === PlatformName.TWITTER) {
       params.set('code_verifier', 'challenge');
     }
-
+    const credentials = Buffer.from(
+      `${this.configService.get('X_CLIENT_SECRET')}:${this.configService.get('X_CLIENT_SECRET')}`,
+    ).toString('base64');
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${credentials}`,
+    };
     const response = await firstValueFrom(
       this.httpService.post(config.tokenUrl, params.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers:
+          platform === PlatformName.TWITTER
+            ? headers
+            : {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
       }),
     );
 
@@ -220,7 +229,7 @@ export class OAuthService {
 
   private async getTwitterAccountInfo(accessToken: string) {
     const response = await firstValueFrom(
-      this.httpService.get('https://api.twitter.com/2/users/me', {
+      this.httpService.get('https://api.x.com/2/users/me', {
         headers: { Authorization: `Bearer ${accessToken}` },
         params: { 'user.fields': 'profile_image_url' },
       }),
