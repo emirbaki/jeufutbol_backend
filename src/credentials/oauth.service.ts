@@ -104,7 +104,13 @@ export class OAuthService {
           authUrl: 'https://www.tiktok.com/v2/auth/authorize/',
           tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
           redirectUri: `${baseUrl}/api/credentials/oauth/callback`,
-          scope: ['user.info.basic', 'video.upload', 'user.info.profile', 'user.info.stats', 'video.list'],
+          scope: [
+            'user.info.basic',
+            'video.upload',
+            'user.info.profile',
+            'user.info.stats',
+            'video.list',
+          ],
         },
       ],
     ]);
@@ -173,7 +179,7 @@ export class OAuthService {
     if (!config) {
       throw new Error(`OAuth not configured for ${platform}`);
     }
-    
+
     let params = new URLSearchParams({
       client_id: config.clientId,
       client_secret: config.clientSecret,
@@ -307,9 +313,9 @@ export class OAuthService {
     );
 
     return {
-      id: response.data.user.open_id,
-      name: response.data.user.username,
-      image: response.data.user.avatar_url,
+      id: response.data.data.user.open_id,
+      name: response.data.data.user.username,
+      image: response.data.data.user.avatar_url,
     };
   }
 }
