@@ -119,7 +119,7 @@ export class OAuthService {
       throw new Error(`OAuth not configured for ${platform}`);
     }
 
-    const params = new URLSearchParams({
+    let params = new URLSearchParams({
       client_id: config.clientId,
       redirect_uri: config.redirectUri,
       response_type: 'code',
@@ -144,10 +144,14 @@ export class OAuthService {
       params.append('code_challenge', 'challenge');
       params.append('code_challenge_method', 'plain');
       params.set('scope', config.scope.join('%20'));
-    }
-    else if(platform === PlatformName.TIKTOK){
-      params.append('client_key', config.clientId);
-      params.delete('client_id');
+    } else if (platform === PlatformName.TIKTOK) {
+      params = new URLSearchParams({
+        client_key: config.clientId,
+        redirect_uri: config.redirectUri,
+        response_type: 'code',
+        scope: config.scope.join(','),
+        state,
+      });
     }
     console.log(`${config.authUrl}?${decodeURIComponent(params.toString())}`);
     return `${config.authUrl}?${decodeURIComponent(params.toString())}`;
