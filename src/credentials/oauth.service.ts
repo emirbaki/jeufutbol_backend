@@ -174,7 +174,7 @@ export class OAuthService {
       throw new Error(`OAuth not configured for ${platform}`);
     }
 
-    const params = new URLSearchParams({
+    let params = new URLSearchParams({
       client_id: config.clientId,
       client_secret: config.clientSecret,
       code,
@@ -184,6 +184,14 @@ export class OAuthService {
 
     if (platform === PlatformName.X) {
       params.set('code_verifier', 'challenge');
+    } else if (platform === PlatformName.TIKTOK) {
+      params = new URLSearchParams({
+        client_key: config.clientId,
+        client_secret: config.clientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: config.redirectUri,
+      });
     }
     const credentials = Buffer.from(
       `${this.configService.get('X_CLIENT_ID')}:${this.configService.get('X_CLIENT_SECRET')}`,
