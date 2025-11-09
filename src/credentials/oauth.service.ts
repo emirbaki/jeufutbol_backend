@@ -301,6 +301,7 @@ export class OAuthService {
           fields: 'open_id,username,avatar_url',
         },
         headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
           Authorization: `Bearer ${accessToken}`,
         },
       }),
