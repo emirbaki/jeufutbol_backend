@@ -296,7 +296,7 @@ export class OAuthService {
 
   private async getTiktokAccountInfo(accessToken: string) {
     const response = await firstValueFrom(
-      this.httpService.get('https://open-api.tiktok.com/user/info/', {
+      this.httpService.get('https://open.tiktokapis.com/v2/user/info/', {
         params: {
           access_token: accessToken,
           fields: 'open_id,username,avatar_url',
