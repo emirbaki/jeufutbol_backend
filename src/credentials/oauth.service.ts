@@ -307,9 +307,9 @@ export class OAuthService {
     );
 
     return {
-      id: response.data.open_id,
-      name: response.data.username,
-      image: response.data.avatar_url,
+      id: response.data.user.open_id,
+      name: response.data.user.username,
+      image: response.data.user.avatar_url,
     };
   }
 }
