@@ -145,6 +145,10 @@ export class OAuthService {
       params.append('code_challenge_method', 'plain');
       params.set('scope', config.scope.join('%20'));
     }
+    else if(platform === PlatformName.TIKTOK){
+      params.append('client_key', config.clientId);
+      params.delete('client_id');
+    }
     console.log(`${config.authUrl}?${decodeURIComponent(params.toString())}`);
     return `${config.authUrl}?${decodeURIComponent(params.toString())}`;
   }
