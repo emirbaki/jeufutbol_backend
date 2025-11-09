@@ -298,8 +298,10 @@ export class OAuthService {
     const response = await firstValueFrom(
       this.httpService.get('https://open.tiktokapis.com/v2/user/info/', {
         params: {
-          access_token: accessToken,
           fields: 'open_id,username,avatar_url',
+        },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
         },
       }),
     );
