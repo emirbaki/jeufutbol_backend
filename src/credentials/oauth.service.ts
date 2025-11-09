@@ -104,7 +104,7 @@ export class OAuthService {
           authUrl: 'https://www.tiktok.com/v2/auth/authorize/',
           tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
           redirectUri: `${baseUrl}/api/credentials/oauth/callback`,
-          scope: ['user.info.basic', 'video.upload', 'video.publish'],
+          scope: ['user.info.basic', 'video.upload'],
         },
       ],
     ]);
