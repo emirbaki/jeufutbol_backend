@@ -229,6 +229,8 @@ export class OAuthService {
         return this.getFacebookAccountInfo(accessToken);
       case PlatformName.INSTAGRAM:
         return this.getInstagramAccountInfo(accessToken);
+      case PlatformName.TIKTOK:
+        return this.getTiktokAccountInfo(accessToken);
       // Add other platforms
       default:
         throw new Error(`Account info not implemented for ${platform}`);
@@ -272,7 +274,7 @@ export class OAuthService {
       this.httpService.get('https://graph.instagram.com/me', {
         params: {
           access_token: accessToken,
-          fields: 'id,username',
+          fields: 'id,username,profile_picture_url',
         },
       }),
     );
@@ -280,6 +282,24 @@ export class OAuthService {
     return {
       id: response.data.id,
       name: response.data.username,
+      image: response.data.profile_picture_url,
+    };
+  }
+
+  private async getTiktokAccountInfo(accessToken: string) {
+    const response = await firstValueFrom(
+      this.httpService.get('https://open-api.tiktok.com/user/info/', {
+        params: {
+          access_token: accessToken,
+          fields: 'open_id,username,avatar_url',
+        },
+      }),
+    );
+
+    return {
+      id: response.data.open_id,
+      name: response.data.username,
+      image: response.data.avatar_url,
     };
   }
 }
