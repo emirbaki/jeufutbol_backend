@@ -44,7 +44,7 @@ export class XPostGateway implements PostGateway {
         appKey: process.env.X_API_KEY!,
         appSecret: process.env.X_API_SECRET!,
         accessToken: access_token,
-        accessSecret: access_secret,
+        accessSecret: access_secret!,
       });
       const uploadStrings: string[] = [];
       if (media !== undefined && media.length > 4) {
