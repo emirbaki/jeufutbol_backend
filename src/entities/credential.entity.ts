@@ -60,7 +60,7 @@ export class Credential {
   accessToken: string | null;
 
   @Field(() => String, { nullable: true })
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   accessSecret: string | null;
 
   @Field(() => Date, { nullable: true })
