@@ -5,7 +5,6 @@ import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';
 // import fs from 'fs';
-import fetch from 'node-fetch';
 @Injectable()
 export class XPostGateway implements PostGateway {
   private readonly logger = new Logger(XPostGateway.name);
@@ -61,7 +60,6 @@ export class XPostGateway implements PostGateway {
             },
           );
           uploadStrings.push(res);
-          this.logger.log(`[X] res: ${res}`);
         }
       }
 
