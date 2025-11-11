@@ -58,6 +58,7 @@ export class XPostGateway implements PostGateway {
             mimeType: fileType,
           });
           uploadStrings.push(res);
+          this.logger.log(`[X] res: ${res}`);
         }
       }
 
