@@ -5,6 +5,7 @@ import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';
 import fetch from 'node-fetch';
+import axios from 'axios';
 // import fs from 'fs';
 @Injectable()
 export class XPostGateway implements PostGateway {
@@ -55,16 +56,20 @@ export class XPostGateway implements PostGateway {
               ? 'image/jpeg'
               : 'video/mp4';
           this.logger.log(`[X] media type: ${fileType}`);
+          const downStream = await axios({
+            method: 'GET',
+            responseType: 'arraybuffer',
+            url: mediaString,
+          }).catch(function (error) {
+            res.send({ error: error });
+          });
           const response = await fetch(mediaString);
           const buffer = await response.arrayBuffer();
           // this.twitterClient.v2.uploadMedia()
           this.logger.log(`[X] buffered media size: ${buffer.byteLength}`);
-          const res = await this.twitterClient.v2.uploadMedia(
-            Buffer.from(buffer),
-            {
-              media_type: fileType,
-            },
-          );
+          const res = await this.twitterClient.v2.uploadMedia(downStream.data, {
+            media_type: fileType,
+          });
           uploadStrings.push(res);
         }
       }
