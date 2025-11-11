@@ -49,7 +49,10 @@ export class XPostGateway implements PostGateway {
         const toUpload = media.slice(0, 4);
         for (const mediaString of toUpload) {
           // const mediaBuffer = fs.readFileSync(mediaString);
-          const fileType = mediaString.match('.jpg') ? 'image/jpeg' : 'video/mp4';
+          const fileType =
+            mediaString.endsWith('.jpg') || mediaString.endsWith('.jpeg')
+              ? 'image/jpeg'
+              : 'video/mp4';
           this.logger.log(`[X] media type: ${fileType}`);
           const response = await fetch(mediaString);
           const buffer = await response.arrayBuffer();
