@@ -4,7 +4,8 @@ import { PlatformType } from 'src/entities/social-account.entity';
 import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';
-
+// import fs from 'fs';
+import fetch from 'node-fetch';
 @Injectable()
 export class XPostGateway implements PostGateway {
   private readonly logger = new Logger(XPostGateway.name);
@@ -48,7 +49,10 @@ export class XPostGateway implements PostGateway {
         // upload up to 4 media items sequentially
         const toUpload = media.slice(0, 4);
         for (const mediaString of toUpload) {
-          const res = await this.twitterClient.v1.uploadMedia(mediaString);
+          // const mediaBuffer = fs.readFileSync(mediaString);
+          const response = await fetch(mediaString);
+          const buffer = await response.buffer();
+          const res = await this.twitterClient.v1.uploadMedia(buffer);
           uploadStrings.push(res);
         }
       }
