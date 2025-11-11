@@ -40,12 +40,13 @@ export class XPostGateway implements PostGateway {
     media?: string[],
   ): Promise<any> {
     try {
-      this.twitterClient = new TwitterApi({
-        appKey: process.env.X_API_KEY!,
-        appSecret: process.env.X_API_SECRET!,
-        accessToken: access_token,
-        accessSecret: access_secret!,
-      });
+      // this.twitterClient = new TwitterApi({
+      //   appKey: process.env.X_API_KEY!,
+      //   appSecret: process.env.X_API_SECRET!,
+      //   accessToken: access_token,
+      //   accessSecret: access_secret!,
+      // });
+      this.twitterClient = new TwitterApi(access_token);
       const uploadStrings: string[] = [];
       if (media !== undefined && media.length > 4) {
         this.logger.log(`[X] A tweet only can have 4 images:`);
