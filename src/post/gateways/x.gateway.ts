@@ -4,6 +4,7 @@ import { PlatformType } from 'src/entities/social-account.entity';
 import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';
+import fetch from 'node-fetch';
 // import fs from 'fs';
 @Injectable()
 export class XPostGateway implements PostGateway {
@@ -77,7 +78,7 @@ export class XPostGateway implements PostGateway {
       this.logger.log(`[X] Tweet created successfully: ${_post.data.id}`);
       return { id: _post.data.id, url: details?.url };
     } catch (err: any) {
-      await this.notifyPostFailed('unknown', err.data);
+      await this.notifyPostFailed('unknown', err);
       throw err;
     }
   }
