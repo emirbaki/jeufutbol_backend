@@ -51,6 +51,7 @@ export class XPostGateway implements PostGateway {
         for (const mediaString of toUpload) {
           // const mediaBuffer = fs.readFileSync(mediaString);
           const fileType = mediaString.match('.jpg') ? 'jpg' : 'mp4';
+          this.logger.log(`[X] media type: ${fileType}`);
           const response = await fetch(mediaString);
           const buffer = await response.buffer();
           const res = await this.twitterClient.v1.uploadMedia(buffer, {
