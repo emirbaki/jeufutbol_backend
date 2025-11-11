@@ -40,10 +40,10 @@ export class XPostGateway implements PostGateway {
   ): Promise<any> {
     try {
       this.twitterClient = new TwitterApi({
-        appKey: process.env.X_CLIENT_ID!,
-        appSecret: process.env.X_CLIENT_SECRET!,
-        accessToken: access_token,
-        accessSecret: process.env.X_API_SECRET,
+        appKey: process.env.X_API_KEY!,
+        appSecret: process.env.X_API_SECRET!,
+        accessToken: process.env.X_ACCESS_TOKEN,
+        accessSecret: process.env.X_ACCESS_TOKEN_SECRET,
       });
       const uploadStrings: string[] = [];
       if (media !== undefined && media.length > 4) {
