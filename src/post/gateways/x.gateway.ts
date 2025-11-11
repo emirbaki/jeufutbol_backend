@@ -42,7 +42,7 @@ export class XPostGateway implements PostGateway {
       this.twitterClient = new TwitterApi({
         appKey: process.env.X_CLIENT_ID!,
         appSecret: process.env.X_CLIENT_SECRET!,
-        accessToken: process.env.X_API_KEY,
+        accessToken: access_token,
         accessSecret: process.env.X_API_SECRET,
       });
       const uploadStrings: string[] = [];
