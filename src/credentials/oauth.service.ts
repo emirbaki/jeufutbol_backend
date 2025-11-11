@@ -68,7 +68,7 @@ export class OAuthService {
             'tweet.write',
             'users.read',
             'offline.access',
-            'media.upload',
+            'media.write',
           ],
         },
       ],
