@@ -61,7 +61,7 @@ export class Credential {
 
   @Field(() => String, { nullable: true })
   @Column({ nullable: true })
-  accessSecret?: string | null;
+  accessSecret: string | null;
 
   @Field(() => Date, { nullable: true })
   @Column({ type: 'timestamptz', nullable: true })
