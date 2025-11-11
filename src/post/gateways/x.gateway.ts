@@ -83,7 +83,7 @@ export class XPostGateway implements PostGateway {
       this.logger.log(`[X] Tweet created successfully: ${_post.data.id}`);
       return { id: _post.data.id, url: details?.url };
     } catch (err: any) {
-      await this.notifyPostFailed('unknown', err.message);
+      await this.notifyPostFailed('unknown', err);
       throw err;
     }
   }
