@@ -54,7 +54,7 @@ export class XPostGateway implements PostGateway {
           const response = await fetch(mediaString);
           const buffer = await response.buffer();
           const res = await this.twitterClient.v1.uploadMedia(buffer, {
-            type: fileType,
+            mimeType: fileType,
           });
           uploadStrings.push(res);
         }
