@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
 import { LLMService, LLMProvider } from './llm.service';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { User } from 'src/entities/user.entity';
@@ -37,6 +37,13 @@ export class LLMController {
       body.prompt,
       body.provider,
     );
+    return { result: text };
+  }
+
+  @Get()
+  async getAllCredentials(@CurrentUser() user: User) {
+    const userId = user.id;
+    const text = await this.llmService.GetLLMCredentials(userId);
     return { result: text };
   }
 }

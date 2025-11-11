@@ -26,6 +26,15 @@ export class LLMService {
     private readonly credentialRepo: Repository<LlmCredential>,
   ) {}
 
+  async GetLLMCredentials(userId: string): Promise<LlmCredential[]> {
+    const credentials = await this.credentialRepo.find({
+      where: {
+        userId,
+      },
+    });
+    return credentials;
+  }
+
   async saveUserCredentials(
     userId: string,
     data: {
