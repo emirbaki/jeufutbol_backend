@@ -58,6 +58,7 @@ export class XPostGateway implements PostGateway {
           const response = await fetch(mediaString);
           const buffer = await response.arrayBuffer();
           // this.twitterClient.v2.uploadMedia()
+          this.logger.log(`[X] buffered media size: ${buffer.byteLength}`);
           const res = await this.twitterClient.v2.uploadMedia(
             Buffer.from(buffer),
             {
