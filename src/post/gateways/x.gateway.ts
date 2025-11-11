@@ -4,7 +4,6 @@ import { PlatformType } from 'src/entities/social-account.entity';
 import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';
-import fetch from 'node-fetch';
 import axios from 'axios';
 // import fs from 'fs';
 @Injectable()
@@ -89,7 +88,14 @@ export class XPostGateway implements PostGateway {
       this.logger.log(`[X] Tweet created successfully: ${_post.data.id}`);
       return { id: _post.data.id, url: details?.url };
     } catch (err: any) {
-      await this.notifyPostFailed('unknown', err.detail || err.response);
+      this.logger.error(
+        '[X] Tweet failed:',
+        JSON.stringify(err, Object.getOwnPropertyNames(err), 2),
+      );
+      await this.notifyPostFailed(
+        'unknown',
+        err.detail || err.message || JSON.stringify(err),
+      );
       throw err;
     }
   }
