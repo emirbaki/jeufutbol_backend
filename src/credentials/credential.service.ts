@@ -257,7 +257,10 @@ export class CredentialsService {
    */
   async testConnection(credentialId: string, userId: string): Promise<boolean> {
     const credential = await this.getCredential(credentialId, userId);
-    const accessToken = await this.getAccessToken(credentialId, userId);
+    const { accessToken, accessSecret } = await this.getAccessToken(
+      credentialId,
+      userId,
+    );
 
     // Test based on platform
     switch (credential!.platform) {
