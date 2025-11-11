@@ -59,6 +59,10 @@ export class Credential {
   @Column({ type: 'text', nullable: true })
   accessToken: string | null;
 
+  @Field(() => String, { nullable: true })
+  @Column({ nullable: true })
+  accessSecret?: string | null;
+
   @Field(() => Date, { nullable: true })
   @Column({ type: 'timestamptz', nullable: true })
   tokenExpiresAt: Date | null;

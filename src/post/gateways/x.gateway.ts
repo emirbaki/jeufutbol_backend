@@ -36,6 +36,7 @@ export class XPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
+    access_secret?: string,
     media?: string[],
   ): Promise<any> {
     try {
@@ -43,7 +44,7 @@ export class XPostGateway implements PostGateway {
         appKey: process.env.X_API_KEY!,
         appSecret: process.env.X_API_SECRET!,
         accessToken: access_token,
-        accessSecret: process.env.X_ACCESS_TOKEN_SECRET,
+        accessSecret: access_secret,
       });
       const uploadStrings: string[] = [];
       if (media !== undefined && media.length > 4) {

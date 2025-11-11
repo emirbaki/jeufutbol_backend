@@ -32,7 +32,8 @@ export class TiktokPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
-    media: { videoUrl: string },
+    access_secret?: string,
+    media?: { videoUrl: string },
   ): Promise<any> {
     try {
       // Step 1: Initialize upload session
@@ -49,7 +50,7 @@ export class TiktokPostGateway implements PostGateway {
       const { upload_url, publish_id } = initRes.data.data;
 
       // Step 2: Upload the video binary
-      const videoBuffer = await axios.get(media.videoUrl, {
+      const videoBuffer = await axios.get(media!.videoUrl, {
         responseType: 'arraybuffer',
       });
       await axios.put(upload_url, videoBuffer.data, {

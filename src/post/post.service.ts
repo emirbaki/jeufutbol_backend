@@ -115,16 +115,15 @@ export class PostsService {
 
           // Use first available credential
           const credential = credentials[0];
-          const accessToken = await this.credentialsService.getAccessToken(
-            credential.id,
-            userId,
-          );
+          const { accessToken, accessSecret } =
+            await this.credentialsService.getAccessToken(credential.id, userId);
 
           // 2️⃣ Let the gateway handle posting logic
           const result = await gateway.createNewPost(
             userId,
             post.content,
             accessToken,
+            accessSecret,
             post.mediaUrls,
           );
 

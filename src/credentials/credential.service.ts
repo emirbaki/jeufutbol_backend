@@ -69,6 +69,7 @@ export class CredentialsService {
     name: string,
     oauthData: {
       accessToken: string;
+      accessSecret?: string;
       refreshToken?: string;
       expiresIn?: number;
       accountId: string;
@@ -83,6 +84,9 @@ export class CredentialsService {
     credential.type = CredentialType.OAUTH2;
     credential.name = name;
     credential.accessToken = this.encrypt(oauthData.accessToken);
+    credential.accessSecret = oauthData.accessSecret
+      ? this.encrypt(oauthData.accessSecret)
+      : null;
     credential.refreshToken = oauthData.refreshToken
       ? this.encrypt(oauthData.refreshToken)
       : null;
@@ -116,7 +120,10 @@ export class CredentialsService {
   /**
    * Get decrypted access token
    */
-  async getAccessToken(credentialId: string, userId: string): Promise<string> {
+  async getAccessToken(
+    credentialId: string,
+    userId: string,
+  ): Promise<{ accessToken: string; accessSecret: string }> {
     const credential = await this.getCredential(credentialId, userId);
     if (!credential) {
       throw new Error('Credential not found');
@@ -127,7 +134,10 @@ export class CredentialsService {
       if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
         throw new Error('Access token expired and no refresh token available');
       }
-      return this.decrypt(credential.accessToken!);
+      return {
+        accessToken: this.decrypt(credential.accessToken!),
+        accessSecret: this.decrypt(credential.accessSecret!),
+      };
     }
     // Check if token is expired and refresh if needed
     if (this.isTokenExpired(credential)) {
@@ -136,7 +146,10 @@ export class CredentialsService {
       return this.getAccessToken(credentialId, userId);
     }
 
-    return this.decrypt(credential.accessToken!);
+    return {
+      accessToken: this.decrypt(credential.accessToken!),
+      accessSecret: this.decrypt(credential.accessSecret!),
+    };
   }
 
   /**

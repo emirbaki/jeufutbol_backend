@@ -33,7 +33,8 @@ export class InstagramPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
-    media: string[],
+    access_secret?: string,
+    media?: string[],
   ): Promise<any> {
     try {
       const containerIds: string[] = [];
@@ -52,7 +53,7 @@ export class InstagramPostGateway implements PostGateway {
         });
       const accountID = accountID_response.data.user_id;
       //creating multiple media containers for carousel posts or single media post
-      for (const url of media) {
+      for (const url of media!) {
         this.logger.log(`[Instagram] Media URL: ${accountID}`);
         this.logger.log(`[Instagram] Media URL: ${url}`);
         this.logger.log(`[Instagram] Access Token: ${access_token}`);

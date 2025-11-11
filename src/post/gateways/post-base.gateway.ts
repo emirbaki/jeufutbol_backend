@@ -18,6 +18,7 @@ export abstract class PostGateway {
     userId: string,
     content: string,
     access_token: string,
+    access_secret?: string,
     media?: any,
   ): Promise<any>;
 }
