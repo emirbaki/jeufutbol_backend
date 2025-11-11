@@ -63,7 +63,13 @@ export class OAuthService {
           authUrl: 'https://x.com/i/oauth2/authorize',
           tokenUrl: 'https://api.x.com/2/oauth2/token',
           redirectUri: `${baseUrl}/api/credentials/oauth/callback`,
-          scope: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+          scope: [
+            'tweet.read',
+            'tweet.write',
+            'users.read',
+            'offline.access',
+            'media.upload',
+          ],
         },
       ],
       [
@@ -171,6 +177,7 @@ export class OAuthService {
     code: string,
   ): Promise<{
     accessToken: string;
+    accessSecret?: string;
     refreshToken?: string;
     expiresIn: number;
     scope?: string[];
@@ -219,6 +226,7 @@ export class OAuthService {
 
     return {
       accessToken: response.data.access_token,
+      accessSecret: response.data.access_secret,
       refreshToken: response.data.refresh_token,
       expiresIn: response.data.expires_in || 3600,
       scope: response.data.scope?.split(' '),
