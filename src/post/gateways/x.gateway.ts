@@ -56,20 +56,25 @@ export class XPostGateway implements PostGateway {
               ? 'image/jpeg'
               : 'video/mp4';
           this.logger.log(`[X] media type: ${fileType}`);
+
           const downStream = await axios({
             method: 'GET',
             responseType: 'arraybuffer',
             url: mediaString,
-          }).catch(function (error) {
-            res.send({ error: error });
+          }).catch((error) => {
+            this.logger.error('Download failed:', error);
+            throw error; // better throw than silently send in your context
           });
-          const response = await fetch(mediaString);
-          const buffer = await response.arrayBuffer();
-          // this.twitterClient.v2.uploadMedia()
+
+          const buffer = Buffer.from(downStream.data);
+
           this.logger.log(`[X] buffered media size: ${buffer.byteLength}`);
-          const res = await this.twitterClient.v2.uploadMedia(downStream.data, {
-            media_type: fileType,
+
+          const res = await this.twitterClient.v1.uploadMedia(buffer, {
+            mimeType: fileType,
           });
+
+          this.logger.log(`[X] Uploaded media ID: ${res}`);
           uploadStrings.push(res);
         }
       }
