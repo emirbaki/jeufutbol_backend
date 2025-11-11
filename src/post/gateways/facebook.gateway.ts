@@ -29,7 +29,6 @@ export class FacebookPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
-    access_secret?: string,
     media?: string[],
   ): Promise<any> {
     const response = await axios.post(`${GRAPH_API_BASE}/${userId}/feed`, {

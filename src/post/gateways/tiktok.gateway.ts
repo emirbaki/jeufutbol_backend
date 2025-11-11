@@ -32,7 +32,6 @@ export class TiktokPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
-    access_secret?: string,
     media?: { videoUrl: string },
   ): Promise<any> {
     try {

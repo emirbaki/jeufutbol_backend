@@ -36,7 +36,6 @@ export class XPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
-    access_secret?: string,
     media?: string[],
   ): Promise<any> {
     try {

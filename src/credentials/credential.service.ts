@@ -120,10 +120,7 @@ export class CredentialsService {
   /**
    * Get decrypted access token
    */
-  async getAccessToken(
-    credentialId: string,
-    userId: string,
-  ): Promise<{ accessToken: string; accessSecret: string }> {
+  async getAccessToken(credentialId: string, userId: string): Promise<string> {
     const credential = await this.getCredential(credentialId, userId);
     if (!credential) {
       throw new Error('Credential not found');
@@ -134,10 +131,7 @@ export class CredentialsService {
       if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
         throw new Error('Access token expired and no refresh token available');
       }
-      return {
-        accessToken: this.decrypt(credential.accessToken!),
-        accessSecret: this.decrypt(credential.accessSecret!),
-      };
+      return this.decrypt(credential.accessToken!);
     }
     // Check if token is expired and refresh if needed
     if (this.isTokenExpired(credential)) {
@@ -146,10 +140,7 @@ export class CredentialsService {
       return this.getAccessToken(credentialId, userId);
     }
 
-    return {
-      accessToken: this.decrypt(credential.accessToken!),
-      accessSecret: this.decrypt(credential.accessSecret!),
-    };
+    return this.decrypt(credential.accessToken!);
   }
 
   /**
@@ -257,19 +248,16 @@ export class CredentialsService {
    */
   async testConnection(credentialId: string, userId: string): Promise<boolean> {
     const credential = await this.getCredential(credentialId, userId);
-    const { accessToken, accessSecret } = await this.getAccessToken(
-      credentialId,
-      userId,
-    );
+    const access_token = await this.getAccessToken(credentialId, userId);
 
     // Test based on platform
     switch (credential!.platform) {
       case PlatformName.X:
-        return this.testTwitterConnection(accessToken);
+        return this.testTwitterConnection(access_token);
       case PlatformName.FACEBOOK:
-        return this.testFacebookConnection(accessToken);
+        return this.testFacebookConnection(access_token);
       case PlatformName.INSTAGRAM:
-        return this.testFacebookConnection(accessToken);
+        return this.testFacebookConnection(access_token);
       // Add other platforms
       default:
         return false;

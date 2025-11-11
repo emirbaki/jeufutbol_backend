@@ -33,7 +33,6 @@ export class InstagramPostGateway implements PostGateway {
     userId: string,
     content: string,
     access_token: string,
-    access_secret?: string,
     media?: string[],
   ): Promise<any> {
     try {
