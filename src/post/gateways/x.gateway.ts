@@ -73,12 +73,6 @@ export class XPostGateway implements PostGateway {
       }
       const _post = await this.twitterClient.v2.tweet(payload);
       const details = await this.rettiwt.tweet.details(_post.data.id);
-      // const post = await this.rettiwt.tweet.post({
-      //   text: content,
-      //   media: uploadStrings.map((val) => {
-      //     return { id: val };
-      //   }),
-      // });
 
       this.logger.log(`[X] Tweet created successfully: ${_post.data.id}`);
       return { id: _post.data.id, url: details?.url };
