@@ -198,7 +198,10 @@ For each insight, provide:
 - metadata: Relevant data points (hashtags, metrics, examples)
 - relevanceScore: Score from 0-1 indicating how relevant/actionable
 
-Return ONLY a valid JSON array of insights, no additional text.`;
+Return ONLY a valid JSON array of insights, no additional text.
+
+Content should be in Turkish.
+`;
 
     try {
       const response = await this.llmService.generateCompletion(
@@ -289,14 +292,7 @@ Include suggested hashtags and estimate the potential reach.
 
 Return as JSON with: content, hashtags (array), estimatedReach
 
-Content should be in Turkish.
-
-Example format:
-{
-  "content": "Your post content here...",
-  "hashtags": ["hashtag1", "hashtag2"],
-  "estimatedReach": "High"
-}`;
+`;
 
       // Invoke the agent
       const config = { configurable: { thread_id: `post-gen-${Date.now()}` } };

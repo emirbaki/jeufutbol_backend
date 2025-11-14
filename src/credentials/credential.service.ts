@@ -69,7 +69,6 @@ export class CredentialsService {
     name: string,
     oauthData: {
       accessToken: string;
-      accessSecret?: string;
       refreshToken?: string;
       expiresIn?: number;
       accountId: string;
@@ -84,9 +83,6 @@ export class CredentialsService {
     credential.type = CredentialType.OAUTH2;
     credential.name = name;
     credential.accessToken = this.encrypt(oauthData.accessToken);
-    credential.accessSecret = oauthData.accessSecret
-      ? this.encrypt(oauthData.accessSecret)
-      : null;
     credential.refreshToken = oauthData.refreshToken
       ? this.encrypt(oauthData.refreshToken)
       : null;
