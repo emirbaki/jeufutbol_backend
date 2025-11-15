@@ -18,6 +18,6 @@ export class CreatePostInput {
 
   @IsOptional()
   @IsISO8601()
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   scheduledFor: string | null;
 }
