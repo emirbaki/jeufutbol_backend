@@ -13,7 +13,7 @@ export interface CreatePostDto {
   mediaUrls?: string[];
   targetPlatforms: PlatformType[];
   platformSpecificContent?: Record<string, any>;
-  scheduledFor?: Date;
+  scheduledFor?: string;
 }
 
 @Injectable()
