@@ -5,8 +5,8 @@ import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { Post } from '../entities/post.entity';
-import { CreatePostInput } from './dto/create-post.input';
-import { UpdatePostInput } from './dto/update-post.input';
+import { UpdatePostInput } from 'src/graphql/inputs/update-post.input';
+import { CreatePostInput } from 'src/graphql/inputs/post.input';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class PostsResolver {
