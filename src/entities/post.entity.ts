@@ -56,7 +56,7 @@ export class Post {
   targetPlatforms: string[];
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   scheduledFor?: Date;
 
   @Field()
