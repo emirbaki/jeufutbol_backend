@@ -10,7 +10,13 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { PublishedPost } from './published-post.entity';
-import { Field, GraphQLISODateTime, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  Field,
+  GraphQLISODateTime,
+  ID,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
 
 export enum PostStatus {
   DRAFT = 'draft',

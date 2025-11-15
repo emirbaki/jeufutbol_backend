@@ -17,7 +17,10 @@ export class InstagramPostGateway implements PostGateway {
     this.logger.log(`[Instagram] Post published: ${postId}`);
   }
 
-  async notifyPostScheduled(postId: string, scheduledFor: Date): Promise<void> {
+  async notifyPostScheduled(
+    postId: string,
+    scheduledFor: string,
+  ): Promise<void> {
     this.logger.log(`[Instagram] Post scheduled for: ${scheduledFor}`);
   }
 

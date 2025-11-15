@@ -24,7 +24,10 @@ export class XPostGateway implements PostGateway {
     this.logger.log(`[X] Tweet published: ${postId}`);
   }
 
-  async notifyPostScheduled(postId: string, scheduledFor: Date): Promise<void> {
+  async notifyPostScheduled(
+    postId: string,
+    scheduledFor: string,
+  ): Promise<void> {
     this.logger.log(`[X] Tweet scheduled for: ${scheduledFor.toISOString()}`);
   }
 

@@ -9,7 +9,7 @@ export abstract class PostGateway {
 
   abstract notifyPostScheduled(
     postId: string,
-    scheduledFor: Date,
+    scheduledFor: string,
   ): Promise<void>;
 
   abstract notifyPostFailed(postId: string, error: string): Promise<void>;

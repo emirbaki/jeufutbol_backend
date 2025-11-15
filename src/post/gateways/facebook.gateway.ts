@@ -17,7 +17,10 @@ export class FacebookPostGateway implements PostGateway {
     this.logger.log(`Post published on Facebook: ${postId}`);
   }
 
-  async notifyPostScheduled(postId: string, scheduledFor: Date): Promise<void> {
+  async notifyPostScheduled(
+    postId: string,
+    scheduledFor: string,
+  ): Promise<void> {
     this.logger.log(`Facebook post scheduled for ${scheduledFor}`);
   }
 

@@ -17,7 +17,10 @@ export class TiktokPostGateway implements PostGateway {
     this.logger.log(`[TikTok] Content published: ${postId}`);
   }
 
-  async notifyPostScheduled(postId: string, scheduledFor: Date): Promise<void> {
+  async notifyPostScheduled(
+    postId: string,
+    scheduledFor: string,
+  ): Promise<void> {
     this.logger.log(`[TikTok] Content scheduled for: ${scheduledFor}`);
   }
 
