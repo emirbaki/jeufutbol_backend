@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { PublishedPost } from './published-post.entity';
-import { Field, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { Field, GraphQLISODateTime, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
 
 export enum PostStatus {
   DRAFT = 'draft',
@@ -55,8 +55,8 @@ export class Post {
   @Column({ type: 'simple-array' })
   targetPlatforms: string[];
 
-  @Field({ nullable: true })
-  @Column({ nullable: true })
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   scheduledFor?: Date;
 
   @Field()
