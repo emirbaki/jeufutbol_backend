@@ -41,11 +41,11 @@ export class Post {
 
   @Field(() => [String], { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
-  mediaUrls?: string[];
+  mediaUrls: string[];
 
   @Field(() => String, { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
-  platformSpecificContent?: Record<string, any>;
+  platformSpecificContent: Record<string, any>;
 
   @Field(() => PostStatus)
   @Column({ type: 'enum', enum: PostStatus, default: PostStatus.DRAFT })
@@ -57,7 +57,7 @@ export class Post {
 
   @Field(() => GraphQLISODateTime, { nullable: true })
   @Column({ type: 'timestamptz', nullable: true })
-  scheduledFor?: string;
+  scheduledFor: string | null;
 
   @Field()
   @CreateDateColumn()
@@ -76,5 +76,5 @@ export class Post {
   @OneToMany(() => PublishedPost, (published) => published.post, {
     cascade: false,
   })
-  publishedPosts?: PublishedPost[];
+  publishedPosts: PublishedPost[];
 }

@@ -8,13 +8,7 @@ import { PostGatewayFactory } from './post-gateway.factory';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
 import { UploadService } from 'src/upload/upload.service';
-export interface CreatePostDto {
-  content: string;
-  mediaUrls?: string[];
-  targetPlatforms: PlatformType[];
-  platformSpecificContent?: Record<string, any>;
-  scheduledFor?: string;
-}
+import { CreatePostInput } from 'src/graphql/inputs/post.input';
 
 @Injectable()
 export class PostsService {
@@ -32,7 +26,7 @@ export class PostsService {
     private readonly uploadService: UploadService,
   ) {}
 
-  async createPost(userId: string, dto: CreatePostDto): Promise<Post> {
+  async createPost(userId: string, dto: CreatePostInput): Promise<Post> {
     const post = this.postRepository.create({
       userId,
       content: dto.content,
@@ -68,7 +62,7 @@ export class PostsService {
   async updatePost(
     postId: string,
     userId: string,
-    updates: Partial<CreatePostDto>,
+    updates: Partial<CreatePostInput>,
   ): Promise<Post> {
     const post = await this.getPost(postId, userId);
 
