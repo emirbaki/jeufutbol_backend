@@ -1,6 +1,6 @@
 import { InputType, Field } from '@nestjs/graphql';
 import { IsISO8601, IsOptional } from 'class-validator';
-import GraphQLJSON, { GraphQLJSONObject } from 'graphql-type-json';
+import GraphQLJSON from 'graphql-type-json';
 
 @InputType()
 export class CreatePostInput {
@@ -20,22 +20,4 @@ export class CreatePostInput {
   @IsISO8601()
   @Field({ nullable: true })
   scheduledFor: string | null;
-}
-
-@InputType()
-export class UpdatePostInput {
-  @Field({ nullable: true })
-  content?: string;
-
-  @Field(() => [String], { nullable: true })
-  mediaUrls?: string[];
-
-  @Field(() => GraphQLJSONObject, { nullable: true })
-  platformSpecificContent?: Record<string, any>;
-
-  @Field(() => [String], { nullable: true })
-  targetPlatforms?: string[];
-
-  @Field({ nullable: true })
-  scheduledFor?: Date;
 }
