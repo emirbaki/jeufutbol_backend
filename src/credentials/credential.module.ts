@@ -8,6 +8,7 @@ import { CredentialsController } from './credential.controller';
 import { OAuthService } from './oauth.service';
 import { EncryptionService } from './token-encryption.service';
 import { CredentialsResolver } from './credential.resolver';
+import { TokenRefreshService } from './token-refresher.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Credential]), HttpModule, ConfigModule],
@@ -17,6 +18,7 @@ import { CredentialsResolver } from './credential.resolver';
     OAuthService,
     EncryptionService,
     CredentialsResolver,
+    TokenRefreshService,
   ],
   exports: [CredentialsService, EncryptionService],
 })
