@@ -116,6 +116,7 @@ export class OAuthService {
             'user.info.profile',
             'user.info.stats',
             'video.list',
+            'video.publish',
           ],
         },
       ],
