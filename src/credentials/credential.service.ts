@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
 import {
   Credential,
   PlatformName,
   CredentialType,
 } from '../entities/credential.entity';
-import * as crypto from 'crypto';
+import { EncryptionService } from './token-encryption.service';
+import { TokenRefreshService } from './token-refresher.service';
 
 @Injectable()
 export class CredentialsService {
@@ -17,48 +17,9 @@ export class CredentialsService {
   constructor(
     @InjectRepository(Credential)
     private credentialRepository: Repository<Credential>,
-    private configService: ConfigService,
-  ) {
-    const key = this.configService.get<string>('ENCRYPTION_KEY');
-    this.encryptionKey = crypto.createHash('sha256').update(key!).digest();
-  }
-
-  /**
-   * Encrypt sensitive credential data
-   */
-  private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-
-    const authTag = cipher.getAuthTag();
-
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
-  }
-
-  /**
-   * Decrypt credential data
-   */
-  private decrypt(encryptedText: string): string {
-    const parts = encryptedText.split(':');
-    const iv = Buffer.from(parts[0], 'hex');
-    const authTag = Buffer.from(parts[1], 'hex');
-    const encrypted = parts[2];
-
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      this.encryptionKey,
-      iv,
-    );
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
-  }
+    private encryptionService: EncryptionService,
+    private tokenRefreshService: TokenRefreshService,
+  ) {}
 
   /**
    * Save OAuth2 credentials
@@ -82,9 +43,11 @@ export class CredentialsService {
     credential.platform = platform;
     credential.type = CredentialType.OAUTH2;
     credential.name = name;
-    credential.accessToken = this.encrypt(oauthData.accessToken);
+    credential.accessToken = this.encryptionService.encrypt(
+      oauthData.accessToken,
+    );
     credential.refreshToken = oauthData.refreshToken
-      ? this.encrypt(oauthData.refreshToken)
+      ? this.encryptionService.encrypt(oauthData.refreshToken)
       : null;
     credential.tokenExpiresAt = oauthData.expiresIn
       ? new Date(Date.now() + oauthData.expiresIn * 1000)
@@ -96,7 +59,9 @@ export class CredentialsService {
       scope: oauthData.scope || [],
       grantedAt: new Date(),
     };
-    credential.encryptedData = this.encrypt(JSON.stringify(oauthData));
+    credential.encryptedData = this.encryptionService.encrypt(
+      JSON.stringify(oauthData),
+    );
 
     return this.credentialRepository.save(credential);
   }
@@ -127,7 +92,7 @@ export class CredentialsService {
       if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
         throw new Error('Access token expired and no refresh token available');
       }
-      return this.decrypt(credential.accessToken!);
+      return this.encryptionService.decrypt(credential.accessToken!);
     }
     // Check if token is expired and refresh if needed
     if (this.isTokenExpired(credential)) {
@@ -136,7 +101,7 @@ export class CredentialsService {
       return this.getAccessToken(credentialId, userId);
     }
 
-    return this.decrypt(credential.accessToken!);
+    return this.encryptionService.decrypt(credential.accessToken!);
   }
 
   /**
@@ -168,9 +133,13 @@ export class CredentialsService {
     const newTokenData = await this.refreshTokenByPlatform(credential!);
 
     // Update credential
-    credential!.accessToken = this.encrypt(newTokenData.accessToken);
+    credential!.accessToken = this.encryptionService.encrypt(
+      newTokenData.accessToken,
+    );
     if (newTokenData.refreshToken) {
-      credential!.refreshToken = this.encrypt(newTokenData.refreshToken);
+      credential!.refreshToken = this.encryptionService.encrypt(
+        newTokenData.refreshToken,
+      );
     }
     credential!.tokenExpiresAt = new Date(
       Date.now() + newTokenData.expiresIn * 1000,
@@ -191,43 +160,17 @@ export class CredentialsService {
     // Implement platform-specific refresh logic
     switch (platform) {
       case PlatformName.X:
-        return this.refreshTwitterToken(credential);
+        return this.tokenRefreshService.refreshTwitterToken(credential);
       case PlatformName.FACEBOOK:
-        return this.refreshFacebookToken(credential);
+        return this.tokenRefreshService.refreshFacebookToken(credential);
       case PlatformName.INSTAGRAM:
-        return this.refreshInstagramToken(credential);
+        return this.tokenRefreshService.refreshInstagramToken(credential);
       case PlatformName.TIKTOK:
-        return this.refreshTiktokToken(credential);
+        return this.tokenRefreshService.refreshTiktokToken(credential);
       // Add other platforms
       default:
         throw new Error(`Token refresh not implemented for ${platform}`);
     }
-  }
-
-  private async refreshTwitterToken(credential: Credential): Promise<any> {
-    // Implement Twitter OAuth2 token refresh
-    throw new Error('Not implemented');
-  }
-
-  private async refreshFacebookToken(credential: Credential): Promise<any> {
-    // Implement Facebook token refresh
-    throw new Error('Not implemented');
-  }
-
-  private async refreshInstagramToken(credential: Credential): Promise<any> {
-    // Implement Facebook token refresh
-    throw new Error('Not implemented');
-  }
-
-  private async refreshTiktokToken(credential: Credential): Promise<any> {
-    // Implement Facebook token refresh
-
-    const refreshToken = this.decrypt(credential.refreshToken!);
-    return {
-      accessToken: '',
-      refreshToken: '',
-      expiresIn: '',
-    };
   }
 
   /**

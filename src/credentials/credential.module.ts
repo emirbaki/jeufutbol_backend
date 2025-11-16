@@ -6,11 +6,18 @@ import { Credential } from '../entities/credential.entity';
 import { CredentialsService } from './credential.service';
 import { CredentialsController } from './credential.controller';
 import { OAuthService } from './oauth.service';
+import { EncryptionService } from './token-encryption.service';
+import { CredentialsResolver } from './credential.resolver';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Credential]), HttpModule, ConfigModule],
   controllers: [CredentialsController],
-  providers: [CredentialsService, OAuthService],
-  exports: [CredentialsService],
+  providers: [
+    CredentialsService,
+    OAuthService,
+    EncryptionService,
+    CredentialsResolver,
+  ],
+  exports: [CredentialsService, EncryptionService],
 })
 export class CredentialsModule {}
