@@ -17,6 +17,8 @@ import { CredentialsModule } from 'src/credentials/credential.module';
 import { UploadModule } from 'src/upload/upload.module';
 import { UploadService } from 'src/upload/upload.service';
 import { TweetsModule } from 'src/tweets/tweets.module';
+import { TokenRefreshService } from 'src/credentials/token-refresher.service';
+import { EncryptionService } from 'src/credentials/token-encryption.service';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { TweetsModule } from 'src/tweets/tweets.module';
   providers: [
     UploadService,
     CredentialsService,
+    TokenRefreshService,
+    EncryptionService,
     PostsService,
     PostsResolver,
     PostGatewayFactory,
