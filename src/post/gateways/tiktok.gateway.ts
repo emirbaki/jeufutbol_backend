@@ -151,7 +151,7 @@ export class TiktokPostGateway implements PostGateway {
         },
         source_info: {
           source: 'PULL_FROM_URL',
-          photo_cover_index: 0,
+          photo_cover_index: 1,
           photo_images: imageUrls,
         },
         post_mode: 'DIRECT_POST', // Add this
