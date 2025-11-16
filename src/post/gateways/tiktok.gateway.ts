@@ -144,6 +144,7 @@ export class TiktokPostGateway implements PostGateway {
       const payload = {
         post_info: {
           title: caption,
+          description: caption,
           privacy_level: 'SELF_ONLY',
           disable_comment: false,
           auto_add_music: true,
@@ -151,7 +152,7 @@ export class TiktokPostGateway implements PostGateway {
         source_info: {
           source: 'PULL_FROM_URL',
           photo_cover_index: 0,
-          photo_images: imageUrls.map((url) => ({ image_url: url })),
+          photo_images: imageUrls,
         },
         post_mode: 'DIRECT_POST', // Add this
         media_type: 'PHOTO', // Add this
