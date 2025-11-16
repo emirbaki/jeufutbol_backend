@@ -9,6 +9,7 @@ import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
 import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
+import { Args } from '@nestjs/graphql';
 
 @Injectable()
 export class PostsService {
@@ -26,7 +27,7 @@ export class PostsService {
     private readonly uploadService: UploadService,
   ) {}
 
-  async createPost(userId: string, dto: CreatePostInput): Promise<Post> {
+  async createPost(userId: string, @Args('input') dto: CreatePostInput): Promise<Post> {
     const post = this.postRepository.create({
       userId,
       content: dto.content,
