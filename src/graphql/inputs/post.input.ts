@@ -8,12 +8,14 @@ export class CreatePostInput {
   content: string;
 
   @Field(() => [String], { nullable: true })
+  @IsOptional()
   mediaUrls: string[];
 
   @Field(() => [String])
   targetPlatforms: string[];
 
   @Field(() => GraphQLJSON, { nullable: true })
+  @IsOptional()
   platformSpecificContent: Record<string, any>;
 
   @IsOptional()
