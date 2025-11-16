@@ -138,29 +138,40 @@ export class TiktokPostGateway implements PostGateway {
       this.logger.log(
         `[TikTok] Starting photo post with ${imageUrls.length} images...`,
       );
+      this.logger.log(`[TikTok] Image URLs: ${JSON.stringify(imageUrls)}`);
 
       // Step 1: Initialize photo post
-      const initRes = await axios.post(
-        `${TIKTOK_API_BASE}/v2/post/publish/inbox/video/init/`,
-        {
-          post_info: {
-            title: caption,
-            privacy_level: 'SELF_ONLY',
-            disable_comment: false,
-            auto_add_music: true, // TikTok can auto-add music to photo posts
-          },
-          source_info: {
-            source: 'PULL_FROM_URL',
-            photo_cover_index: 0, // First image as cover
-            photo_images: imageUrls.map((url) => ({ image_url: url })),
-          },
+      const payload = {
+        post_info: {
+          title: caption,
+          privacy_level: 'SELF_ONLY',
+          disable_comment: false,
+          auto_add_music: true,
         },
+        source_info: {
+          source: 'PULL_FROM_URL',
+          photo_cover_index: 0,
+          photo_images: imageUrls.map((url) => ({ image_url: url })),
+        },
+        post_mode: 'DIRECT_POST', // Add this
+        media_type: 'PHOTO', // Add this
+      };
+
+      this.logger.log(`[TikTok] Payload: ${JSON.stringify(payload, null, 2)}`);
+
+      const initRes = await axios.post(
+        `${TIKTOK_API_BASE}/v2/post/publish/content/init/`, // Changed endpoint
+        payload,
         {
           headers: {
             Authorization: `Bearer ${access_token}`,
             'Content-Type': 'application/json',
           },
         },
+      );
+
+      this.logger.log(
+        `[TikTok] Init response: ${JSON.stringify(initRes.data, null, 2)}`,
       );
 
       const { publish_id } = initRes.data.data;
@@ -178,8 +189,17 @@ export class TiktokPostGateway implements PostGateway {
         url: `https://www.tiktok.com/@user/video/${publish_id}`,
       };
     } catch (err: any) {
+      const errorDetails = {
+        message: err.message,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        url: err.config?.url,
+        method: err.config?.method,
+      };
+
       this.logger.error(
-        `[TikTok] Photo upload error: ${err.response?.data || err.message}`,
+        `[TikTok] Photo upload error: ${JSON.stringify(errorDetails, null, 2)}`,
       );
       throw err;
     }
