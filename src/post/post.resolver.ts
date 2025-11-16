@@ -18,9 +18,13 @@ export class PostsResolver {
     // @Args('input') input: CreatePostDto,
     @Args('input', { type: () => CreatePostInput }) input: CreatePostInput,
   ): Promise<Post> {
+    const _scheduledFor = input.scheduledFor
+      ? new Date(input.scheduledFor)
+      : null;
     return this.postsService.createPost(user.id, {
       ...input,
       platformSpecificContent: input.platformSpecificContent,
+      scheduledFor: _scheduledFor,
       // ? JSON.parse(input.platformSpecificContent)// : {},
     });
   }

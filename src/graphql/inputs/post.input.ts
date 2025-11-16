@@ -1,5 +1,11 @@
 import { InputType, Field } from '@nestjs/graphql';
-import { IsArray, IsDateString, IsISO8601, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsISO8601,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import GraphQLJSON from 'graphql-type-json';
 
 @InputType()
@@ -24,5 +30,5 @@ export class CreatePostInput {
   @IsISO8601()
   @IsDateString()
   @Field(() => String, { nullable: true })
-  scheduledFor: string | null;
+  scheduledFor: Date | null;
 }
