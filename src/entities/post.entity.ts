@@ -63,7 +63,7 @@ export class Post {
 
   @Field(() => GraphQLISODateTime, { nullable: true })
   @Column({ type: 'timestamptz', nullable: true })
-  scheduledFor: string | null;
+  scheduledFor: Date | null;
 
   @Field()
   @CreateDateColumn()
