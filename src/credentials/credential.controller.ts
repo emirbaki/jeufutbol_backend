@@ -146,6 +146,20 @@ export class CredentialsController {
     return { valid: isValid };
   }
 
+  @Post(':id/refresh')
+  @UseGuards(AuthGuard('jwt'))
+  async refreshTokenByPlatform(
+    @CurrentUser() user: User,
+    @Param('credential') credendtialId: string,
+  ) {
+    const refreshToken = await this.credentialsService.refreshAccessToken(
+      credendtialId,
+      user.id,
+    );
+
+    return { refreshToken };
+  }
+
   /**
    * Delete credential
    */

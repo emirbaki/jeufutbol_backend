@@ -131,7 +131,7 @@ export class CredentialsService {
     }
     // Check if token is expired and refresh if needed
     if (this.isTokenExpired(credential)) {
-      await this.refreshAccessToken(credential);
+      await this.refreshAccessToken(credentialId, userId);
       // Reload credential after refresh
       return this.getAccessToken(credentialId, userId);
     }
@@ -153,65 +153,81 @@ export class CredentialsService {
   /**
    * Refresh access token
    */
-  private async refreshAccessToken(credential: Credential): Promise<void> {
-    if (!credential.refreshToken) {
+  public async refreshAccessToken(
+    credentialId: string,
+    userId: string,
+  ): Promise<void> {
+    const credential = await this.getCredential(credentialId, userId);
+
+    if (!credential!.refreshToken) {
       throw new Error('No refresh token available');
     }
-
-    this.logger.log(`Refreshing token for credential ${credential.id}`);
-
-    const refreshToken = this.decrypt(credential.refreshToken);
+    this.logger.log(`Refreshing token for credential ${credential!.id}`);
 
     // Call platform-specific refresh endpoint
-    const newTokenData = await this.refreshTokenByPlatform(
-      credential.platform,
-      refreshToken,
-    );
+    const newTokenData = await this.refreshTokenByPlatform(credential!);
 
     // Update credential
-    credential.accessToken = this.encrypt(newTokenData.accessToken);
+    credential!.accessToken = this.encrypt(newTokenData.accessToken);
     if (newTokenData.refreshToken) {
-      credential.refreshToken = this.encrypt(newTokenData.refreshToken);
+      credential!.refreshToken = this.encrypt(newTokenData.refreshToken);
     }
-    credential.tokenExpiresAt = new Date(
+    credential!.tokenExpiresAt = new Date(
       Date.now() + newTokenData.expiresIn * 1000,
     );
 
-    await this.credentialRepository.save(credential);
+    await this.credentialRepository.save(credential!);
   }
 
   /**
    * Platform-specific token refresh
    */
-  private async refreshTokenByPlatform(
-    platform: PlatformName,
-    refreshToken: string,
-  ): Promise<{
+  private async refreshTokenByPlatform(credential: Credential): Promise<{
     accessToken: string;
     refreshToken?: string;
     expiresIn: number;
   }> {
+    const platform = credential.platform;
     // Implement platform-specific refresh logic
     switch (platform) {
       case PlatformName.X:
-        return this.refreshTwitterToken(refreshToken);
+        return this.refreshTwitterToken(credential);
       case PlatformName.FACEBOOK:
+        return this.refreshFacebookToken(credential);
       case PlatformName.INSTAGRAM:
-        return this.refreshFacebookToken(refreshToken);
+        return this.refreshInstagramToken(credential);
+      case PlatformName.TIKTOK:
+        return this.refreshTiktokToken(credential);
       // Add other platforms
       default:
         throw new Error(`Token refresh not implemented for ${platform}`);
     }
   }
 
-  private async refreshTwitterToken(refreshToken: string): Promise<any> {
+  private async refreshTwitterToken(credential: Credential): Promise<any> {
     // Implement Twitter OAuth2 token refresh
     throw new Error('Not implemented');
   }
 
-  private async refreshFacebookToken(refreshToken: string): Promise<any> {
+  private async refreshFacebookToken(credential: Credential): Promise<any> {
     // Implement Facebook token refresh
     throw new Error('Not implemented');
+  }
+
+  private async refreshInstagramToken(credential: Credential): Promise<any> {
+    // Implement Facebook token refresh
+    throw new Error('Not implemented');
+  }
+
+  private async refreshTiktokToken(credential: Credential): Promise<any> {
+    // Implement Facebook token refresh
+
+    const refreshToken = this.decrypt(credential.refreshToken!);
+    return {
+      accessToken: '',
+      refreshToken: '',
+      expiresIn: '',
+    };
   }
 
   /**
@@ -254,6 +270,8 @@ export class CredentialsService {
         return this.testFacebookConnection(access_token);
       case PlatformName.INSTAGRAM:
         return this.testFacebookConnection(access_token);
+      case PlatformName.TIKTOK:
+        return this.testTiktokConnection(access_token);
       // Add other platforms
       default:
         return false;
@@ -266,6 +284,11 @@ export class CredentialsService {
   }
 
   private async testFacebookConnection(accessToken: string): Promise<boolean> {
+    // Test Facebook API connection
+    return true;
+  }
+
+  private async testTiktokConnection(accessToken: string): Promise<boolean> {
     // Test Facebook API connection
     return true;
   }
