@@ -22,9 +22,24 @@ export class User {
   @Column({ unique: true })
   email: string;
 
-  // ⚠️ passwordHash is sensitive — do NOT expose it to GraphQL
   @Column()
   passwordHash: string;
+
+  @Field()
+  @Column({ default: false })
+  isVerified: boolean;
+
+  @Column({ nullable: true })
+  verificationToken: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  verificationTokenExpiry: Date | null;
+
+  @Column({ nullable: true })
+  resetToken: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  resetTokenExpiry: Date | null;
 
   @Field()
   @Column()

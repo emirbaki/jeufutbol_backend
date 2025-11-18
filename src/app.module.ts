@@ -20,20 +20,26 @@ import { CredentialsModule } from './credentials/credential.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { TweetsModule } from './tweets/tweets.module';
 import { AIInsightsModule } from './insights/ai-insights.module';
+import { EmailModule } from './email/email.module';
+import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    GraphQLModule.forRoot({
+    GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      playground: true,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-      cors: {
-        origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
-        credentials: true,
-      },
+      playground: false,
+      // cors: {
+      //   origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
+      //   credentials: true,
+      // },
+      plugins:
+        process.env.NODE_ENV === 'development'
+          ? [ApolloServerPluginLandingPageLocalDefault()]
+          : [],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -59,6 +65,7 @@ import { AIInsightsModule } from './insights/ai-insights.module';
     TweetsModule,
     MonitoringModule,
     AIInsightsModule,
+    EmailModule,
   ],
   controllers: [AppController, UploadController],
   providers: [AppService, GraphqlResolver, UploadService],

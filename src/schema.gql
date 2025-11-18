@@ -144,6 +144,26 @@ enum PostStatus {
   FAILED
 }
 
+type Credential {
+  id: ID!
+  name: String!
+  platform: String!
+  type: String!
+  userId: String!
+  encryptedData: String!
+  refreshToken: String
+  accessToken: String
+  accessSecret: String
+  tokenExpiresAt: DateTime
+  accountId: String
+  accountName: String
+  accountImage: String
+  isActive: Boolean!
+  metadata: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
 type AuthPayload {
   user: User!
   accessToken: String!
@@ -153,6 +173,7 @@ type Query {
   hello: String!
   getUserPosts(limit: Int): [Post!]!
   getPost(postId: String!): Post!
+  getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [SocialAccount!]!
   me: User!
   getMonitoredProfiles: [MonitoredProfile!]!
@@ -168,6 +189,8 @@ type Mutation {
   updatePost(postId: String!, input: UpdatePostInput!): Post!
   deletePost(postId: String!): Boolean!
   publishPost(postId: String!): Post!
+  deleteCredential(credentialId: String!): Boolean!
+  testCredential(credentialId: String!): Boolean!
   disconnectAccount(accountId: String!): Boolean!
   register(email: String!, password: String!, firstName: String!, lastName: String!): AuthPayload!
   login(email: String!, password: String!): AuthPayload!
@@ -184,7 +207,7 @@ input CreatePostInput {
   mediaUrls: [String!]
   targetPlatforms: [String!]!
   platformSpecificContent: JSON
-  scheduledFor: DateTime
+  scheduledFor: String
 }
 
 input UpdatePostInput {
@@ -192,5 +215,5 @@ input UpdatePostInput {
   mediaUrls: [String!]
   targetPlatforms: [String!]
   platformSpecificContent: JSON
-  scheduledFor: DateTime
+  scheduledFor: String
 }

@@ -1,24 +1,23 @@
 import {
   Injectable,
+  BadRequestException,
   UnauthorizedException,
-  ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
+import { EmailService } from '../email/email.service';
 import { User } from '../entities/user.entity';
-
-export interface JwtPayload {
-  sub: string;
-  email: string;
-}
+import { v4 as uuidv4 } from 'uuid';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private emailService: EmailService,
     private jwtService: JwtService,
   ) {}
 
@@ -27,37 +26,93 @@ export class AuthService {
     password: string,
     firstName: string,
     lastName: string,
-  ): Promise<{ user: User; accessToken: string }> {
+  ) {
+    // Check if user already exists
     const existingUser = await this.userRepository.findOne({
       where: { email },
     });
     if (existingUser) {
-      throw new ConflictException('Email already exists');
+      throw new BadRequestException('User with this email already exists');
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Generate verification token
+    const verificationToken = uuidv4();
+    const verificationTokenExpiry = new Date();
+    verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24); // 24 hours
+
+    // Create user
     const user = this.userRepository.create({
       email,
-      passwordHash,
+      passwordHash: hashedPassword,
       firstName,
       lastName,
+      verificationToken,
+      verificationTokenExpiry,
+      isVerified: false,
     });
 
     await this.userRepository.save(user);
 
-    const accessToken = this.generateToken(user);
+    // Send verification email
+    const userName = `${firstName} ${lastName}`;
+    await this.emailService.sendVerificationEmail(
+      email,
+      userName,
+      verificationToken,
+    );
 
-    return { user, accessToken };
+    return {
+      message:
+        'Registration successful! Please check your email to verify your account.',
+    };
   }
 
-  async login(
-    email: string,
-    password: string,
-  ): Promise<{ user: User; accessToken: string }> {
+  async verifyEmail(token: string) {
+    const user = await this.userRepository.findOne({
+      where: { verificationToken: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid verification token');
+    }
+
+    if (user.verificationTokenExpiry! < new Date()) {
+      throw new BadRequestException(
+        'Verification token has expired. Please request a new one.',
+      );
+    }
+
+    if (user.isVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Update user
+    user.isVerified = true;
+    user.verificationToken = null;
+    user.verificationTokenExpiry = null;
+    await this.userRepository.save(user);
+
+    // Send welcome email
+    const userName = `${user.firstName} ${user.lastName}`;
+    await this.emailService.sendWelcomeEmail(user.email, userName);
+
+    return { message: 'Email verified successfully! You can now login.' };
+  }
+
+  async login(email: string, password: string) {
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (!user.isVerified) {
+      throw new UnauthorizedException(
+        'Please verify your email before logging in. Check your inbox for the verification link.',
+      );
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
@@ -65,13 +120,109 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (!user.isActive) {
-      throw new UnauthorizedException('Account is deactivated');
+    // Generate JWT token
+    const payload = { sub: user.id, email: user.email };
+    const accessToken = this.jwtService.sign(payload);
+
+    return {
+      user,
+      accessToken,
+    };
+  }
+
+  async requestPasswordReset(email: string) {
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      // Don't reveal if user exists for security
+      return {
+        message:
+          'If that email exists in our system, a password reset link has been sent.',
+      };
     }
 
-    const accessToken = this.generateToken(user);
+    // Generate reset token
+    const resetToken = uuidv4();
+    const resetTokenExpiry = new Date();
+    resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 1); // 1 hour
 
-    return { user, accessToken };
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = resetTokenExpiry;
+    await this.userRepository.save(user);
+
+    // Send password reset email
+    const userName = `${user.firstName} ${user.lastName}`;
+    await this.emailService.sendPasswordResetEmail(email, userName, resetToken);
+
+    return {
+      message:
+        'If that email exists in our system, a password reset link has been sent.',
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.userRepository.findOne({
+      where: { resetToken: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid reset token');
+    }
+
+    if (user.resetTokenExpiry! < new Date()) {
+      throw new BadRequestException(
+        'Reset token has expired. Please request a new one.',
+      );
+    }
+
+    // Validate password strength (optional)
+    if (newPassword.length < 8) {
+      throw new BadRequestException(
+        'Password must be at least 8 characters long',
+      );
+    }
+
+    // Update password
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.resetToken = null;
+    user.resetTokenExpiry = null;
+    await this.userRepository.save(user);
+
+    return {
+      message:
+        'Password reset successfully! You can now login with your new password.',
+    };
+  }
+
+  async resendVerificationEmail(email: string) {
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.isVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Generate new verification token
+    const verificationToken = uuidv4();
+    const verificationTokenExpiry = new Date();
+    verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24);
+
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpiry = verificationTokenExpiry;
+    await this.userRepository.save(user);
+
+    // Send new verification email
+    const userName = `${user.firstName} ${user.lastName}`;
+    await this.emailService.sendVerificationEmail(
+      email,
+      userName,
+      verificationToken,
+    );
+
+    return { message: 'Verification email sent! Please check your inbox.' };
   }
 
   async validateUser(userId: string): Promise<User> {
@@ -79,17 +230,10 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    if (!user.isActive) {
-      throw new UnauthorizedException('User not found or inactive');
-    }
     return user;
   }
-
-  private generateToken(user: User): string {
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-    };
-    return this.jwtService.sign(payload);
-  }
+}
+export interface JwtPayload {
+  sub: string;
+  email: string;
 }
