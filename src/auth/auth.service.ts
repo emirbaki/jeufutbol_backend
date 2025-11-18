@@ -19,7 +19,7 @@ export class AuthService {
     private userRepository: Repository<User>,
     private emailService: EmailService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async register(
     email: string,
@@ -137,7 +137,7 @@ export class AuthService {
       // Don't reveal if user exists for security
       return {
         message:
-          'If that email exists in our system, a password reset link has been sent.',
+          'This user is not registered with us.',
       };
     }
 
