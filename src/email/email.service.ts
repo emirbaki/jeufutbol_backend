@@ -65,7 +65,7 @@ export class EmailService {
                           <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                             <tr>
                               <td align="center">
-                                <a href="${verificationUrl}" 
+                                <a routerLink="${verificationUrl}" 
                                    style="display: inline-block; padding: 14px 40px; background-color: #4CAF50; 
                                           color: #ffffff; text-decoration: none; border-radius: 5px; 
                                           font-weight: bold; font-size: 16px;">
@@ -168,7 +168,7 @@ export class EmailService {
                           <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                             <tr>
                               <td align="center">
-                                <a href="${resetUrl}" 
+                                <a routerLink="${resetUrl}" 
                                    style="display: inline-block; padding: 14px 40px; background-color: #2196F3; 
                                           color: #ffffff; text-decoration: none; border-radius: 5px; 
                                           font-weight: bold; font-size: 16px;">
