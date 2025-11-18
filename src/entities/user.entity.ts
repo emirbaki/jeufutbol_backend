@@ -29,13 +29,13 @@ export class User {
   @Column({ default: false })
   isVerified: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   verificationToken: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   verificationTokenExpiry: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   resetToken: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
