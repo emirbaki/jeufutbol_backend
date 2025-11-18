@@ -13,7 +13,7 @@ export class EmailService {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
     this.resend = new Resend(apiKey);
     this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL')!;
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL_PROD')!;
   }
 
   /**
@@ -25,7 +25,7 @@ export class EmailService {
     verificationToken: string,
   ): Promise<void> {
     try {
-      const verificationUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
+      const verificationUrl = `${this.frontendUrl}/auth/verify-email?token=${verificationToken}`;
 
       const { data, error } = await this.resend.emails.send({
         from: this.fromEmail,
