@@ -131,7 +131,7 @@ export class EmailService {
     resetToken: string,
   ): Promise<void> {
     try {
-      const resetUrl = `${this.frontendUrl}/reset-password?token=${resetToken}`;
+      const resetUrl = `${this.frontendUrl}/auth/reset-password?token=${resetToken}`;
 
       const { data, error } = await this.resend.emails.send({
         from: this.fromEmail,
