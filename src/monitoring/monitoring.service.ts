@@ -15,6 +15,11 @@ export class MonitoringService {
   private readonly logger = new Logger(MonitoringService.name);
   private rettiwt: Rettiwt;
 
+  // Rate limiting configuration
+  private readonly RATE_LIMIT_DELAY = 5000; // 5 seconds between profile refreshes
+  private readonly MAX_RETRIES = 3; // Maximum retry attempts
+  private readonly INITIAL_BACKOFF_DELAY = 5000; // Initial delay for exponential backoff (5s)
+
   constructor(
     @InjectRepository(MonitoredProfile)
     private monitoredProfileRepository: Repository<MonitoredProfile>,
@@ -326,17 +331,22 @@ export class MonitoringService {
 
     for (const profile of profiles) {
       try {
-        await this.fetchAndStoreTweets(profile.id);
+        // Use retry logic with exponential backoff
+        await this.retryWithBackoff(
+          () => this.fetchAndStoreTweets(profile.id),
+          this.MAX_RETRIES,
+          this.INITIAL_BACKOFF_DELAY,
+        );
         success++;
       } catch (error) {
         this.logger.error(
-          `Failed to refresh @${profile.xUsername}: ${error.message}`,
+          `Failed to refresh @${profile.xUsername} after retries: ${error.message}`,
         );
         failed++;
       }
 
       // Add delay to avoid rate limiting
-      await this.delay(2000); // 2 second delay between requests
+      await this.delay(this.RATE_LIMIT_DELAY);
     }
 
     this.logger.log(`Refresh complete: ${success} success, ${failed} failed`);
@@ -357,6 +367,51 @@ export class MonitoringService {
     const stats = await this.tweetsService.getTweetStats(profileId);
 
     return { profile, stats };
+  }
+
+  /**
+   * Helper: Retry with exponential backoff
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    initialDelay: number = 5000,
+  ): Promise<T> {
+    let lastError: Error;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+
+        // Check if it's a rate limit error (429)
+        const is429Error =
+          error.message?.includes('429') ||
+          error.message?.toLowerCase().includes('rate limit') ||
+          error.message?.toLowerCase().includes('too many requests');
+
+        if (is429Error && attempt < maxRetries) {
+          const delay = initialDelay * Math.pow(2, attempt); // Exponential backoff
+          this.logger.warn(
+            `Rate limit hit (429), retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries})`,
+          );
+          await this.delay(delay);
+        } else if (attempt < maxRetries) {
+          // For other errors, still retry but with shorter delay
+          const delay = initialDelay / 2;
+          this.logger.warn(
+            `Request failed, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries}): ${error.message}`,
+          );
+          await this.delay(delay);
+        } else {
+          // Max retries reached
+          throw lastError;
+        }
+      }
+    }
+
+    throw lastError!;
   }
 
   /**
