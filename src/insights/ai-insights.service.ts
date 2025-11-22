@@ -45,7 +45,7 @@ export class AIInsightsService {
     private insightRepository: Repository<Insight>,
     private vectorDbService: VectorDbService,
     private llmService: LLMService,
-  ) {}
+  ) { }
 
   /**
    * Index tweets to vector database
@@ -451,9 +451,9 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
       avgEngagement:
         tweets.length > 0
           ? tweets.reduce(
-              (sum, t) => sum + t.likes + t.retweets + t.replies,
-              0,
-            ) / tweets.length
+            (sum, t) => sum + t.likes + t.retweets + t.replies,
+            0,
+          ) / tweets.length
           : 0,
       timeRange,
     };

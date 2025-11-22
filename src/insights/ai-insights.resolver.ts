@@ -10,7 +10,7 @@ import GraphQLJSON from 'graphql-type-json';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class AIInsightsResolver {
-  constructor(private aiInsightsService: AIInsightsService) {}
+  constructor(private aiInsightsService: AIInsightsService) { }
 
   @Mutation(() => [Insight])
   async generateAIInsights(
@@ -28,9 +28,11 @@ export class AIInsightsResolver {
 
   @Mutation(() => GraphQLJSON)
   async generatePostTemplate(
+    @CurrentUser() user: User,
     @Args('insights', { type: () => [String] }) insights: string[],
     @Args('platform') platform: string,
     @Args('tone', { nullable: true }) tone?: string,
+    @Args('llmProvider', { nullable: true }) llmProvider?: string,
   ) {
     return this.aiInsightsService.generatePostTemplate({
       insights,
@@ -38,6 +40,8 @@ export class AIInsightsResolver {
       tone: tone as any,
       includeHashtags: true,
       includeEmojis: true,
+      userId: user.id,
+      llmProvider: llmProvider as any,
     });
   }
 
