@@ -519,4 +519,20 @@ Return as a JSON array of strings, no additional formatting.`;
       take: limit,
     });
   }
+
+  /**
+   * Mark an insight as read
+   */
+  async markInsightAsRead(insightId: string, userId: string): Promise<Insight> {
+    const insight = await this.insightRepository.findOne({
+      where: { id: insightId, userId },
+    });
+
+    if (!insight) {
+      throw new Error('Insight not found or unauthorized');
+    }
+
+    insight.isRead = true;
+    return this.insightRepository.save(insight);
+  }
 }

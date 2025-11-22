@@ -72,4 +72,12 @@ export class AIInsightsResolver {
   ) {
     return this.aiInsightsService.getInsightsForUser(user.id, limit);
   }
+
+  @Mutation(() => Insight)
+  async markInsightAsRead(
+    @CurrentUser() user: User,
+    @Args('insightId') insightId: string,
+  ) {
+    return this.aiInsightsService.markInsightAsRead(insightId, user.id);
+  }
 }
