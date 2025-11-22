@@ -230,11 +230,13 @@ export class TweetsService {
   async getTweetsByProfile(
     monitoredProfileId: string,
     limit: number = 50,
+    offset: number = 0,
   ): Promise<Tweet[]> {
     return this.tweetRepository.find({
       where: { monitoredProfileId },
       order: { createdAt: 'DESC' },
       take: limit,
+      skip: offset,
     });
   }
 

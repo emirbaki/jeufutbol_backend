@@ -15,7 +15,7 @@ export class MonitoringResolver {
   constructor(
     private monitoringService: MonitoringService,
     private tweetsService: TweetsService,
-  ) {}
+  ) { }
 
   @Query(() => [MonitoredProfile])
   async getMonitoredProfiles(
@@ -37,11 +37,12 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('profileId') profileId: string,
     @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+    @Args('offset', { type: () => Int, nullable: true }) offset?: number,
   ): Promise<Tweet[]> {
     // Verify user owns this profile
     await this.monitoringService.getProfile(profileId, user.id);
 
-    return this.tweetsService.getTweetsByProfile(profileId, limit);
+    return this.tweetsService.getTweetsByProfile(profileId, limit, offset);
   }
 
   @Query(() => GraphQLJSON)
