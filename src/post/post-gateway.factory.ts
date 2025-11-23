@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PlatformType } from 'src/entities/social-account.entity';
+import { PlatformType } from 'src/enums/platform-type.enum';
 import { PostGateway } from './gateways/post-base.gateway';
 import { FacebookPostGateway } from './gateways/facebook.gateway';
 import { InstagramPostGateway } from './gateways/instagram.gateway';
@@ -13,7 +13,7 @@ export class PostGatewayFactory {
     private readonly instagramGateway: InstagramPostGateway,
     private readonly tiktokGateway: TiktokPostGateway,
     private readonly xGateway: XPostGateway,
-  ) {}
+  ) { }
 
   getGateway(platform: PlatformType): PostGateway {
     switch (platform) {

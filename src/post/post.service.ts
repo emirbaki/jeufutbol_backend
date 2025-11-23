@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Post, PostStatus } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
-import { SocialAccount, PlatformType } from '../entities/social-account.entity';
+import { PlatformType } from '../enums/platform-type.enum';
 import { PostGatewayFactory } from './post-gateway.factory';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
@@ -19,12 +19,10 @@ export class PostsService {
     private postRepository: Repository<Post>,
     @InjectRepository(PublishedPost)
     private publishedPostRepository: Repository<PublishedPost>,
-    @InjectRepository(SocialAccount)
-    private socialAccountRepository: Repository<SocialAccount>,
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
-  ) {}
+  ) { }
 
   async createPost(userId: string, dto: CreatePostInput): Promise<Post> {
     const post = this.postRepository.create({

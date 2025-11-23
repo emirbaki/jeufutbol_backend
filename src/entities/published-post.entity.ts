@@ -9,7 +9,7 @@ import {
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 import { Post } from './post.entity';
-import { PlatformType } from './social-account.entity';
+import { PlatformType } from '../enums/platform-type.enum';
 import { registerEnumType } from '@nestjs/graphql';
 
 // Register the PlatformType enum for GraphQL

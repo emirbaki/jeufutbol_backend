@@ -7,7 +7,6 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { SocialAccount } from './social-account.entity';
 import { Post } from './post.entity';
 import { MonitoredProfile } from './monitored-profile.entity';
 
@@ -60,10 +59,6 @@ export class User {
   @Field(() => Date)
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @Field(() => [SocialAccount], { nullable: true })
-  @OneToMany(() => SocialAccount, (account) => account.user)
-  socialAccounts: SocialAccount[];
 
   @Field(() => [Post], { nullable: true })
   @OneToMany(() => Post, (post) => post.user)

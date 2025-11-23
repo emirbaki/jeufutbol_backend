@@ -8,7 +8,6 @@ import { join } from 'path';
 import { GraphqlResolver } from './graphql/graphql.resolver';
 import { DatabaseModule } from './database/database.module';
 import { PostModule } from './post/post.module';
-import { SocialAccountsModule } from './social-accounts/social-accounts.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
@@ -23,6 +22,8 @@ import { AIInsightsModule } from './insights/ai-insights.module';
 import { EmailModule } from './email/email.module';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { createSecurityValidationRules } from './graphql/security.validation';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -88,7 +89,6 @@ import { createSecurityValidationRules } from './graphql/security.validation';
     }),
     DatabaseModule,
     PostModule,
-    SocialAccountsModule,
     AuthModule,
     StaticFilesModule,
     UploadModule,
@@ -97,8 +97,22 @@ import { createSecurityValidationRules } from './graphql/security.validation';
     MonitoringModule,
     AIInsightsModule,
     EmailModule,
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
   ],
   controllers: [AppController, UploadController],
-  providers: [AppService, GraphqlResolver, UploadService],
+  providers: [
+    AppService,
+    GraphqlResolver,
+    UploadService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule { }
