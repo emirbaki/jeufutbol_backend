@@ -48,7 +48,7 @@ import { createSecurityValidationRules } from './graphql/security.validation';
               error.extensions?.exception?.response?.message ||
               error.message ||
               'Internal Server Error',
-            code: error.extensions?.code || 'INTERNAL_SERVER_ERROR',
+            code: error.extensions?.code || 'INTERNAL_SERVER_ERROR/BLA BLA BLA',
             locations: error.locations,
             path: error.path,
           };
