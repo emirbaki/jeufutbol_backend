@@ -43,16 +43,23 @@ import { createSecurityValidationRules } from './graphql/security.validation';
       ],
       formatError: (error: any) => {
         if (process.env.NODE_ENV === 'production') {
-          const graphQLFormattedError = {
-            message:
-              error.extensions?.exception?.response?.message ||
-              error.message ||
-              'Internal Server Error',
-            code: error.extensions?.code || 'INTERNAL_SERVER_ERROR/BLA BLA BLA',
+          const code = error.extensions?.code || 'INTERNAL_SERVER_ERROR';
+          // Only mask the message if it's an internal server error
+          if (code === 'INTERNAL_SERVER_ERROR') {
+            return {
+              message: 'Internal Server Error',
+              code: code,
+              locations: error.locations,
+              path: error.path,
+            };
+          }
+          // For other errors (e.g. validation), return the message
+          return {
+            message: error.message,
+            code: code,
             locations: error.locations,
             path: error.path,
           };
-          return graphQLFormattedError;
         }
         return error;
       },
