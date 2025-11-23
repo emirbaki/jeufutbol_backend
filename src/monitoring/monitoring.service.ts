@@ -346,11 +346,18 @@ export class MonitoringService {
     this.logger.log(`Scheduling refresh for ${profiles.length} profiles`);
 
     let enqueuedCount = 0;
+    const STAGGER_DELAY_MS = 5000; // 5 seconds between each profile
 
     for (const profile of profiles) {
       // Enqueue fetch job for each profile
       await this.fetchAndStoreTweets(profile.id);
       enqueuedCount++;
+
+      // Add delay between requests to avoid rate limiting (except for last profile)
+      if (enqueuedCount < profiles.length) {
+        this.logger.debug(`Waiting ${STAGGER_DELAY_MS}ms before next profile...`);
+        await new Promise(resolve => setTimeout(resolve, STAGGER_DELAY_MS));
+      }
     }
 
     this.logger.log(`Enqueued ${enqueuedCount} profile refresh jobs`);
