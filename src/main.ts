@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
+
 // import * as fs from 'fs';
 
 async function bootstrap() {
@@ -29,7 +30,8 @@ async function bootstrap() {
       },
     },
   }));
-  app.enable('trust proxy');
+
+
 
   // Enable validation
   app.useGlobalPipes(
