@@ -13,7 +13,7 @@ import { EmailService } from 'src/email/email.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PassportModule.register({ defaultStrategy: 'jwt', session: false }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -29,4 +29,4 @@ import { EmailService } from 'src/email/email.service';
   providers: [AuthService, AuthResolver, JwtStrategy, EmailService],
   exports: [AuthService, JwtStrategy, PassportModule],
 })
-export class AuthModule {}
+export class AuthModule { }

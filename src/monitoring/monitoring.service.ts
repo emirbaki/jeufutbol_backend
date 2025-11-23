@@ -177,7 +177,8 @@ export class MonitoringService {
     });
 
     if (!profile) {
-      throw new NotFoundException('Profile not found');
+      this.logger.warn(`Profile ${profileId} not found during background fetch. It may have been deleted.`);
+      return 0;
     }
 
     try {
