@@ -22,6 +22,7 @@ import { TweetsModule } from './tweets/tweets.module';
 import { AIInsightsModule } from './insights/ai-insights.module';
 import { EmailModule } from './email/email.module';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
+import { createSecurityValidationRules } from './graphql/security.validation';
 
 @Module({
   imports: [
@@ -32,6 +33,29 @@ import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       playground: false,
+      allowBatchedHttpRequests: false,
+      introspection: process.env.NODE_ENV !== 'production',
+      validationRules: [
+        ...createSecurityValidationRules({
+          maxAliases: 15,
+          maxDirectives: 10,
+        }),
+      ],
+      formatError: (error: any) => {
+        if (process.env.NODE_ENV === 'production') {
+          const graphQLFormattedError = {
+            message:
+              error.extensions?.exception?.response?.message ||
+              error.message ||
+              'Internal Server Error',
+            code: error.extensions?.code || 'INTERNAL_SERVER_ERROR',
+            locations: error.locations,
+            path: error.path,
+          };
+          return graphQLFormattedError;
+        }
+        return error;
+      },
       // cors: {
       //   origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
       //   credentials: true,
@@ -70,4 +94,4 @@ import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin
   controllers: [AppController, UploadController],
   providers: [AppService, GraphqlResolver, UploadService],
 })
-export class AppModule {}
+export class AppModule { }
