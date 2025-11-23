@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PostGateway } from './post-base.gateway';
-import { PlatformType } from 'src/entities/social-account.entity';
+import { PlatformType } from 'src/enums/platform-type.enum';
 import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';

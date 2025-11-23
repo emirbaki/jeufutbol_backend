@@ -1,4 +1,4 @@
-import { PlatformType } from 'src/entities/social-account.entity';
+import { PlatformType } from 'src/enums/platform-type.enum';
 
 export abstract class PostGateway {
   abstract notifyPostPublished(

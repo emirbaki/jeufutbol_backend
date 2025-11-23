@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { PostGateway } from './post-base.gateway';
-import { PlatformType } from 'src/entities/social-account.entity';
+import { PlatformType } from 'src/enums/platform-type.enum';
 
 const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 

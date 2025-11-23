@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { PostGateway } from './post-base.gateway';
-import { PlatformType } from 'src/entities/social-account.entity';
+import { PlatformType } from 'src/enums/platform-type.enum';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com';
 
