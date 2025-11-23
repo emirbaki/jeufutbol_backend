@@ -47,7 +47,7 @@ import { createSecurityValidationRules } from './graphql/security.validation';
           // Only mask the message if it's an internal server error
           if (code === 'INTERNAL_SERVER_ERROR') {
             return {
-              message: 'Internal Server Error',
+              message: 'Internal Server Error / GTFO',
               code: code,
               locations: error.locations,
               path: error.path,
