@@ -2,33 +2,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-type SocialAccount {
-  id: ID!
-  userId: String!
-  platform: PlatformType!
-  platformUserId: String!
-  platformUsername: String!
-  profileImageUrl: String
-  tokenExpiresAt: DateTime
-  isActive: Boolean!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-}
-
-"""Supported social media platforms for published posts"""
-enum PlatformType {
-  INSTAGRAM
-  FACEBOOK
-  X
-  TIKTOK
-  YOUTUBE
-}
-
-"""
-A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
-"""
-scalar DateTime
-
 type Insight {
   id: ID!
   userId: String!
@@ -58,6 +31,11 @@ enum InsightType {
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
 scalar JSON
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
 
 type Tweet {
   id: ID!
@@ -100,12 +78,12 @@ type MonitoredProfile {
 type User {
   id: ID!
   email: String!
+  isVerified: Boolean!
   firstName: String!
   lastName: String!
   isActive: Boolean!
   createdAt: DateTime!
   updatedAt: DateTime!
-  socialAccounts: [SocialAccount!]
   posts: [Post!]
   monitoredProfiles: [MonitoredProfile!]
 }
@@ -119,6 +97,15 @@ type PublishedPost {
   publishMetadata: JSON
   publishedAt: DateTime!
   post: Post!
+}
+
+"""Supported social media platforms for published posts"""
+enum PlatformType {
+  INSTAGRAM
+  FACEBOOK
+  X
+  TIKTOK
+  YOUTUBE
 }
 
 type Post {
@@ -169,19 +156,63 @@ type AuthPayload {
   accessToken: String!
 }
 
+type MessageResponse {
+  message: String!
+}
+
+type JobIdResponse {
+  jobId: String!
+}
+
+type JobStatusObject {
+  id: String!
+  status: JobStatus!
+  progress: Int!
+  result: JSON
+  error: String
+  createdAt: DateTime!
+  finishedAt: DateTime
+}
+
+"""Status of a background job"""
+enum JobStatus {
+  WAITING
+  ACTIVE
+  COMPLETED
+  FAILED
+  DELAYED
+}
+
+type JobResultObject {
+  jobId: String!
+  result: JSON!
+}
+
 type Query {
   hello: String!
   getUserPosts(limit: Int): [Post!]!
   getPost(postId: String!): Post!
   getCredentials(platform: String): [Credential!]!
-  getConnectedAccounts: [SocialAccount!]!
+  verifyEmail(token: String!): MessageResponse!
   me: User!
   getMonitoredProfiles: [MonitoredProfile!]!
   getMonitoredProfile(profileId: String!): MonitoredProfile!
-  getProfileTweets(profileId: String!, limit: Int): [Tweet!]!
+  getProfileTweets(profileId: String!, limit: Int, offset: Int): [Tweet!]!
   getProfileStats(profileId: String!): JSON!
   analyzeTrends(topic: String, timeRange: String): JSON!
   getInsights(limit: Float): [Insight!]!
+
+  """Get status of a job by ID"""
+  jobStatus(jobId: String!): JobStatusObject!
+
+  """Get status of multiple jobs"""
+  jobStatuses(jobIds: [String!]!): [JobStatusObject!]!
+
+  """Get result of a completed job"""
+  jobResult(jobId: String!): JobResultObject!
+
+  """Get all jobs from a specific queue"""
+  queueJobs(queueName: String!): [JobStatusObject!]!
 }
 
 type Mutation {
@@ -191,15 +222,29 @@ type Mutation {
   publishPost(postId: String!): Post!
   deleteCredential(credentialId: String!): Boolean!
   testCredential(credentialId: String!): Boolean!
-  disconnectAccount(accountId: String!): Boolean!
-  register(email: String!, password: String!, firstName: String!, lastName: String!): AuthPayload!
+  register(email: String!, password: String!, firstName: String!, lastName: String!): MessageResponse!
   login(email: String!, password: String!): AuthPayload!
+  requestPasswordReset(email: String!): MessageResponse!
+  resetPassword(token: String!, newPassword: String!): MessageResponse!
+  resendVerificationEmail: MessageResponse!
   addMonitoredProfile(xUsername: String!): MonitoredProfile!
   removeMonitoredProfile(profileId: String!): Boolean!
   refreshProfileTweets(profileId: String!): Int!
-  generateAIInsights(topic: String, llmProvider: String): [Insight!]!
-  generatePostTemplate(insights: [String!]!, platform: String!, tone: String): JSON!
+
+  """
+  Generate AI insights (returns job ID - query jobStatus to check progress)
+  """
+  generateAIInsights(topic: String, llmProvider: String): JobIdResponse!
+
+  """
+  Generate post template (returns job ID - query jobStatus to check progress)
+  """
+  generatePostTemplate(insights: [String!]!, platform: String!, tone: String, llmProvider: String): JobIdResponse!
   indexTweetsToVector(profileId: String!): Int!
+  markInsightAsRead(insightId: String!): Insight!
+
+  """Retry a failed job"""
+  retryJob(jobId: String!): JobStatusObject!
 }
 
 input CreatePostInput {

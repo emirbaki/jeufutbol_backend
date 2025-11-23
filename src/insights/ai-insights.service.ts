@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In } from 'typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Tweet } from '../entities/tweet.entity';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
 import { Insight, InsightType } from '../entities/insight.entity';
@@ -14,6 +16,12 @@ import {
   TrendAnalysisTool,
   ContentSuggestionTool,
 } from './tools/post-generator.tool';
+import { QUEUE_NAMES, AI_INSIGHTS_JOBS } from '../queue/queue.config';
+import {
+  GenerateInsightsJobData,
+  GeneratePostJobData,
+  IndexTweetsJobData,
+} from './dto/job.dto';
 
 export interface GenerateInsightsDto {
   userId: string;
@@ -45,6 +53,8 @@ export class AIInsightsService {
     private insightRepository: Repository<Insight>,
     private vectorDbService: VectorDbService,
     private llmService: LLMService,
+    @InjectQueue(QUEUE_NAMES.AI_INSIGHTS)
+    private aiInsightsQueue: Queue,
   ) { }
 
   /**
@@ -87,9 +97,35 @@ export class AIInsightsService {
   }
 
   /**
-   * Generate AI insights for a user
+   * Generate AI insights for a user (Queue-based - returns job ID)
    */
-  async generateInsights(dto: GenerateInsightsDto): Promise<Insight[]> {
+  async generateInsights(
+    dto: GenerateInsightsDto,
+  ): Promise<{ jobId: string }> {
+    const jobData: GenerateInsightsJobData = dto;
+
+    const job = await this.aiInsightsQueue.add(
+      AI_INSIGHTS_JOBS.GENERATE_INSIGHTS,
+      jobData,
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(
+      `Enqueued insight generation job ${job.id} for user ${dto.userId}`,
+    );
+
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Generate AI insights for a user (Internal - called by processor)
+   */
+  async generateInsightsInternal(
+    dto: GenerateInsightsDto,
+  ): Promise<Insight[]> {
     const { userId, topic, llmProvider, useVectorSearch } = dto;
 
     try {
@@ -237,9 +273,33 @@ Content should be in Turkish.
   }
 
   /**
-   * Generate post template using LangChain agent with tools
+   * Generate post template (Queue-based - returns job ID)
    */
-  async generatePostTemplate(dto: PostTemplateDto): Promise<{
+  async generatePostTemplate(
+    dto: PostTemplateDto,
+  ): Promise<{ jobId: string }> {
+    const jobData: GeneratePostJobData = dto;
+
+    const job = await this.aiInsightsQueue.add(
+      AI_INSIGHTS_JOBS.GENERATE_POST,
+      jobData,
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(
+      `Enqueued post generation job ${job.id} for platform ${dto.platform}`,
+    );
+
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Generate post template using LangChain agent with tools (Internal - called by processor)
+   */
+  async generatePostTemplateInternal(dto: PostTemplateDto): Promise<{
     content: string;
     hashtags: string[];
     platform: string;

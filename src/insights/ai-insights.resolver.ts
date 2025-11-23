@@ -6,18 +6,21 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { Insight } from 'src/entities/insight.entity';
 import GraphQLJSON from 'graphql-type-json';
+import { JobIdResponse } from './types/job-response.types';
 
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class AIInsightsResolver {
   constructor(private aiInsightsService: AIInsightsService) { }
 
-  @Mutation(() => [Insight])
+  @Mutation(() => JobIdResponse, {
+    description: 'Generate AI insights (returns job ID - query jobStatus to check progress)',
+  })
   async generateAIInsights(
     @CurrentUser() user: User,
     @Args('topic', { nullable: true }) topic?: string,
     @Args('llmProvider', { nullable: true }) llmProvider?: string,
-  ) {
+  ): Promise<JobIdResponse> {
     return this.aiInsightsService.generateInsights({
       userId: user.id,
       topic,
@@ -26,14 +29,16 @@ export class AIInsightsResolver {
     });
   }
 
-  @Mutation(() => GraphQLJSON)
+  @Mutation(() => JobIdResponse, {
+    description: 'Generate post template (returns job ID - query jobStatus to check progress)',
+  })
   async generatePostTemplate(
     @CurrentUser() user: User,
     @Args('insights', { type: () => [String] }) insights: string[],
     @Args('platform') platform: string,
     @Args('tone', { nullable: true }) tone?: string,
     @Args('llmProvider', { nullable: true }) llmProvider?: string,
-  ) {
+  ): Promise<JobIdResponse> {
     return this.aiInsightsService.generatePostTemplate({
       insights,
       platform: platform as any,
