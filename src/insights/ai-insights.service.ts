@@ -97,6 +97,43 @@ export class AIInsightsService {
   }
 
   /**
+   * Bulk index all tweets from all monitored profiles to vector database
+   */
+  async indexAllTweetsToVectorDb(userId: string): Promise<{ totalIndexed: number; profilesProcessed: number }> {
+    try {
+      this.logger.log(`Starting bulk indexing for user ${userId}`);
+
+      // Get all active monitored profiles for this user
+      const profiles = await this.monitoredProfileRepository.find({
+        where: { userId, isActive: true },
+      });
+
+      let totalIndexed = 0;
+      let profilesProcessed = 0;
+
+      for (const profile of profiles) {
+        try {
+          const count = await this.indexTweetsToVectorDb(profile.id);
+          totalIndexed += count;
+          profilesProcessed++;
+          this.logger.log(`Indexed ${count} tweets for profile @${profile.xUsername}`);
+        } catch (error) {
+          this.logger.error(`Failed to index tweets for profile ${profile.id}: ${error.message}`);
+          // Continue with other profiles even if one fails
+        }
+      }
+
+      this.logger.log(`Bulk indexing complete: ${totalIndexed} tweets indexed from ${profilesProcessed} profiles`);
+
+      return { totalIndexed, profilesProcessed };
+    } catch (error) {
+      this.logger.error(`Failed to bulk index tweets: ${error.message}`);
+      throw error;
+    }
+  }
+
+
+  /**
    * Generate AI insights for a user (Queue-based - returns job ID)
    */
   async generateInsights(
@@ -146,15 +183,38 @@ export class AIInsightsService {
 
       if (useVectorSearch && topic) {
         // Use vector search for relevant tweets
-        const searchResults = await this.vectorDbService.search(topic, 50);
-        const tweetIds = searchResults.map((r) => r.id);
+        try {
+          const searchResults = await this.vectorDbService.search(topic, 50);
+          const tweetIds = searchResults.map((r) => r.id);
 
-        if (tweetIds.length > 0) {
-          relevantTweets = await this.tweetRepository.find({
-            where: { id: In(tweetIds) },
-          });
-        } else {
+          if (tweetIds.length > 0) {
+            relevantTweets = await this.tweetRepository.find({
+              where: { id: In(tweetIds) },
+            });
+            this.logger.log(`Found ${relevantTweets.length} tweets via vector search for topic: "${topic}"`);
+          } else {
+            this.logger.warn(`No vector search results for topic: "${topic}", falling back to recent tweets`);
+            relevantTweets = [];
+          }
+        } catch (error) {
+          this.logger.error(`Vector search failed: ${error.message}, falling back to recent tweets`);
           relevantTweets = [];
+        }
+
+        // Fallback to recent tweets if vector search found nothing
+        if (relevantTweets.length === 0) {
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          const profileIds = profiles.map((p) => p.id);
+          relevantTweets = await this.tweetRepository.find({
+            where: {
+              monitoredProfileId: In(profileIds),
+              createdAt: MoreThan(weekAgo),
+            },
+            order: { createdAt: 'DESC' },
+            take: 100,
+          });
+          this.logger.log(`Using ${relevantTweets.length} recent tweets as fallback`);
         }
       } else {
         // Get recent tweets (last 7 days)

@@ -77,6 +77,13 @@ export class AIInsightsResolver {
     return this.aiInsightsService.indexTweetsToVectorDb(profileId);
   }
 
+  @Mutation(() => GraphQLJSON, {
+    description: 'Bulk index all existing tweets from all monitored profiles to vector database',
+  })
+  async indexAllTweetsToVector(@CurrentUser() user: User) {
+    return this.aiInsightsService.indexAllTweetsToVectorDb(user.id);
+  }
+
   @Query(() => [Insight])
   async getInsights(
     @CurrentUser() user: User,

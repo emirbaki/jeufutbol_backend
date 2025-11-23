@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { QUEUE_NAMES, MONITORING_JOBS } from '../queue/queue.config';
 import { MonitoringService } from './monitoring.service';
+import { AIInsightsService } from '../insights/ai-insights.service';
 import {
     FetchProfileTweetsJobData,
     RefreshAllProfilesJobData,
@@ -14,7 +15,10 @@ import {
 export class MonitoringProcessor extends WorkerHost {
     private readonly logger = new Logger(MonitoringProcessor.name);
 
-    constructor(private readonly monitoringService: MonitoringService) {
+    constructor(
+        private readonly monitoringService: MonitoringService,
+        private readonly aiInsightsService: AIInsightsService,
+    ) {
         super();
     }
 
@@ -60,6 +64,18 @@ export class MonitoringProcessor extends WorkerHost {
             profileId,
             count,
         );
+
+        // Auto-index tweets to vector database if we fetched any
+        if (tweetsCount > 0) {
+            try {
+                await job.updateProgress(50);
+                const indexedCount = await this.aiInsightsService.indexTweetsToVectorDb(profileId);
+                this.logger.log(`Auto-indexed ${indexedCount} tweets to vector DB for profile ${profileId}`);
+            } catch (error) {
+                this.logger.warn(`Failed to auto-index tweets: ${error.message}`);
+                // Don't fail the job if indexing fails
+            }
+        }
 
         // Update progress
         await job.updateProgress(100);
