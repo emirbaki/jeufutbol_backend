@@ -72,24 +72,46 @@ export class AIInsightsService {
         where: { id: profileId },
       });
 
-      const documents = tweets.map((tweet) => ({
-        id: tweet.id,
-        content: tweet.content,
-        metadata: {
-          tweetId: tweet.tweetId,
-          username: profile?.xUsername || 'unknown',
-          timestamp: tweet.createdAt.toISOString(),
-          likes: tweet.likes,
-          retweets: tweet.retweets,
-          hashtags: (tweet.hashtags || []).join(', '), // Convert array to string
-          mentions: (tweet.mentions || []).join(', '), // Convert array to string
-        },
-      }));
+      if (tweets.length === 0) {
+        this.logger.log('No tweets to index');
+        return 0;
+      }
 
-      await this.vectorDbService.addDocuments(documents);
-      this.logger.log(`Indexed ${documents.length} tweets to vector DB`);
+      // Process in smaller batches to avoid overwhelming ChromaDB
+      const BATCH_SIZE = 50;
+      const DELAY_BETWEEN_BATCHES_MS = 1000; // 1 second
+      let totalIndexed = 0;
 
-      return documents.length;
+      for (let i = 0; i < tweets.length; i += BATCH_SIZE) {
+        const batch = tweets.slice(i, i + BATCH_SIZE);
+
+        const documents = batch.map((tweet) => ({
+          id: tweet.id,
+          content: tweet.content,
+          metadata: {
+            tweetId: tweet.tweetId,
+            username: profile?.xUsername || 'unknown',
+            timestamp: tweet.createdAt.toISOString(),
+            likes: tweet.likes,
+            retweets: tweet.retweets,
+            hashtags: (tweet.hashtags || []).join(', '), // Convert array to string
+            mentions: (tweet.mentions || []).join(', '), // Convert array to string
+          },
+        }));
+
+        await this.vectorDbService.addDocuments(documents);
+        totalIndexed += documents.length;
+
+        this.logger.log(`Indexed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tweets.length / BATCH_SIZE)} (${documents.length} tweets)`);
+
+        // Add delay between batches (except for last batch)
+        if (i + BATCH_SIZE < tweets.length) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+        }
+      }
+
+      this.logger.log(`✓ Successfully indexed ${totalIndexed} tweets for profile to vector DB`);
+      return totalIndexed;
     } catch (error) {
       this.logger.error(`Failed to index tweets: ${error.message}`);
       throw error;
