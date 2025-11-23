@@ -22,6 +22,10 @@ export interface IndexTweetsJobData {
     profileId: string;
 }
 
+export interface BulkIndexTweetsJobData {
+    userId: string;
+}
+
 // Job result DTOs
 export interface GenerateInsightsJobResult {
     insights: Array<{
@@ -43,6 +47,11 @@ export interface GeneratePostJobResult {
 
 export interface IndexTweetsJobResult {
     indexedCount: number;
+}
+
+export interface BulkIndexTweetsJobResult {
+    totalIndexed: number;
+    profilesProcessed: number;
 }
 
 export interface FetchProfileTweetsJobData {

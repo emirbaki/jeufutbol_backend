@@ -97,9 +97,29 @@ export class AIInsightsService {
   }
 
   /**
-   * Bulk index all tweets from all monitored profiles to vector database
+   * Bulk index all tweets from all monitored profiles to vector database (Queue-based)
    */
-  async indexAllTweetsToVectorDb(userId: string): Promise<{ totalIndexed: number; profilesProcessed: number }> {
+  async indexAllTweetsToVectorDb(userId: string): Promise<{ jobId: string }> {
+    const job = await this.aiInsightsQueue.add(
+      AI_INSIGHTS_JOBS.BULK_INDEX_TWEETS,
+      { userId },
+      {
+        removeOnComplete: 10,
+        removeOnFail: 50,
+      },
+    );
+
+    this.logger.log(`Enqueued bulk indexing job ${job.id} for user ${userId}`);
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Bulk index all tweets (Internal - called by processor with progress tracking)
+   */
+  async indexAllTweetsToVectorDbInternal(
+    userId: string,
+    job?: any,
+  ): Promise<{ totalIndexed: number; profilesProcessed: number }> {
     try {
       this.logger.log(`Starting bulk indexing for user ${userId}`);
 
@@ -108,22 +128,42 @@ export class AIInsightsService {
         where: { userId, isActive: true },
       });
 
+      this.logger.log(`Found ${profiles.length} active profiles to index`);
+
       let totalIndexed = 0;
       let profilesProcessed = 0;
+      const DELAY_BETWEEN_PROFILES_MS = 3000; // 3 seconds
 
-      for (const profile of profiles) {
+      for (let i = 0; i < profiles.length; i++) {
+        const profile = profiles[i];
+
         try {
+          this.logger.log(`[${i + 1}/${profiles.length}] Indexing tweets for @${profile.xUsername}...`);
+
           const count = await this.indexTweetsToVectorDb(profile.id);
           totalIndexed += count;
           profilesProcessed++;
-          this.logger.log(`Indexed ${count} tweets for profile @${profile.xUsername}`);
+
+          this.logger.log(`✓ Indexed ${count} tweets for @${profile.xUsername}`);
+
+          // Update job progress if available
+          if (job) {
+            const progress = Math.floor(((i + 1) / profiles.length) * 90) + 10; // 10-100%
+            await job.updateProgress(progress);
+          }
+
+          // Add delay between profiles to avoid overwhelming the system/ChromaDB
+          if (i < profiles.length - 1) {
+            this.logger.debug(`Waiting ${DELAY_BETWEEN_PROFILES_MS}ms before next profile...`);
+            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_PROFILES_MS));
+          }
         } catch (error) {
           this.logger.error(`Failed to index tweets for profile ${profile.id}: ${error.message}`);
           // Continue with other profiles even if one fails
         }
       }
 
-      this.logger.log(`Bulk indexing complete: ${totalIndexed} tweets indexed from ${profilesProcessed} profiles`);
+      this.logger.log(`✅ Bulk indexing complete: ${totalIndexed} tweets indexed from ${profilesProcessed} profiles`);
 
       return { totalIndexed, profilesProcessed };
     } catch (error) {

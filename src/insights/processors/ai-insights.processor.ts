@@ -7,9 +7,11 @@ import {
     GenerateInsightsJobData,
     GeneratePostJobData,
     IndexTweetsJobData,
+    BulkIndexTweetsJobData,
     GenerateInsightsJobResult,
     GeneratePostJobResult,
     IndexTweetsJobResult,
+    BulkIndexTweetsJobResult,
 } from '../dto/job.dto';
 
 @Processor(QUEUE_NAMES.AI_INSIGHTS)
@@ -22,7 +24,7 @@ export class AIInsightsProcessor extends WorkerHost {
 
     async process(
         job: Job<
-            GenerateInsightsJobData | GeneratePostJobData | IndexTweetsJobData,
+            GenerateInsightsJobData | GeneratePostJobData | IndexTweetsJobData | BulkIndexTweetsJobData,
             any,
             string
         >,
@@ -46,6 +48,11 @@ export class AIInsightsProcessor extends WorkerHost {
                 case AI_INSIGHTS_JOBS.INDEX_TWEETS:
                     return await this.handleIndexTweets(
                         job as Job<IndexTweetsJobData, IndexTweetsJobResult>,
+                    );
+
+                case AI_INSIGHTS_JOBS.BULK_INDEX_TWEETS:
+                    return await this.handleBulkIndexTweets(
+                        job as Job<BulkIndexTweetsJobData, BulkIndexTweetsJobResult>,
                     );
 
                 default:
@@ -126,6 +133,24 @@ export class AIInsightsProcessor extends WorkerHost {
 
         return { indexedCount: count };
     }
+
+    private async handleBulkIndexTweets(
+        job: Job<BulkIndexTweetsJobData, BulkIndexTweetsJobResult>,
+    ): Promise<BulkIndexTweetsJobResult> {
+        const { userId } = job.data;
+
+        // Update progress: Starting
+        await job.updateProgress(10);
+
+        // Call internal method with staggered delays
+        const result = await this.aiInsightsService.indexAllTweetsToVectorDbInternal(userId, job);
+
+        // Update progress: Complete
+        await job.updateProgress(100);
+
+        return result;
+    }
+
 
     @OnWorkerEvent('completed')
     onCompleted(job: Job) {
