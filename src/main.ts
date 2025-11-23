@@ -29,6 +29,7 @@ async function bootstrap() {
       },
     },
   }));
+  app.enable('trust proxy');
 
   // Enable validation
   app.useGlobalPipes(
