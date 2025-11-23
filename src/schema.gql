@@ -243,9 +243,9 @@ type Mutation {
   indexTweetsToVector(profileId: String!): Int!
 
   """
-  Bulk index all existing tweets from all monitored profiles to vector database
+  Bulk index all existing tweets from all monitored profiles to vector database (returns job ID)
   """
-  indexAllTweetsToVector: JSON!
+  indexAllTweetsToVector: JobIdResponse!
   markInsightAsRead(insightId: String!): Insight!
 
   """Retry a failed job"""

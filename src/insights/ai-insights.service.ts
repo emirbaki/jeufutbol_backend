@@ -65,7 +65,7 @@ export class AIInsightsService {
       const tweets = await this.tweetRepository.find({
         where: { monitoredProfileId: profileId },
         order: { createdAt: 'DESC' },
-        take: 1000,
+        take: 500, // Reduced from 1000 to prevent memory issues
       });
 
       const profile = await this.monitoredProfileRepository.findOne({
@@ -132,7 +132,7 @@ export class AIInsightsService {
 
       let totalIndexed = 0;
       let profilesProcessed = 0;
-      const DELAY_BETWEEN_PROFILES_MS = 3000; // 3 seconds
+      const DELAY_BETWEEN_PROFILES_MS = 10000; // 5 seconds (increased from 3)
 
       for (let i = 0; i < profiles.length; i++) {
         const profile = profiles[i];
