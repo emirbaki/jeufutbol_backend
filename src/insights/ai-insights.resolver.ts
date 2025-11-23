@@ -77,13 +77,6 @@ export class AIInsightsResolver {
     return this.aiInsightsService.indexTweetsToVectorDb(profileId);
   }
 
-  @Mutation(() => JobIdResponse, {
-    description: 'Bulk index all existing tweets from all monitored profiles to vector database (returns job ID)',
-  })
-  async indexAllTweetsToVector(@CurrentUser() user: User): Promise<JobIdResponse> {
-    return this.aiInsightsService.indexAllTweetsToVectorDb(user.id);
-  }
-
   @Query(() => [Insight])
   async getInsights(
     @CurrentUser() user: User,

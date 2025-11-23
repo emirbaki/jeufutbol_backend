@@ -241,11 +241,6 @@ type Mutation {
   """
   generatePostTemplate(insights: [String!]!, platform: String!, tone: String, llmProvider: String): JobIdResponse!
   indexTweetsToVector(profileId: String!): Int!
-
-  """
-  Bulk index all existing tweets from all monitored profiles to vector database (returns job ID)
-  """
-  indexAllTweetsToVector: JobIdResponse!
   markInsightAsRead(insightId: String!): Insight!
 
   """Retry a failed job"""

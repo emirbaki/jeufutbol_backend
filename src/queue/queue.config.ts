@@ -71,7 +71,6 @@ export const AI_INSIGHTS_JOBS = {
     GENERATE_INSIGHTS: 'generate-insights',
     GENERATE_POST: 'generate-post',
     INDEX_TWEETS: 'index-tweets',
-    BULK_INDEX_TWEETS: 'bulk-index-tweets',
 } as const;
 
 // Job types for Tweet Monitoring queue
