@@ -7,6 +7,8 @@ import { MonitoringResolver } from './monitoring.resolver';
 import { MonitoringSchedulerService } from './monitoring-scheduler.service';
 import { TweetsModule } from '../tweets/tweets.module';
 
+import { MonitoringProcessor } from './monitoring.processor';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([MonitoredProfile]),
@@ -17,7 +19,8 @@ import { TweetsModule } from '../tweets/tweets.module';
     MonitoringService,
     MonitoringResolver,
     MonitoringSchedulerService,
+    MonitoringProcessor,
   ],
   exports: [MonitoringService],
 })
-export class MonitoringModule {}
+export class MonitoringModule { }

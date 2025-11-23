@@ -26,6 +26,8 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerBehindProxyGuard } from './throttle-behind-proxy/throttle-behind-proxy.guard';
 import { QueueModule } from './queue/queue.module';
+import { RedisCacheModule } from './cache/redis-cache.module';
+import { QueueDashboardModule } from './queue/queue-dashboard.module';
 
 @Module({
   imports: [
@@ -106,6 +108,8 @@ import { QueueModule } from './queue/queue.module';
       },
     ]),
     QueueModule,
+    RedisCacheModule,
+    QueueDashboardModule,
   ],
   controllers: [AppController, UploadController],
   providers: [

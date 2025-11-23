@@ -229,7 +229,7 @@ type Mutation {
   resendVerificationEmail: MessageResponse!
   addMonitoredProfile(xUsername: String!): MonitoredProfile!
   removeMonitoredProfile(profileId: String!): Boolean!
-  refreshProfileTweets(profileId: String!): Int!
+  refreshProfileTweets(profileId: String!): JobIdResponse!
 
   """
   Generate AI insights (returns job ID - query jobStatus to check progress)

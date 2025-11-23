@@ -10,7 +10,7 @@ export class MonitoringSchedulerService {
   constructor(
     private monitoringService: MonitoringService,
     private tweetsService: TweetsService,
-  ) {}
+  ) { }
 
   /**
    * Refresh all profiles every hour
@@ -20,9 +20,9 @@ export class MonitoringSchedulerService {
     this.logger.log('Starting hourly tweet refresh');
 
     try {
-      const result = await this.monitoringService.refreshAllProfiles();
+      const { jobId } = await this.monitoringService.refreshAllProfiles();
       this.logger.log(
-        `Hourly refresh complete: ${result.success} success, ${result.failed} failed`,
+        `Hourly refresh job enqueued: ${jobId}`,
       );
     } catch (error) {
       this.logger.error(`Hourly refresh failed: ${error.message}`);
