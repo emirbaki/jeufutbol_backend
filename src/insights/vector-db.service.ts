@@ -11,7 +11,8 @@ export interface VectorDocument {
     timestamp: string;
     likes: number;
     retweets: number;
-    hashtags?: string[];
+    hashtags?: string; // Changed from array to string
+    mentions?: string; // Changed from array to string
     [key: string]: any;
   };
 }
@@ -29,7 +30,7 @@ export class VectorDbService implements OnModuleInit {
   private chromaClient: ChromaClient;
   private readonly collectionName = 'tweets_collection';
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   async onModuleInit() {
     await this.initializeChroma();

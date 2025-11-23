@@ -81,8 +81,8 @@ export class AIInsightsService {
           timestamp: tweet.createdAt.toISOString(),
           likes: tweet.likes,
           retweets: tweet.retweets,
-          hashtags: tweet.hashtags || [],
-          mentions: tweet.mentions || [],
+          hashtags: (tweet.hashtags || []).join(', '), // Convert array to string
+          mentions: (tweet.mentions || []).join(', '), // Convert array to string
         },
       }));
 
