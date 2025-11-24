@@ -12,7 +12,7 @@ import {
 } from '../insights/dto/job.dto';
 
 @Processor(QUEUE_NAMES.TWEET_MONITORING, {
-    concurrency: 1, // Process jobs one by one to avoid rate limits
+    concurrency: 5, // Process 5 jobs in parallel (requires proxies)
 })
 export class MonitoringProcessor extends WorkerHost {
     private readonly logger = new Logger(MonitoringProcessor.name);

@@ -74,13 +74,13 @@ export class VectorDbService implements OnModuleInit {
         name: this.collectionName,
       });
 
-      await collection.add({
+      await collection.upsert({
         ids: documents.map((d) => d.id),
         documents: documents.map((d) => d.content),
         metadatas: documents.map((d) => d.metadata),
       });
 
-      this.logger.log(`Added ${documents.length} documents to ChromaDB`);
+      this.logger.log(`Upserted ${documents.length} documents to ChromaDB`);
     } catch (error) {
       this.logger.error(`Failed to add documents: ${error.message}`);
       throw error;

@@ -21,21 +21,55 @@ export class TweetsService {
 
   public rettiwt: Rettiwt;
 
+  private proxies: string[] = [];
+  private currentProxyIndex = 0;
+
   constructor(
     @InjectRepository(Tweet)
     private tweetRepository: Repository<Tweet>,
   ) {
-    // Initialize Rettiwt-API (no auth needed for public tweets)
-    this.rettiwt = new Rettiwt({ apiKey: API_KEY });
+    // Initialize proxies from env
+    const proxyList = process.env.TWITTER_PROXY_LIST || '';
+    if (proxyList) {
+      this.proxies = proxyList.split(',').map((p) => p.trim()).filter((p) => p);
+      this.logger.log(`Loaded ${this.proxies.length} proxies`);
+    }
+
+    // Initialize Rettiwt-API (default instance)
+    this.rettiwt = this.createRettiwtInstance();
     this.logger.log('Rettiwt-API initialized');
   }
 
   /**
-   * Fetch tweets from Twitter using Rettiwt-API
+   * Create a Rettiwt instance, optionally with a proxy
    */
+  private createRettiwtInstance(proxyUrl?: string): Rettiwt {
+    const config: any = { apiKey: API_KEY };
+    if (proxyUrl) {
+      try {
+        config.proxyUrl = new URL(proxyUrl);
+        this.logger.log(`Created Rettiwt instance with proxy: ${proxyUrl}`);
+      } catch (e) {
+        this.logger.warn(`Invalid proxy URL: ${proxyUrl}`);
+      }
+    }
+    return new Rettiwt(config);
+  }
+
+  /**
+   * Get next proxy from the list
+   */
+  private getNextProxy(): string | undefined {
+    if (this.proxies.length === 0) return undefined;
+
+    const proxy = this.proxies[this.currentProxyIndex];
+    this.currentProxyIndex = (this.currentProxyIndex + 1) % this.proxies.length;
+    return proxy;
+  }
+
   /**
    * Fetch tweets from Twitter using Rettiwt-API
-   * Includes retry logic for 429 errors
+   * Includes retry logic for 429 errors and proxy rotation
    */
   async fetchTweetsFromTwitter(
     username: string,
@@ -43,6 +77,15 @@ export class TweetsService {
   ): Promise<RettiwtTweet[]> {
     const MAX_RETRIES = 3;
     let attempt = 0;
+    let currentRettiwt = this.rettiwt;
+
+    // Try to use a proxy for the first attempt if available
+    if (this.proxies.length > 0) {
+      const proxy = this.getNextProxy();
+      if (proxy) {
+        currentRettiwt = this.createRettiwtInstance(proxy);
+      }
+    }
 
     while (attempt < MAX_RETRIES) {
       try {
@@ -51,7 +94,7 @@ export class TweetsService {
         );
 
         // Fetch user's tweets
-        const response = await this.rettiwt.tweet.search(
+        const response = await currentRettiwt.tweet.search(
           {
             fromUsers: [username],
           },
@@ -64,7 +107,6 @@ export class TweetsService {
         return tweets;
       } catch (error) {
         // Check for rate limit error (429)
-        // Rettiwt might throw different error structures, checking message or status
         const isRateLimit =
           error.message?.includes('429') ||
           error.status === 429 ||
@@ -81,10 +123,24 @@ export class TweetsService {
             );
           }
 
-          // Exponential backoff: 60s, 120s, 180s
+          this.logger.warn(`Rate limit hit for @${username}.`);
+
+          // If we have proxies, switch to the next one immediately
+          if (this.proxies.length > 0) {
+            const nextProxy = this.getNextProxy();
+            if (nextProxy) {
+              this.logger.log(`Switching to next proxy: ${nextProxy}`);
+              currentRettiwt = this.createRettiwtInstance(nextProxy);
+              // Don't wait long if we switched proxy
+              await this.sleep(1000);
+              continue;
+            }
+          }
+
+          // Fallback: Exponential backoff if no proxies or proxy failed
           const delaySeconds = 60 * attempt;
           this.logger.warn(
-            `Rate limit hit for @${username}. Waiting ${delaySeconds} seconds before retry...`,
+            `Waiting ${delaySeconds} seconds before retry...`,
           );
           await this.sleep(delaySeconds * 1000);
           continue;
