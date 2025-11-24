@@ -33,31 +33,79 @@ export class TweetsService {
   /**
    * Fetch tweets from Twitter using Rettiwt-API
    */
+  /**
+   * Fetch tweets from Twitter using Rettiwt-API
+   * Includes retry logic for 429 errors
+   */
   async fetchTweetsFromTwitter(
     username: string,
     count: number = 20,
   ): Promise<RettiwtTweet[]> {
-    try {
-      this.logger.log(`Fetching ${count} tweets for @${username}`);
+    const MAX_RETRIES = 3;
+    let attempt = 0;
 
-      // Fetch user's tweets
-      const response = await this.rettiwt.tweet.search(
-        {
-          fromUsers: [username],
-        },
-        count,
-      );
+    while (attempt < MAX_RETRIES) {
+      try {
+        this.logger.log(
+          `Fetching ${count} tweets for @${username} (Attempt ${attempt + 1}/${MAX_RETRIES})`,
+        );
 
-      const tweets = response.list || [];
-      this.logger.log(`Fetched ${tweets.length} tweets for @${username}`);
+        // Fetch user's tweets
+        const response = await this.rettiwt.tweet.search(
+          {
+            fromUsers: [username],
+          },
+          count,
+        );
 
-      return tweets;
-    } catch (error) {
-      this.logger.error(
-        `Error fetching tweets for @${username}: ${error.message}`,
-      );
-      throw new Error(`Failed to fetch tweets: ${error.message}`);
+        const tweets = response.list || [];
+        this.logger.log(`Fetched ${tweets.length} tweets for @${username}`);
+
+        return tweets;
+      } catch (error) {
+        // Check for rate limit error (429)
+        // Rettiwt might throw different error structures, checking message or status
+        const isRateLimit =
+          error.message?.includes('429') ||
+          error.status === 429 ||
+          error.statusCode === 429;
+
+        if (isRateLimit) {
+          attempt++;
+          if (attempt >= MAX_RETRIES) {
+            this.logger.error(
+              `Max retries reached for @${username}. Giving up.`,
+            );
+            throw new Error(
+              `Failed to fetch tweets after ${MAX_RETRIES} attempts: ${error.message}`,
+            );
+          }
+
+          // Exponential backoff: 60s, 120s, 180s
+          const delaySeconds = 60 * attempt;
+          this.logger.warn(
+            `Rate limit hit for @${username}. Waiting ${delaySeconds} seconds before retry...`,
+          );
+          await this.sleep(delaySeconds * 1000);
+          continue;
+        }
+
+        // For other errors, throw immediately
+        this.logger.error(
+          `Error fetching tweets for @${username}: ${error.message}`,
+        );
+        throw new Error(`Failed to fetch tweets: ${error.message}`);
+      }
     }
+
+    return [];
+  }
+
+  /**
+   * Sleep helper
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

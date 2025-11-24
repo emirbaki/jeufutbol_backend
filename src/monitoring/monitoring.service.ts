@@ -346,7 +346,7 @@ export class MonitoringService {
     this.logger.log(`Scheduling refresh for ${profiles.length} profiles`);
 
     let enqueuedCount = 0;
-    const STAGGER_DELAY_MS = 5000; // 5 seconds between each profile
+    const STAGGER_DELAY_MS = 10000; // 10 seconds between each profile
 
     for (const profile of profiles) {
       // Enqueue fetch job for each profile

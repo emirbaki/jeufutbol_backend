@@ -11,7 +11,9 @@ import {
     RefreshAllProfilesJobResult,
 } from '../insights/dto/job.dto';
 
-@Processor(QUEUE_NAMES.TWEET_MONITORING)
+@Processor(QUEUE_NAMES.TWEET_MONITORING, {
+    concurrency: 1, // Process jobs one by one to avoid rate limits
+})
 export class MonitoringProcessor extends WorkerHost {
     private readonly logger = new Logger(MonitoringProcessor.name);
 
