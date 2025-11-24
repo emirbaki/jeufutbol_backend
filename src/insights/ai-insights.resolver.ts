@@ -77,6 +77,7 @@ export class AIInsightsResolver {
     return this.aiInsightsService.indexTweetsToVectorDb(profileId);
   }
 
+  @CacheTTL(259200000) // 3 days
   @Query(() => [Insight])
   async getInsights(
     @CurrentUser() user: User,
