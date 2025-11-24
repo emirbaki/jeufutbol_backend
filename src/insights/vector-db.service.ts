@@ -42,7 +42,9 @@ export class VectorDbService implements OnModuleInit {
       const chromaPort = this.configService.get('CHROMA_PORT', 8000);
 
       this.chromaClient = new ChromaClient({
-        path: `http://${chromaHost}:${chromaPort}`,
+        host: chromaHost,
+        port: chromaPort,
+        ssl: false,
       });
 
       this.logger.log(`Connecting to ChromaDB at ${chromaHost}:${chromaPort}`);
