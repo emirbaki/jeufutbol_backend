@@ -118,11 +118,15 @@ export class TweetsService {
         // 403: Forbidden (often proxy/geo related)
         // 407: Proxy Auth Required
         // 5xx: Server errors
+        // TypeError: Often happens when rettiwt fails to parse a non-JSON error response from a bad proxy
+        const isProxyError = error instanceof TypeError && error.message?.includes("reading 'errors'");
+
         const isRetryable =
+          isProxyError ||
           error.message?.includes('429') ||
           error.status === 429 ||
           error.statusCode === 429 ||
-          error.status === 400 || // Bad Request (seen in logs)
+          error.status === 400 ||
           error.statusCode === 400 ||
           error.code === 'ECONNRESET' ||
           error.code === 'ETIMEDOUT';
@@ -138,7 +142,11 @@ export class TweetsService {
             );
           }
 
-          this.logger.warn(`Encountered error for @${username}. Rotating proxy if available.`);
+          if (isProxyError) {
+            this.logger.warn(`Proxy returned invalid response for @${username}. Rotating proxy.`);
+          } else {
+            this.logger.warn(`Encountered error for @${username}. Rotating proxy if available.`);
+          }
 
           // If we have proxies, switch to the next one immediately
           if (this.proxies.length > 0) {
