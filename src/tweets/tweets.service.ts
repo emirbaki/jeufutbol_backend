@@ -33,6 +33,8 @@ export class TweetsService {
     if (proxyList) {
       this.proxies = proxyList.split(',').map((p) => p.trim()).filter((p) => p);
       this.logger.log(`Loaded ${this.proxies.length} proxies`);
+      // Randomize start index to avoid all workers hitting the same bad proxy first
+      this.currentProxyIndex = Math.floor(Math.random() * this.proxies.length);
     }
 
     // Initialize Rettiwt-API (default instance)
@@ -75,7 +77,7 @@ export class TweetsService {
     username: string,
     count: number = 20,
   ): Promise<RettiwtTweet[]> {
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 10; // Increased for unreliable free proxies
     let attempt = 0;
     let currentRettiwt = this.rettiwt;
 
@@ -120,9 +122,11 @@ export class TweetsService {
         // 5xx: Server errors
         // TypeError: Often happens when rettiwt fails to parse a non-JSON error response from a bad proxy
         const isProxyError = error instanceof TypeError && error.message?.includes("reading 'errors'");
+        const isAuthError = error.status === 407 || error.statusCode === 407;
 
         const isRetryable =
           isProxyError ||
+          isAuthError ||
           error.message?.includes('429') ||
           error.status === 429 ||
           error.statusCode === 429 ||
@@ -144,6 +148,8 @@ export class TweetsService {
 
           if (isProxyError) {
             this.logger.warn(`Proxy returned invalid response for @${username}. Rotating proxy.`);
+          } else if (isAuthError) {
+            this.logger.warn(`Proxy authentication failed (407) for @${username}. Rotating proxy.`);
           } else {
             this.logger.warn(`Encountered error for @${username}. Rotating proxy if available.`);
           }

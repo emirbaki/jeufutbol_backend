@@ -131,7 +131,8 @@ export class MonitoringService {
       // Fetch initial tweets (last 20)
       if (data.fetchTweets !== false) {
         try {
-          await this.fetchAndStoreTweets(savedProfile.id);
+          const fetchCount = parseInt(process.env.TWEET_FETCH_COUNT || '5', 10);
+          await this.fetchAndStoreTweets(savedProfile.id, fetchCount);
         } catch (tweetError) {
           this.logger.error(`Failed to fetch tweets: ${tweetError.message}`);
           // Don't fail the entire operation if tweet fetching fails
@@ -350,7 +351,9 @@ export class MonitoringService {
 
     for (const profile of profiles) {
       // Enqueue fetch job for each profile
-      await this.fetchAndStoreTweets(profile.id);
+      // Use configured fetch count or default to 5 to save bandwidth
+      const fetchCount = parseInt(process.env.TWEET_FETCH_COUNT || '5', 10);
+      await this.fetchAndStoreTweets(profile.id, fetchCount);
       enqueuedCount++;
 
       // Add minimal delay to prevent overwhelming Redis
