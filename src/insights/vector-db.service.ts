@@ -38,14 +38,16 @@ export class VectorDbService implements OnModuleInit {
 
   private async initializeChroma() {
     try {
+      const chromaHost = this.configService.get('CHROMA_HOST', 'chromadb');
+      const chromaPort = this.configService.get('CHROMA_PORT', 8000);
+
       this.chromaClient = new ChromaClient({
-        // host: this.configService.get('CHROMA_URL', 'http://31.97.217.52:8000'),
-        host: '31.97.217.52',
-        port: 8000,
-        ssl: false,
+        path: `http://${chromaHost}:${chromaPort}`,
       });
 
-      // Create or get collection
+      this.logger.log(`Connecting to ChromaDB at ${chromaHost}:${chromaPort}`);
+
+      // Create or get collection (uses default all-MiniLM-L6-v2 embeddings)
       try {
         await this.chromaClient.createCollection({
           name: this.collectionName,

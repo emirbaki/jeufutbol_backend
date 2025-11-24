@@ -62,10 +62,14 @@ export class AIInsightsService {
    */
   async indexTweetsToVectorDb(profileId: string): Promise<number> {
     try {
+      // Only fetch tweets that haven't been indexed yet
       const tweets = await this.tweetRepository.find({
-        where: { monitoredProfileId: profileId },
+        where: {
+          monitoredProfileId: profileId,
+          isIndexedInVector: false, // Only unindexed tweets
+        },
         order: { createdAt: 'DESC' },
-        take: 500, // Reduced from 1000 to prevent memory issues
+        take: 100, // Reduced since we only fetch new tweets now
       });
 
       const profile = await this.monitoredProfileRepository.findOne({
@@ -73,9 +77,11 @@ export class AIInsightsService {
       });
 
       if (tweets.length === 0) {
-        this.logger.log('No tweets to index');
+        this.logger.log('No new tweets to index');
         return 0;
       }
+
+      this.logger.log(`Found ${tweets.length} unindexed tweets to process`);
 
       // Process in smaller batches to avoid overwhelming ChromaDB
       const BATCH_SIZE = 50;
@@ -98,8 +104,14 @@ export class AIInsightsService {
             mentions: (tweet.mentions || []).join(', '), // Convert array to string
           },
         }));
-
         await this.vectorDbService.addDocuments(documents);
+
+        // Mark tweets as indexed
+        await this.tweetRepository.update(
+          batch.map(t => t.id),
+          { isIndexedInVector: true }
+        );
+
         totalIndexed += documents.length;
 
         this.logger.log(`Indexed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tweets.length / BATCH_SIZE)} (${documents.length} tweets)`);
@@ -110,7 +122,7 @@ export class AIInsightsService {
         }
       }
 
-      this.logger.log(`✓ Successfully indexed ${totalIndexed} tweets for profile to vector DB`);
+      this.logger.log(`✓ Successfully indexed ${totalIndexed} new tweets for profile to vector DB`);
       return totalIndexed;
     } catch (error) {
       this.logger.error(`Failed to index tweets: ${error.message}`);

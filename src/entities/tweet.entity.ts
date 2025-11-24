@@ -73,6 +73,10 @@ export class Tweet {
   @Column({ type: 'jsonb', nullable: true })
   rawData?: Record<string, any>;
 
+  @Field(() => Boolean)
+  @Column({ default: false })
+  isIndexedInVector: boolean;
+
   @Field()
   @CreateDateColumn()
   fetchedAt: Date;
