@@ -352,7 +352,7 @@ export class MonitoringService {
     for (const profile of profiles) {
       // Enqueue fetch job for each profile
       // Use configured fetch count or default to 5 to save bandwidth
-      const fetchCount = parseInt(process.env.TWEET_FETCH_COUNT || '5', 10);
+      const fetchCount = parseInt(process.env.TWEET_FETCH_COUNT || '20', 10);
       await this.fetchAndStoreTweets(profile.id, fetchCount);
       enqueuedCount++;
 
