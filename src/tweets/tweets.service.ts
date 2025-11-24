@@ -106,13 +106,28 @@ export class TweetsService {
 
         return tweets;
       } catch (error) {
-        // Check for rate limit error (429)
-        const isRateLimit =
+        // Log the full error for debugging
+        this.logger.error(
+          `Error fetching tweets for @${username} (Attempt ${attempt + 1}): ${error.message}`,
+        );
+        if (error.stack) this.logger.debug(error.stack);
+
+        // Check for rate limit (429) or other proxy/network errors
+        // We should rotate proxy on almost any error to be safe, as free proxies are unreliable
+        // 400: Bad Request (often proxy related)
+        // 403: Forbidden (often proxy/geo related)
+        // 407: Proxy Auth Required
+        // 5xx: Server errors
+        const isRetryable =
           error.message?.includes('429') ||
           error.status === 429 ||
-          error.statusCode === 429;
+          error.statusCode === 429 ||
+          error.status === 400 || // Bad Request (seen in logs)
+          error.statusCode === 400 ||
+          error.code === 'ECONNRESET' ||
+          error.code === 'ETIMEDOUT';
 
-        if (isRateLimit) {
+        if (isRetryable || this.proxies.length > 0) {
           attempt++;
           if (attempt >= MAX_RETRIES) {
             this.logger.error(
@@ -123,7 +138,7 @@ export class TweetsService {
             );
           }
 
-          this.logger.warn(`Rate limit hit for @${username}.`);
+          this.logger.warn(`Encountered error for @${username}. Rotating proxy if available.`);
 
           // If we have proxies, switch to the next one immediately
           if (this.proxies.length > 0) {
@@ -146,10 +161,7 @@ export class TweetsService {
           continue;
         }
 
-        // For other errors, throw immediately
-        this.logger.error(
-          `Error fetching tweets for @${username}: ${error.message}`,
-        );
+        // For other non-retryable errors (if any), throw immediately
         throw new Error(`Failed to fetch tweets: ${error.message}`);
       }
     }
