@@ -11,6 +11,7 @@ import { LlmCredential } from '../entities/llm-credential.entity';
 import { AIInsightsSchedulerService } from './ai-insights-scheduler.service';
 import { User } from '../entities/user.entity';
 import { AIInsightsProcessor } from './processors/ai-insights.processor';
+import { LLMController } from './llm.controller';
 
 @Module({
   imports: [
@@ -31,5 +32,6 @@ import { AIInsightsProcessor } from './processors/ai-insights.processor';
     LLMService,
   ],
   exports: [AIInsightsService, VectorDbService, LLMService],
+  controllers: [LLMController],
 })
 export class AIInsightsModule { }
