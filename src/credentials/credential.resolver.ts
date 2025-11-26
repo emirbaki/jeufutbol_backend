@@ -9,7 +9,7 @@ import { Credential } from '../entities/credential.entity';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class CredentialsResolver {
-  constructor(private credentialsService: CredentialsService) {}
+  constructor(private credentialsService: CredentialsService) { }
 
   @Query(() => [Credential])
   async getCredentials(
@@ -17,6 +17,11 @@ export class CredentialsResolver {
     @Args('platform', { nullable: true }) platform?: string,
   ) {
     return this.credentialsService.getUserCredentials(user.id, platform as any);
+  }
+
+  @Query(() => [Credential])
+  async getConnectedAccounts(@CurrentUser() user: User) {
+    return this.credentialsService.getUserCredentials(user.id);
   }
 
   @Mutation(() => Boolean)
