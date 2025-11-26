@@ -11,8 +11,12 @@ import { ServeStaticModule } from '@nestjs/serve-static';
       exclude: ['/api/{*test}'], // API route’ları ile çakışmasın
       serveStaticOptions: {
         fallthrough: false,
+        setHeaders: (res) => {
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        },
       },
     }),
   ],
 })
-export class StaticFilesModule {}
+export class StaticFilesModule { }
