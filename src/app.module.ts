@@ -48,28 +48,28 @@ import { UserModule } from './user/user.module';
           maxDirectives: 10,
         }),
       ],
-      formatError: (error: any) => {
-        if (process.env.NODE_ENV === 'production') {
-          const code = error.extensions?.code || 'INTERNAL_SERVER_ERROR';
-          // Only mask the message if it's an internal server error
-          if (code === 'INTERNAL_SERVER_ERROR') {
-            return {
-              message: 'Internal Server Error / GTFO',
-              code: code,
-              locations: error.locations,
-              path: error.path,
-            };
-          }
-          // For other errors (e.g. validation), return the message
-          return {
-            message: error.message,
-            code: code,
-            locations: error.locations,
-            path: error.path,
-          };
-        }
-        return error;
-      },
+      // formatError: (error: any) => {
+      //   if (process.env.NODE_ENV === 'production') {
+      //     const code = error.extensions?.code || 'INTERNAL_SERVER_ERROR';
+      //     // Only mask the message if it's an internal server error
+      //     if (code === 'INTERNAL_SERVER_ERROR') {
+      //       return {
+      //         message: 'Internal Server Error / GTFO',
+      //         code: code,
+      //         locations: error.locations,
+      //         path: error.path,
+      //       };
+      //     }
+      //     // For other errors (e.g. validation), return the message
+      //     return {
+      //       message: error.message,
+      //       code: code,
+      //       locations: error.locations,
+      //       path: error.path,
+      //     };
+      //   }
+      //   return error;
+      // },
       // cors: {
       //   origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
       //   credentials: true,
