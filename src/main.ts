@@ -14,27 +14,13 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors({
-    origin: (requestOrigin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!requestOrigin) return callback(null, true);
-
-      const allowedOrigins = [
-        'http://localhost:4200',
-        'https://jeufutbol.com.tr',
-        'https://www.jeufutbol.com.tr'
-      ];
-
-      // Regex for subdomains
-      const isSubdomain = /^https:\/\/[a-zA-Z0-9-]+\.jeufutbol\.com\.tr$/.test(requestOrigin);
-      const isLocalSubdomain = /^http:\/\/[a-zA-Z0-9-]+\.localhost:4200$/.test(requestOrigin);
-
-      if (allowedOrigins.includes(requestOrigin) || isSubdomain || isLocalSubdomain) {
-        callback(null, true);
-      } else {
-        console.log(`🚫 CORS Blocked Origin: ${requestOrigin}`); // Helpful for debugging logs in Dokploy
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: [
+      'http://localhost:4200',
+      'https://jeufutbol.com.tr',
+      'https://www.jeufutbol.com.tr',
+      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4200$/,
+      /^https:\/\/[a-zA-Z0-9-]+\.jeufutbol\.com\.tr$/,
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Subdomain'],
