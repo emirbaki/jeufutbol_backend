@@ -17,10 +17,15 @@ async function bootstrap() {
     origin: [
       'http://localhost:4200',
       'https://jeufutbol.com.tr',
+      'https://www.jeufutbol.com.tr',
       /^http:\/\/[a-zA-Z0-9-]+\.localhost:4200$/,
       /^https:\/\/[a-zA-Z0-9-]+\.jeufutbol\.com\.tr$/,
     ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Subdomain'],
+    exposedHeaders: ['X-Tenant-Subdomain'],
+    maxAge: 3600, // Cache preflight for 1 hour
   });
   app.setGlobalPrefix('api');
 
