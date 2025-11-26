@@ -244,7 +244,7 @@ export class MonitoringService {
    */
   async removeProfile(userId: string, tenantId: string, profileId: string): Promise<boolean> {
     const profile = await this.monitoredProfileRepository.findOne({
-      where: { id: profileId, userId, tenantId },
+      where: { id: profileId, tenantId },
     });
 
     if (!profile) {
