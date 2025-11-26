@@ -16,6 +16,7 @@ import {
 } from '@nestjs/graphql';
 import { User } from './user.entity';
 import { Tweet } from './tweet.entity';
+import { Tenant } from './tenant.entity';
 import { GraphQLJSON } from 'graphql-type-json';
 
 export enum InsightType {
@@ -87,7 +88,14 @@ export class Insight {
   user: User;
 
   @Field(() => Tweet, { nullable: true })
-  @ManyToOne(() => Tweet, (tweet) => tweet.insights, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'sourceTweetId' })
   sourceTweet?: Tweet;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  tenantId: string;
+
+  @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
 }

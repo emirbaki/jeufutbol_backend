@@ -27,7 +27,7 @@ export class MonitoringResolver {
   async getMonitoredProfiles(
     @CurrentUser() user: User,
   ): Promise<MonitoredProfile[]> {
-    return this.monitoringService.getMonitoredProfiles(user.id);
+    return this.monitoringService.getMonitoredProfiles(user.id, user.tenantId);
   }
 
   @Query(() => MonitoredProfile)
@@ -35,7 +35,7 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('profileId') profileId: string,
   ): Promise<MonitoredProfile> {
-    return this.monitoringService.getProfile(profileId, user.id);
+    return this.monitoringService.getProfile(profileId, user.id, user.tenantId);
   }
 
   @Query(() => [Tweet])
@@ -46,7 +46,7 @@ export class MonitoringResolver {
     @Args('offset', { type: () => Int, nullable: true }) offset?: number,
   ): Promise<Tweet[]> {
     // Verify user owns this profile
-    await this.monitoringService.getProfile(profileId, user.id);
+    await this.monitoringService.getProfile(profileId, user.id, user.tenantId);
 
     return this.tweetsService.getTweetsByProfile(profileId, limit, offset);
   }
@@ -56,7 +56,7 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('profileId') profileId: string,
   ) {
-    return this.monitoringService.getProfileWithStats(profileId, user.id);
+    return this.monitoringService.getProfileWithStats(profileId, user.id, user.tenantId);
   }
 
   @Mutation(() => MonitoredProfile)
@@ -64,7 +64,7 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('xUsername') xUsername: string,
   ): Promise<MonitoredProfile> {
-    const profile = await this.monitoringService.addProfile(user.id, { xUsername });
+    const profile = await this.monitoringService.addProfile(user.id, user.tenantId, { xUsername });
 
     // Invalidate getMonitoredProfiles cache
     await this.cacheManager.del(`${user.id}:getMonitoredProfiles:{}`);
@@ -77,7 +77,7 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('profileId') profileId: string,
   ): Promise<boolean> {
-    const result = await this.monitoringService.removeProfile(user.id, profileId);
+    const result = await this.monitoringService.removeProfile(user.id, user.tenantId, profileId);
 
     // Invalidate caches
     await this.cacheManager.del(`${user.id}:getMonitoredProfiles:{}`);
@@ -92,7 +92,7 @@ export class MonitoringResolver {
     @Args('profileId') profileId: string,
   ): Promise<JobIdResponse> {
     // Verify user owns this profile
-    await this.monitoringService.getProfile(profileId, user.id);
+    await this.monitoringService.getProfile(profileId, user.id, user.tenantId);
 
     return this.monitoringService.fetchAndStoreTweets(profileId);
   }

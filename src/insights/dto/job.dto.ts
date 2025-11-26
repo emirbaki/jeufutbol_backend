@@ -3,6 +3,7 @@ import { LLMProvider } from '../llm.service';
 // Job input DTOs
 export interface GenerateInsightsJobData {
     userId: string;
+    tenantId: string;
     topic?: string;
     llmProvider?: LLMProvider;
     useVectorSearch?: boolean;

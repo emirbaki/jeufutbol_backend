@@ -24,9 +24,10 @@ export class PostsService {
     private readonly uploadService: UploadService,
   ) { }
 
-  async createPost(userId: string, dto: CreatePostInput): Promise<Post> {
+  async createPost(userId: string, tenantId: string, dto: CreatePostInput): Promise<Post> {
     const post = this.postRepository.create({
       userId,
+      tenantId,
       content: dto.content,
       mediaUrls: dto.mediaUrls || [],
       targetPlatforms: dto.targetPlatforms,
@@ -38,18 +39,19 @@ export class PostsService {
     return this.postRepository.save(post);
   }
 
-  async getUserPosts(userId: string, limit = 50): Promise<Post[]> {
+  async getUserPosts(userId: string, tenantId: string, limit = 50): Promise<Post[]> {
+    // Get ALL posts from the organization (not just the user's posts)
     return this.postRepository.find({
-      where: { userId },
+      where: { tenantId },
       order: { createdAt: 'DESC' },
       take: limit,
-      relations: ['publishedPosts'],
+      relations: ['publishedPosts', 'user'], // Include user relation to show who created each post
     });
   }
 
-  async getPost(postId: string, userId: string): Promise<Post> {
+  async getPost(postId: string, userId: string, tenantId: string): Promise<Post> {
     const post = await this.postRepository.findOne({
-      where: { id: postId, userId },
+      where: { id: postId, userId, tenantId },
       relations: ['publishedPosts'],
     });
 
@@ -60,9 +62,10 @@ export class PostsService {
   async updatePost(
     postId: string,
     userId: string,
+    tenantId: string,
     updates: Partial<CreatePostInput>,
   ): Promise<Post> {
-    const post = await this.getPost(postId, userId);
+    const post = await this.getPost(postId, userId, tenantId);
 
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Cannot update a published post');
@@ -71,15 +74,15 @@ export class PostsService {
     return this.postRepository.save(post);
   }
 
-  async deletePost(postId: string, userId: string): Promise<boolean> {
-    const post = await this.getPost(postId, userId);
+  async deletePost(postId: string, userId: string, tenantId: string): Promise<boolean> {
+    const post = await this.getPost(postId, userId, tenantId);
     const urls = post.mediaUrls || [];
     await this.uploadService.deleteFileByUrl(urls);
     await this.postRepository.remove(post);
     return true;
   }
-  async publishPost(postId: string, userId: string): Promise<Post> {
-    const post = await this.getPost(postId, userId);
+  async publishPost(postId: string, userId: string, tenantId: string): Promise<Post> {
+    const post = await this.getPost(postId, userId, tenantId);
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Post already published');
 
@@ -156,6 +159,6 @@ export class PostsService {
     }
 
     await this.postRepository.update(post.id, { status: post.status });
-    return this.getPost(postId, userId);
+    return this.getPost(postId, userId, tenantId);
   }
 }

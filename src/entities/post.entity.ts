@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { PublishedPost } from './published-post.entity';
+import { Tenant } from './tenant.entity';
 import {
   Field,
   GraphQLISODateTime,
@@ -83,4 +84,12 @@ export class Post {
     cascade: false,
   })
   publishedPosts: PublishedPost[];
+
+  @Field(() => Tenant, { nullable: true })
+  @ManyToOne(() => Tenant, { nullable: true })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
+
+  @Column({ nullable: true })
+  tenantId: string;
 }

@@ -9,6 +9,7 @@ import {
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 import { Post } from './post.entity';
+import { Tenant } from './tenant.entity';
 import { PlatformType } from '../enums/platform-type.enum';
 import { registerEnumType } from '@nestjs/graphql';
 
@@ -53,4 +54,12 @@ export class PublishedPost {
   @ManyToOne(() => Post, (post) => post.publishedPosts, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'postId' })
   post: Post;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  tenantId: string;
+
+  @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
 }

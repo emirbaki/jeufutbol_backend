@@ -25,6 +25,7 @@ import {
 
 export interface GenerateInsightsDto {
   userId: string;
+  tenantId: string;
   topic?: string;
   llmProvider?: LLMProvider;
   useVectorSearch?: boolean;
@@ -165,9 +166,9 @@ export class AIInsightsService {
     try {
       this.logger.log(`Generating insights for user ${userId}`);
 
-      // Get user's monitored profiles
+      // Get organization's monitored profiles (all profiles in the tenant)
       const profiles = await this.monitoredProfileRepository.find({
-        where: { userId, isActive: true },
+        where: { tenantId: dto.tenantId, isActive: true },
       });
 
       if (profiles.length === 0) {
@@ -627,13 +628,15 @@ Return as a JSON array of strings, no additional formatting.`;
   }
 
   /**
-   * Get insights for a user
+   * Get insights for a user's organization
    */
-  async getInsightsForUser(userId: string, limit = 20): Promise<Insight[]> {
+  async getInsightsForUser(userId: string, tenantId: string, limit = 20): Promise<Insight[]> {
+    // Get ALL insights from the organization (not just the user's insights)
     return this.insightRepository.find({
-      where: { userId },
+      where: { tenantId },
       order: { relevanceScore: 'DESC', createdAt: 'DESC' },
       take: limit,
+      relations: ['user'], // Include user relation to show who created each insight
     });
   }
 

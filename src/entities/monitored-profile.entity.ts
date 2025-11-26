@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tweet } from './tweet.entity';
+import { Tenant } from './tenant.entity';
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import GraphQLJSON from 'graphql-type-json';
 
@@ -68,6 +69,7 @@ export class MonitoredProfile {
   @UpdateDateColumn()
   updatedAt: Date;
 
+  @Field(() => User, { nullable: true })
   @ManyToOne(() => User, (user) => user.monitoredProfiles, {
     onDelete: 'CASCADE',
   })
@@ -76,4 +78,12 @@ export class MonitoredProfile {
 
   @OneToMany(() => Tweet, (tweet) => tweet.monitoredProfile)
   tweets: Tweet[];
+
+  @Field(() => Tenant, { nullable: true })
+  @ManyToOne(() => Tenant, { nullable: true })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
+
+  @Column({ nullable: true })
+  tenantId: string;
 }

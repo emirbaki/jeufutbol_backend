@@ -33,6 +33,7 @@ export class AIInsightsSchedulerService {
           const { jobId } = await this.aiInsightsService.generateInsights({
             userId: user.id,
             useVectorSearch: false,
+            tenantId: user.tenantId,
           });
           this.logger.log(`Enqueued insights job ${jobId} for user ${user.id}`);
         } catch (error) {

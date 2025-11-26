@@ -28,6 +28,8 @@ import { ThrottlerBehindProxyGuard } from './throttle-behind-proxy/throttle-behi
 import { QueueModule } from './queue/queue.module';
 import { RedisCacheModule } from './cache/redis-cache.module';
 import { QueueDashboardModule } from './queue/queue-dashboard.module';
+import { TenancyModule } from './tenancy/tenancy.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -110,6 +112,8 @@ import { QueueDashboardModule } from './queue/queue-dashboard.module';
     QueueModule,
     RedisCacheModule,
     QueueDashboardModule,
+    TenancyModule,
+    UserModule,
   ],
   controllers: [AppController, UploadController],
   providers: [

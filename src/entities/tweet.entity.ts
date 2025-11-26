@@ -10,6 +10,7 @@ import {
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import { MonitoredProfile } from './monitored-profile.entity';
 import { Insight } from './insight.entity';
+import { Tenant } from './tenant.entity';
 
 @ObjectType()
 @Entity('tweets')
@@ -93,4 +94,12 @@ export class Tweet {
   @Field(() => [Insight], { nullable: true })
   @OneToMany(() => Insight, (insight: Insight) => insight.sourceTweet)
   insights?: Insight;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  tenantId: string;
+
+  @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
 }

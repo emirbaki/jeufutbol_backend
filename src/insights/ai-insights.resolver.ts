@@ -30,6 +30,7 @@ export class AIInsightsResolver {
   ): Promise<JobIdResponse> {
     return this.aiInsightsService.generateInsights({
       userId: user.id,
+      tenantId: user.tenantId,
       topic,
       llmProvider: llmProvider as any,
       useVectorSearch: !!topic,
@@ -83,7 +84,7 @@ export class AIInsightsResolver {
     @CurrentUser() user: User,
     @Args('limit', { nullable: true }) limit?: number,
   ) {
-    return this.aiInsightsService.getInsightsForUser(user.id, limit);
+    return this.aiInsightsService.getInsightsForUser(user.id, user.tenantId, limit);
   }
 
   @Mutation(() => Insight)
