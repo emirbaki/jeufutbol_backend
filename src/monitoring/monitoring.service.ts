@@ -279,8 +279,9 @@ export class MonitoringService {
     userId: string,
     tenantId: string,
   ): Promise<MonitoredProfile> {
+    this.logger.log(`Getting profile ${profileId} for user ${userId} and tenant ${tenantId}`);
     const profile = await this.monitoredProfileRepository.findOne({
-      where: { id: profileId, userId, tenantId },
+      where: { id: profileId, tenantId },
     });
 
     if (!profile) {
