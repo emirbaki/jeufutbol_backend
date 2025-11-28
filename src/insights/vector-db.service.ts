@@ -11,7 +11,8 @@ export interface VectorDocument {
     timestamp: string;
     likes: number;
     retweets: number;
-    hashtags?: string[];
+    hashtags?: string; // Changed from array to string
+    mentions?: string; // Changed from array to string
     [key: string]: any;
   };
 }
@@ -29,7 +30,7 @@ export class VectorDbService implements OnModuleInit {
   private chromaClient: ChromaClient;
   private readonly collectionName = 'tweets_collection';
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   async onModuleInit() {
     await this.initializeChroma();
@@ -37,14 +38,18 @@ export class VectorDbService implements OnModuleInit {
 
   private async initializeChroma() {
     try {
+      const chromaHost = this.configService.get('CHROMA_HOST', 'chromadb');
+      const chromaPort = this.configService.get('CHROMA_PORT', 8000);
+
       this.chromaClient = new ChromaClient({
-        // host: this.configService.get('CHROMA_URL', 'http://31.97.217.52:8000'),
-        host: '31.97.217.52',
-        port: 8000,
+        host: chromaHost,
+        port: chromaPort,
         ssl: false,
       });
 
-      // Create or get collection
+      this.logger.log(`Connecting to ChromaDB at ${chromaHost}:${chromaPort}`);
+
+      // Create or get collection (uses default all-MiniLM-L6-v2 embeddings)
       try {
         await this.chromaClient.createCollection({
           name: this.collectionName,
@@ -73,13 +78,13 @@ export class VectorDbService implements OnModuleInit {
         name: this.collectionName,
       });
 
-      await collection.add({
+      await collection.upsert({
         ids: documents.map((d) => d.id),
         documents: documents.map((d) => d.content),
         metadatas: documents.map((d) => d.metadata),
       });
 
-      this.logger.log(`Added ${documents.length} documents to ChromaDB`);
+      this.logger.log(`Upserted ${documents.length} documents to ChromaDB`);
     } catch (error) {
       this.logger.error(`Failed to add documents: ${error.message}`);
       throw error;

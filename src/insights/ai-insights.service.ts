@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In } from 'typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Tweet } from '../entities/tweet.entity';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
 import { Insight, InsightType } from '../entities/insight.entity';
@@ -14,6 +16,12 @@ import {
   TrendAnalysisTool,
   ContentSuggestionTool,
 } from './tools/post-generator.tool';
+import { QUEUE_NAMES, AI_INSIGHTS_JOBS } from '../queue/queue.config';
+import {
+  GenerateInsightsJobData,
+  GeneratePostJobData,
+  IndexTweetsJobData,
+} from './dto/job.dto';
 
 export interface GenerateInsightsDto {
   userId: string;
@@ -45,6 +53,8 @@ export class AIInsightsService {
     private insightRepository: Repository<Insight>,
     private vectorDbService: VectorDbService,
     private llmService: LLMService,
+    @InjectQueue(QUEUE_NAMES.AI_INSIGHTS)
+    private aiInsightsQueue: Queue,
   ) { }
 
   /**
@@ -52,34 +62,68 @@ export class AIInsightsService {
    */
   async indexTweetsToVectorDb(profileId: string): Promise<number> {
     try {
+      // Only fetch tweets that haven't been indexed yet
       const tweets = await this.tweetRepository.find({
-        where: { monitoredProfileId: profileId },
+        where: {
+          monitoredProfileId: profileId,
+          isIndexedInVector: false, // Only unindexed tweets
+        },
         order: { createdAt: 'DESC' },
-        take: 1000,
+        take: 100, // Reduced since we only fetch new tweets now
       });
 
       const profile = await this.monitoredProfileRepository.findOne({
         where: { id: profileId },
       });
 
-      const documents = tweets.map((tweet) => ({
-        id: tweet.id,
-        content: tweet.content,
-        metadata: {
-          tweetId: tweet.tweetId,
-          username: profile?.xUsername || 'unknown',
-          timestamp: tweet.createdAt.toISOString(),
-          likes: tweet.likes,
-          retweets: tweet.retweets,
-          hashtags: tweet.hashtags || [],
-          mentions: tweet.mentions || [],
-        },
-      }));
+      if (tweets.length === 0) {
+        this.logger.log('No new tweets to index');
+        return 0;
+      }
 
-      await this.vectorDbService.addDocuments(documents);
-      this.logger.log(`Indexed ${documents.length} tweets to vector DB`);
+      this.logger.log(`Found ${tweets.length} unindexed tweets to process`);
 
-      return documents.length;
+      // Process in smaller batches to avoid overwhelming ChromaDB
+      const BATCH_SIZE = 50;
+      const DELAY_BETWEEN_BATCHES_MS = 1000; // 1 second
+      let totalIndexed = 0;
+
+      for (let i = 0; i < tweets.length; i += BATCH_SIZE) {
+        const batch = tweets.slice(i, i + BATCH_SIZE);
+
+        const documents = batch.map((tweet) => ({
+          id: tweet.id,
+          content: tweet.content,
+          metadata: {
+            tweetId: tweet.tweetId,
+            username: profile?.xUsername || 'unknown',
+            timestamp: tweet.createdAt.toISOString(),
+            likes: tweet.likes,
+            retweets: tweet.retweets,
+            hashtags: (tweet.hashtags || []).join(', '), // Convert array to string
+            mentions: (tweet.mentions || []).join(', '), // Convert array to string
+          },
+        }));
+        await this.vectorDbService.addDocuments(documents);
+
+        // Mark tweets as indexed
+        await this.tweetRepository.update(
+          batch.map(t => t.id),
+          { isIndexedInVector: true }
+        );
+
+        totalIndexed += documents.length;
+
+        this.logger.log(`Indexed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tweets.length / BATCH_SIZE)} (${documents.length} tweets)`);
+
+        // Add delay between batches (except for last batch)
+        if (i + BATCH_SIZE < tweets.length) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+        }
+      }
+
+      this.logger.log(`✓ Successfully indexed ${totalIndexed} new tweets for profile to vector DB`);
+      return totalIndexed;
     } catch (error) {
       this.logger.error(`Failed to index tweets: ${error.message}`);
       throw error;
@@ -87,9 +131,35 @@ export class AIInsightsService {
   }
 
   /**
-   * Generate AI insights for a user
+   * Generate AI insights for a user (Queue-based - returns job ID)
    */
-  async generateInsights(dto: GenerateInsightsDto): Promise<Insight[]> {
+  async generateInsights(
+    dto: GenerateInsightsDto,
+  ): Promise<{ jobId: string }> {
+    const jobData: GenerateInsightsJobData = dto;
+
+    const job = await this.aiInsightsQueue.add(
+      AI_INSIGHTS_JOBS.GENERATE_INSIGHTS,
+      jobData,
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(
+      `Enqueued insight generation job ${job.id} for user ${dto.userId}`,
+    );
+
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Generate AI insights for a user (Internal - called by processor)
+   */
+  async generateInsightsInternal(
+    dto: GenerateInsightsDto,
+  ): Promise<Insight[]> {
     const { userId, topic, llmProvider, useVectorSearch } = dto;
 
     try {
@@ -110,15 +180,38 @@ export class AIInsightsService {
 
       if (useVectorSearch && topic) {
         // Use vector search for relevant tweets
-        const searchResults = await this.vectorDbService.search(topic, 50);
-        const tweetIds = searchResults.map((r) => r.id);
+        try {
+          const searchResults = await this.vectorDbService.search(topic, 50);
+          const tweetIds = searchResults.map((r) => r.id);
 
-        if (tweetIds.length > 0) {
-          relevantTweets = await this.tweetRepository.find({
-            where: { id: In(tweetIds) },
-          });
-        } else {
+          if (tweetIds.length > 0) {
+            relevantTweets = await this.tweetRepository.find({
+              where: { id: In(tweetIds) },
+            });
+            this.logger.log(`Found ${relevantTweets.length} tweets via vector search for topic: "${topic}"`);
+          } else {
+            this.logger.warn(`No vector search results for topic: "${topic}", falling back to recent tweets`);
+            relevantTweets = [];
+          }
+        } catch (error) {
+          this.logger.error(`Vector search failed: ${error.message}, falling back to recent tweets`);
           relevantTweets = [];
+        }
+
+        // Fallback to recent tweets if vector search found nothing
+        if (relevantTweets.length === 0) {
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          const profileIds = profiles.map((p) => p.id);
+          relevantTweets = await this.tweetRepository.find({
+            where: {
+              monitoredProfileId: In(profileIds),
+              createdAt: MoreThan(weekAgo),
+            },
+            order: { createdAt: 'DESC' },
+            take: 100,
+          });
+          this.logger.log(`Using ${relevantTweets.length} recent tweets as fallback`);
         }
       } else {
         // Get recent tweets (last 7 days)
@@ -237,9 +330,33 @@ Content should be in Turkish.
   }
 
   /**
-   * Generate post template using LangChain agent with tools
+   * Generate post template (Queue-based - returns job ID)
    */
-  async generatePostTemplate(dto: PostTemplateDto): Promise<{
+  async generatePostTemplate(
+    dto: PostTemplateDto,
+  ): Promise<{ jobId: string }> {
+    const jobData: GeneratePostJobData = dto;
+
+    const job = await this.aiInsightsQueue.add(
+      AI_INSIGHTS_JOBS.GENERATE_POST,
+      jobData,
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(
+      `Enqueued post generation job ${job.id} for platform ${dto.platform}`,
+    );
+
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Generate post template using LangChain agent with tools (Internal - called by processor)
+   */
+  async generatePostTemplateInternal(dto: PostTemplateDto): Promise<{
     content: string;
     hashtags: string[];
     platform: string;

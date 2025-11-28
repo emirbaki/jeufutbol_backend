@@ -10,22 +10,22 @@ export class MonitoringSchedulerService {
   constructor(
     private monitoringService: MonitoringService,
     private tweetsService: TweetsService,
-  ) {}
+  ) { }
 
   /**
-   * Refresh all profiles every hour
+   * Refresh all profiles every 12 hours
    */
-  @Cron(CronExpression.EVERY_HOUR)
-  async handleHourlyRefresh() {
-    this.logger.log('Starting hourly tweet refresh');
+  @Cron('0 */12 * * *') // Every 12 hours (at :00 minute)
+  async handleTwelveHourlyRefresh() {
+    this.logger.log('Starting 12-hourly tweet refresh');
 
     try {
-      const result = await this.monitoringService.refreshAllProfiles();
+      const { jobId } = await this.monitoringService.refreshAllProfiles();
       this.logger.log(
-        `Hourly refresh complete: ${result.success} success, ${result.failed} failed`,
+        `12-hourly refresh job enqueued: ${jobId}`,
       );
     } catch (error) {
-      this.logger.error(`Hourly refresh failed: ${error.message}`);
+      this.logger.error(`12-hourly refresh failed: ${error.message}`);
     }
   }
 

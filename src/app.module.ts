@@ -25,6 +25,9 @@ import { createSecurityValidationRules } from './graphql/security.validation';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerBehindProxyGuard } from './throttle-behind-proxy/throttle-behind-proxy.guard';
+import { QueueModule } from './queue/queue.module';
+import { RedisCacheModule } from './cache/redis-cache.module';
+import { QueueDashboardModule } from './queue/queue-dashboard.module';
 
 @Module({
   imports: [
@@ -101,9 +104,12 @@ import { ThrottlerBehindProxyGuard } from './throttle-behind-proxy/throttle-behi
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 10,
+        limit: 20,
       },
     ]),
+    QueueModule,
+    RedisCacheModule,
+    QueueDashboardModule,
   ],
   controllers: [AppController, UploadController],
   providers: [

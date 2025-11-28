@@ -13,14 +13,14 @@ export class AIInsightsSchedulerService {
     private aiInsightsService: AIInsightsService,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) {}
+  ) { }
 
   /**
-   * Generate insights for all users daily
+   * Generate insights for all users daily (Now using queues!)
    */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleDailyInsights() {
-    this.logger.log('Starting daily insights generation');
+    this.logger.log('Starting daily insights generation (queue-based)');
 
     try {
       const users = await this.userRepository.find({
@@ -29,22 +29,23 @@ export class AIInsightsSchedulerService {
 
       for (const user of users) {
         try {
-          await this.aiInsightsService.generateInsights({
+          // Enqueue job instead of running directly
+          const { jobId } = await this.aiInsightsService.generateInsights({
             userId: user.id,
             useVectorSearch: false,
           });
-          this.logger.log(`Generated insights for user ${user.id}`);
+          this.logger.log(`Enqueued insights job ${jobId} for user ${user.id}`);
         } catch (error) {
-          this.logger.error(`Failed for user ${user.id}: ${error.message}`);
+          this.logger.error(`Failed to enqueue job for user ${user.id}: ${error.message}`);
         }
 
-        // Rate limiting delay
-        await this.delay(5000);
+        // Small delay to avoid bursts (jobs will be processed by workers)
+        await this.delay(1000);
       }
 
-      this.logger.log('Daily insights generation complete');
+      this.logger.log(`Daily insights jobs enqueued for ${users.length} users`);
     } catch (error) {
-      this.logger.error(`Daily insights failed: ${error.message}`);
+      this.logger.error(`Daily insights scheduling failed: ${error.message}`);
     }
   }
 

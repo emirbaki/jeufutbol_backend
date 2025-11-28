@@ -21,43 +21,173 @@ export class TweetsService {
 
   public rettiwt: Rettiwt;
 
+  private proxies: string[] = [];
+  private currentProxyIndex = 0;
+
   constructor(
     @InjectRepository(Tweet)
     private tweetRepository: Repository<Tweet>,
   ) {
-    // Initialize Rettiwt-API (no auth needed for public tweets)
-    this.rettiwt = new Rettiwt({ apiKey: API_KEY });
+    // Initialize proxies from env
+    const proxyList = process.env.TWITTER_PROXY_LIST || '';
+    if (proxyList) {
+      this.proxies = proxyList.split(',').map((p) => p.trim()).filter((p) => p);
+      this.logger.log(`Loaded ${this.proxies.length} proxies`);
+      // Randomize start index to avoid all workers hitting the same bad proxy first
+      this.currentProxyIndex = Math.floor(Math.random() * this.proxies.length);
+    }
+
+    // Initialize Rettiwt-API (default instance)
+    this.rettiwt = this.createRettiwtInstance();
     this.logger.log('Rettiwt-API initialized');
   }
 
   /**
+   * Create a Rettiwt instance, optionally with a proxy
+   */
+  private createRettiwtInstance(proxyUrl?: string): Rettiwt {
+    const config: any = { apiKey: API_KEY };
+    if (proxyUrl) {
+      try {
+        config.proxyUrl = new URL(proxyUrl);
+        this.logger.log(`Created Rettiwt instance with proxy: ${proxyUrl}`);
+      } catch (e) {
+        this.logger.warn(`Invalid proxy URL: ${proxyUrl}`);
+      }
+    }
+    return new Rettiwt(config);
+  }
+
+  /**
+   * Get next proxy from the list
+   */
+  private getNextProxy(): string | undefined {
+    if (this.proxies.length === 0) return undefined;
+
+    const proxy = this.proxies[this.currentProxyIndex];
+    this.currentProxyIndex = (this.currentProxyIndex + 1) % this.proxies.length;
+    return proxy;
+  }
+
+  /**
    * Fetch tweets from Twitter using Rettiwt-API
+   * Includes retry logic for 429 errors and proxy rotation
    */
   async fetchTweetsFromTwitter(
     username: string,
     count: number = 20,
   ): Promise<RettiwtTweet[]> {
-    try {
-      this.logger.log(`Fetching ${count} tweets for @${username}`);
+    const MAX_RETRIES = 10; // Increased for unreliable free proxies
+    let attempt = 0;
+    let currentRettiwt = this.rettiwt;
 
-      // Fetch user's tweets
-      const response = await this.rettiwt.tweet.search(
-        {
-          fromUsers: [username],
-        },
-        count,
-      );
-
-      const tweets = response.list || [];
-      this.logger.log(`Fetched ${tweets.length} tweets for @${username}`);
-
-      return tweets;
-    } catch (error) {
-      this.logger.error(
-        `Error fetching tweets for @${username}: ${error.message}`,
-      );
-      throw new Error(`Failed to fetch tweets: ${error.message}`);
+    // Try to use a proxy for the first attempt if available
+    if (this.proxies.length > 0) {
+      const proxy = this.getNextProxy();
+      if (proxy) {
+        currentRettiwt = this.createRettiwtInstance(proxy);
+      }
     }
+
+    while (attempt < MAX_RETRIES) {
+      try {
+        this.logger.log(
+          `Fetching ${count} tweets for @${username} (Attempt ${attempt + 1}/${MAX_RETRIES})`,
+        );
+
+        // Fetch user's tweets
+        const response = await currentRettiwt.tweet.search(
+          {
+            fromUsers: [username],
+          },
+          count,
+        );
+
+        const tweets = response.list || [];
+        this.logger.log(`Fetched ${tweets.length} tweets for @${username}`);
+
+        return tweets;
+      } catch (error) {
+        // Log the full error for debugging
+        this.logger.error(
+          `Error fetching tweets for @${username} (Attempt ${attempt + 1}): ${error.message}`,
+        );
+        if (error.stack) this.logger.debug(error.stack);
+
+        // Check for rate limit (429) or other proxy/network errors
+        // We should rotate proxy on almost any error to be safe, as free proxies are unreliable
+        // 400: Bad Request (often proxy related)
+        // 403: Forbidden (often proxy/geo related)
+        // 407: Proxy Auth Required
+        // 5xx: Server errors
+        // TypeError: Often happens when rettiwt fails to parse a non-JSON error response from a bad proxy
+        const isProxyError = error instanceof TypeError && error.message?.includes("reading 'errors'");
+        const isAuthError = error.status === 407 || error.statusCode === 407;
+
+        const isRetryable =
+          isProxyError ||
+          isAuthError ||
+          error.message?.includes('429') ||
+          error.status === 429 ||
+          error.statusCode === 429 ||
+          error.status === 400 ||
+          error.statusCode === 400 ||
+          error.code === 'ECONNRESET' ||
+          error.code === 'ETIMEDOUT';
+
+        if (isRetryable || this.proxies.length > 0) {
+          attempt++;
+          if (attempt >= MAX_RETRIES) {
+            this.logger.error(
+              `Max retries reached for @${username}. Giving up.`,
+            );
+            throw new Error(
+              `Failed to fetch tweets after ${MAX_RETRIES} attempts: ${error.message}`,
+            );
+          }
+
+          if (isProxyError) {
+            this.logger.warn(`Proxy returned invalid response for @${username}. Rotating proxy.`);
+          } else if (isAuthError) {
+            this.logger.warn(`Proxy authentication failed (407) for @${username}. Rotating proxy.`);
+          } else {
+            this.logger.warn(`Encountered error for @${username}. Rotating proxy if available.`);
+          }
+
+          // If we have proxies, switch to the next one immediately
+          if (this.proxies.length > 0) {
+            const nextProxy = this.getNextProxy();
+            if (nextProxy) {
+              this.logger.log(`Switching to next proxy: ${nextProxy}`);
+              currentRettiwt = this.createRettiwtInstance(nextProxy);
+              // Don't wait long if we switched proxy
+              await this.sleep(1000);
+              continue;
+            }
+          }
+
+          // Fallback: Exponential backoff if no proxies or proxy failed
+          const delaySeconds = 60 * attempt;
+          this.logger.warn(
+            `Waiting ${delaySeconds} seconds before retry...`,
+          );
+          await this.sleep(delaySeconds * 1000);
+          continue;
+        }
+
+        // For other non-retryable errors (if any), throw immediately
+        throw new Error(`Failed to fetch tweets: ${error.message}`);
+      }
+    }
+
+    return [];
+  }
+
+  /**
+   * Sleep helper
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

@@ -1,9 +1,12 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository } from 'typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
 import { TweetsService } from '../tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
+import { QUEUE_NAMES, MONITORING_JOBS } from '../queue/queue.config';
 
 export interface AddProfileDto {
   xUsername: string;
@@ -16,14 +19,16 @@ export class MonitoringService {
   private rettiwt: Rettiwt;
 
   // Rate limiting configuration
-  private readonly RATE_LIMIT_DELAY = 5000; // 5 seconds between profile refreshes
-  private readonly MAX_RETRIES = 3; // Maximum retry attempts
-  private readonly INITIAL_BACKOFF_DELAY = 5000; // Initial delay for exponential backoff (5s)
+  // private readonly RATE_LIMIT_DELAY = 5000; // 5 seconds between profile refreshes
+  // private readonly MAX_RETRIES = 3; // Maximum retry attempts
+  // private readonly INITIAL_BACKOFF_DELAY = 5000; // Initial delay for exponential backoff (5s)
 
   constructor(
     @InjectRepository(MonitoredProfile)
     private monitoredProfileRepository: Repository<MonitoredProfile>,
     private tweetsService: TweetsService,
+    @InjectQueue(QUEUE_NAMES.TWEET_MONITORING)
+    private monitoringQueue: Queue,
   ) {
     this.rettiwt = tweetsService.rettiwt;
   }
@@ -109,7 +114,7 @@ export class MonitoringService {
         displayName: profileInfo.displayName,
         description: profileInfo.description || null,
         profileImageUrl: profileInfo.profileImage || null,
-        followerCount: profileInfo.followersCount || 0, // ✅ Map to column
+        followerCount: profileInfo.followersCount || 0,
         isActive: true,
         fetchMetadata: {
           followingCount: profileInfo.followingCount || 0,
@@ -117,14 +122,6 @@ export class MonitoringService {
           addedAt: new Date().toISOString(),
         },
       } as DeepPartial<MonitoredProfile>);
-
-      this.logger.log(
-        `Creating profile with data: ${JSON.stringify({
-          username: profile.xUsername,
-          displayName: profile.displayName,
-          followerCount: profile.followerCount,
-        })}`,
-      );
 
       const savedProfile = await this.monitoredProfileRepository.save(profile);
       this.logger.log(
@@ -134,7 +131,8 @@ export class MonitoringService {
       // Fetch initial tweets (last 20)
       if (data.fetchTweets !== false) {
         try {
-          await this.fetchAndStoreTweets(savedProfile.id);
+          const fetchCount = parseInt(process.env.TWEET_FETCH_COUNT || '5', 10);
+          await this.fetchAndStoreTweets(savedProfile.id, fetchCount);
         } catch (tweetError) {
           this.logger.error(`Failed to fetch tweets: ${tweetError.message}`);
           // Don't fail the entire operation if tweet fetching fails
@@ -144,15 +142,34 @@ export class MonitoringService {
       return savedProfile;
     } catch (error) {
       this.logger.error(`Error adding profile @${username}: ${error.message}`);
-      this.logger.error(`Stack trace: ${error.stack}`);
       throw error;
     }
   }
 
   /**
-   * Fetch and store tweets for a monitored profile
+   * Fetch tweets for a profile (Queue-based)
    */
   async fetchAndStoreTweets(
+    profileId: string,
+    count: number = 20,
+  ): Promise<{ jobId: string }> {
+    const job = await this.monitoringQueue.add(
+      MONITORING_JOBS.FETCH_PROFILE_TWEETS,
+      { profileId, count },
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(`Enqueued tweet fetch job ${job.id} for profile ${profileId}`);
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Fetch tweets for a profile (Internal - called by processor)
+   */
+  async fetchAndStoreTweetsInternal(
     profileId: string,
     count: number = 20,
   ): Promise<number> {
@@ -161,20 +178,8 @@ export class MonitoringService {
     });
 
     if (!profile) {
-      throw new NotFoundException('Profile not found');
-    }
-
-    // Check if we should fetch (don't fetch more than once per hour)
-    if (profile.lastFetchedAt) {
-      const hoursSinceLastFetch =
-        (Date.now() - profile.lastFetchedAt.getTime()) / (1000 * 60 * 60);
-
-      if (hoursSinceLastFetch < 1) {
-        this.logger.log(
-          `Skipping fetch for @${profile.xUsername} - fetched ${hoursSinceLastFetch.toFixed(1)} hours ago`,
-        );
-        return 0;
-      }
+      this.logger.warn(`Profile ${profileId} not found during background fetch. It may have been deleted.`);
+      return 0;
     }
 
     try {
@@ -198,29 +203,26 @@ export class MonitoringService {
 
       // Save to database
       const savedTweets = await this.tweetsService.saveTweets(tweets);
+      const storedCount = savedTweets.length;
 
-      // Update last fetched time
+      // Update profile stats
       profile.lastFetchedAt = new Date();
       profile.fetchMetadata = {
         ...profile.fetchMetadata,
-        lastFetchCount: savedTweets.length,
+        lastFetchCount: storedCount,
         lastFetchStatus: 'success',
         lastFetchTime: new Date().toISOString(),
-        totalTweetsFetched:
-          (profile.fetchMetadata?.totalTweetsFetched || 0) + savedTweets.length,
       };
       await this.monitoredProfileRepository.save(profile);
 
       this.logger.log(
-        `Fetched and saved ${savedTweets.length} tweets for @${profile.xUsername}`,
+        `Stored ${storedCount} new tweets for @${profile.xUsername}`,
       );
-
-      return savedTweets.length;
+      return storedCount;
     } catch (error) {
       this.logger.error(
         `Error fetching tweets for @${profile.xUsername}: ${error.message}`,
       );
-      this.logger.error(`Stack trace: ${error.stack}`);
 
       // Update error status
       profile.fetchMetadata = {
@@ -317,40 +319,51 @@ export class MonitoringService {
   }
 
   /**
-   * Refresh tweets for all active profiles
+   * Refresh tweets for all active profiles (Queue-based)
    */
-  async refreshAllProfiles(): Promise<{ success: number; failed: number }> {
+  async refreshAllProfiles(): Promise<{ jobId: string }> {
+    const job = await this.monitoringQueue.add(
+      MONITORING_JOBS.REFRESH_ALL_PROFILES,
+      {},
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(`Enqueued refresh all profiles job ${job.id}`);
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Refresh tweets for all active profiles (Internal - called by processor)
+   * Enqueues individual fetch jobs for each profile
+   */
+  async refreshAllProfilesInternal(): Promise<number> {
     const profiles = await this.monitoredProfileRepository.find({
       where: { isActive: true },
     });
 
-    this.logger.log(`Refreshing tweets for ${profiles.length} profiles`);
+    this.logger.log(`Scheduling refresh for ${profiles.length} profiles`);
 
-    let success = 0;
-    let failed = 0;
+    let enqueuedCount = 0;
+    const STAGGER_DELAY_MS = 100; // Minimal delay between enqueuing jobs
 
     for (const profile of profiles) {
-      try {
-        // Use retry logic with exponential backoff
-        await this.retryWithBackoff(
-          () => this.fetchAndStoreTweets(profile.id),
-          this.MAX_RETRIES,
-          this.INITIAL_BACKOFF_DELAY,
-        );
-        success++;
-      } catch (error) {
-        this.logger.error(
-          `Failed to refresh @${profile.xUsername} after retries: ${error.message}`,
-        );
-        failed++;
-      }
+      // Enqueue fetch job for each profile
+      // Use configured fetch count or default to 5 to save bandwidth
+      const fetchCount = parseInt(process.env.TWEET_FETCH_COUNT || '20', 10);
+      await this.fetchAndStoreTweets(profile.id, fetchCount);
+      enqueuedCount++;
 
-      // Add delay to avoid rate limiting
-      await this.delay(this.RATE_LIMIT_DELAY);
+      // Add minimal delay to prevent overwhelming Redis
+      if (enqueuedCount < profiles.length) {
+        await new Promise(resolve => setTimeout(resolve, STAGGER_DELAY_MS));
+      }
     }
 
-    this.logger.log(`Refresh complete: ${success} success, ${failed} failed`);
-    return { success, failed };
+    this.logger.log(`Enqueued ${enqueuedCount} profile refresh jobs`);
+    return enqueuedCount;
   }
 
   /**
@@ -367,57 +380,5 @@ export class MonitoringService {
     const stats = await this.tweetsService.getTweetStats(profileId);
 
     return { profile, stats };
-  }
-
-  /**
-   * Helper: Retry with exponential backoff
-   */
-  private async retryWithBackoff<T>(
-    fn: () => Promise<T>,
-    maxRetries: number = 3,
-    initialDelay: number = 5000,
-  ): Promise<T> {
-    let lastError: Error;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        return await fn();
-      } catch (error) {
-        lastError = error;
-
-        // Check if it's a rate limit error (429)
-        const is429Error =
-          error.message?.includes('429') ||
-          error.message?.toLowerCase().includes('rate limit') ||
-          error.message?.toLowerCase().includes('too many requests');
-
-        if (is429Error && attempt < maxRetries) {
-          const delay = initialDelay * Math.pow(2, attempt); // Exponential backoff
-          this.logger.warn(
-            `Rate limit hit (429), retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries})`,
-          );
-          await this.delay(delay);
-        } else if (attempt < maxRetries) {
-          // For other errors, still retry but with shorter delay
-          const delay = initialDelay / 2;
-          this.logger.warn(
-            `Request failed, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries}): ${error.message}`,
-          );
-          await this.delay(delay);
-        } else {
-          // Max retries reached
-          throw lastError;
-        }
-      }
-    }
-
-    throw lastError!;
-  }
-
-  /**
-   * Helper: Delay execution
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
