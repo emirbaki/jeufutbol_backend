@@ -17,11 +17,13 @@ async function bootstrap() {
   });
   app.enableCors({
     origin: [
+      'http://localhost:4000',
       'http://localhost:4200',
       'https://jeufutbol.com.tr',
       'https://www.jeufutbol.com.tr',
       /^https:\/\/[a-zA-Z0-9-]+\.jeufutbol\.com\.tr$/,
-      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4200$/
+      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4200$/,
+      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4000$/
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
