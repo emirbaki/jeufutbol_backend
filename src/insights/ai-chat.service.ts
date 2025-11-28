@@ -20,6 +20,7 @@ import {
     PublishPostTool,
 } from './tools/post-management.tool';
 import { SqlTools } from './tools/sql.tool';
+import { AssistantTool } from './tools/assistant.tool';
 
 @Injectable()
 export class AiChatService {
@@ -141,6 +142,7 @@ export class AiChatService {
             ListPostsTool.createTool(this.postsService, userId, tenantId),
             PublishPostTool.createTool(this.postsService, userId, tenantId),
             ...(await SqlTools.createTools(this.dataSource, model)),
+            AssistantTool.createTool(),
         ];
 
         const memory = new MemorySaver(); // We use ephemeral memory for the agent run, but feed persistent history
@@ -160,7 +162,8 @@ export class AiChatService {
 You have access to a SQL database with tables: post, tweets, insights, monitored_profiles.
 ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
 Do not access data from other tenants.
-If the user asks for "my posts" or "my insights", assume they mean data for tenant '${tenantId}'.`);
+If the user asks for "my posts" or "my insights", assume they mean data for tenant '${tenantId}'.
+IMPORTANT: Do not call any tool named "assistant". To reply to the user, just output the text directly.`);
 
             const result = await agent.invoke(
                 {
