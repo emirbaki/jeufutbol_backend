@@ -12,6 +12,11 @@ import { AIInsightsSchedulerService } from './ai-insights-scheduler.service';
 import { User } from '../entities/user.entity';
 import { AIInsightsProcessor } from './processors/ai-insights.processor';
 import { LLMController } from './llm.controller';
+import { PostModule } from '../post/post.module';
+import { ChatSession } from './entities/chat-session.entity';
+import { ChatMessage } from './entities/chat-message.entity';
+import { AiChatService } from './ai-chat.service';
+import { AiChatResolver } from './ai-chat.resolver';
 
 @Module({
   imports: [
@@ -20,8 +25,12 @@ import { LLMController } from './llm.controller';
       MonitoredProfile,
       Insight,
       LlmCredential,
+      LlmCredential,
       User,
+      ChatSession,
+      ChatMessage,
     ]),
+    PostModule,
   ],
   providers: [
     AIInsightsService,
@@ -30,6 +39,8 @@ import { LLMController } from './llm.controller';
     AIInsightsProcessor,
     VectorDbService,
     LLMService,
+    AiChatService,
+    AiChatResolver,
   ],
   exports: [AIInsightsService, VectorDbService, LLMService],
   controllers: [LLMController],

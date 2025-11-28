@@ -16,6 +16,8 @@ import {
   TrendAnalysisTool,
   ContentSuggestionTool,
 } from './tools/post-generator.tool';
+
+import { PostsService } from '../post/post.service';
 import { QUEUE_NAMES, AI_INSIGHTS_JOBS } from '../queue/queue.config';
 import {
   GenerateInsightsJobData,
@@ -54,6 +56,7 @@ export class AIInsightsService {
     private insightRepository: Repository<Insight>,
     private vectorDbService: VectorDbService,
     private llmService: LLMService,
+    private postsService: PostsService,
     @InjectQueue(QUEUE_NAMES.AI_INSIGHTS)
     private aiInsightsQueue: Queue,
   ) { }
@@ -655,4 +658,7 @@ Return as a JSON array of strings, no additional formatting.`;
     insight.isRead = true;
     return this.insightRepository.save(insight);
   }
+
+
+
 }

@@ -189,6 +189,32 @@ type JobIdResponse {
   jobId: String!
 }
 
+type ChatMessage {
+  id: ID!
+  sessionId: String!
+  role: String!
+  content: String!
+  tokenUsage: JSON
+  session: ChatSession!
+  createdAt: DateTime!
+}
+
+type ChatSession {
+  id: ID!
+  userId: String!
+  tenantId: String!
+  title: String
+  user: User!
+  messages: [ChatMessage]
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type ChatResponse {
+  response: String!
+  sessionId: String!
+}
+
 type JobStatusObject {
   id: String!
   status: JobStatus!
@@ -218,6 +244,7 @@ type Query {
   getUserPosts(limit: Int): [Post!]!
   getPost(postId: String!): Post!
   getCredentials(platform: String): [Credential!]!
+  getConnectedAccounts: [Credential!]!
   verifyEmail(token: String!): MessageResponse!
   me: User!
   getMonitoredProfiles: [MonitoredProfile!]!
@@ -226,6 +253,8 @@ type Query {
   getProfileStats(profileId: String!): JSON!
   analyzeTrends(topic: String, timeRange: String): JSON!
   getInsights(limit: Float): [Insight!]!
+  getUserChatSessions: [ChatSession!]!
+  getChatSessionHistory(sessionId: String!): [ChatMessage!]!
 
   """Get status of a job by ID"""
   jobStatus(jobId: String!): JobStatusObject!
@@ -269,6 +298,9 @@ type Mutation {
   generatePostTemplate(insights: [String!]!, platform: String!, tone: String, llmProvider: String): JobIdResponse!
   indexTweetsToVector(profileId: String!): Int!
   markInsightAsRead(insightId: String!): Insight!
+  createChatSession(title: String): ChatSession!
+  chatWithAI(message: String!, sessionId: String, llmProvider: String): ChatResponse!
+  deleteChatSession(sessionId: String!): Boolean!
 
   """Retry a failed job"""
   retryJob(jobId: String!): JobStatusObject!
