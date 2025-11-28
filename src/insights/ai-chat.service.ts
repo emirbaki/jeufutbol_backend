@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { ChatSession } from './entities/chat-session.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { LLMService, LLMProvider, LLMTypes } from './llm.service';
@@ -8,7 +8,7 @@ import { AIInsightsService } from './ai-insights.service';
 import { PostsService } from '../post/post.service';
 import { createAgent } from 'langchain';
 import { MemorySaver } from '@langchain/langgraph';
-import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import {
     PostGeneratorTool,
     TrendAnalysisTool,
@@ -19,6 +19,7 @@ import {
     ListPostsTool,
     PublishPostTool,
 } from './tools/post-management.tool';
+import { SqlTools } from './tools/sql.tool';
 
 @Injectable()
 export class AiChatService {
@@ -32,6 +33,7 @@ export class AiChatService {
         private llmService: LLMService,
         private aiInsightsService: AIInsightsService,
         private postsService: PostsService,
+        private dataSource: DataSource,
     ) { }
 
     async createChatSession(
@@ -138,6 +140,7 @@ export class AiChatService {
             CreatePostTool.createTool(this.postsService, userId, tenantId),
             ListPostsTool.createTool(this.postsService, userId, tenantId),
             PublishPostTool.createTool(this.postsService, userId, tenantId),
+            ...(await SqlTools.createTools(this.dataSource, model)),
         ];
 
         const memory = new MemorySaver(); // We use ephemeral memory for the agent run, but feed persistent history
@@ -153,9 +156,15 @@ export class AiChatService {
 
         // 5. Invoke Agent
         try {
+            const systemMessage = new SystemMessage(`You are a helpful AI assistant.
+You have access to a SQL database with tables: post, tweets, insights, monitored_profiles.
+ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
+Do not access data from other tenants.
+If the user asks for "my posts" or "my insights", assume they mean data for tenant '${tenantId}'.`);
+
             const result = await agent.invoke(
                 {
-                    messages: [...langChainHistory, new HumanMessage(message)],
+                    messages: [systemMessage, ...langChainHistory, new HumanMessage(message)],
                 },
                 config,
             );
