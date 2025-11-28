@@ -171,6 +171,7 @@ export class AiChatService {
 
         const config = {
             configurable: { thread_id: `run-${Date.now()}` },
+            recursionLimit: 50,
         };
 
         // 5. Invoke Agent

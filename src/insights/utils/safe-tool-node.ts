@@ -40,5 +40,46 @@ export class SafeToolNode extends ToolNode {
         // Re-implementing the core logic of ToolNode for safety
         const results: ToolMessage[] = [];
 
+        // We need the tools map.
+        // Since we are extending, we might not have access to the internal map.
+        // Let's just create a new map.
+        // @ts-ignore
+        const toolsMap = new Map(this.tools.map((t) => [t.name, t]));
+
+        for (const call of lastMessage.tool_calls || []) {
+            if (call.name && toolsMap.has(call.name)) {
+                const tool = toolsMap.get(call.name);
+                if (!tool) continue;
+
+                try {
+                    // invoke the tool
+                    // @ts-ignore
+                    const toolOutput = await tool.invoke(call.args, config);
+
+                    results.push(new ToolMessage({
+                        tool_call_id: call.id || 'unknown',
+                        content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
+                        name: call.name
+                    }));
+                } catch (e) {
+                    results.push(new ToolMessage({
+                        tool_call_id: call.id || 'unknown',
+                        content: `Error executing tool: ${e.message}`,
+                        name: call.name,
+                        status: "error"
+                    }));
+                }
+            } else {
+                // Handle invalid tool
+                results.push(new ToolMessage({
+                    tool_call_id: call.id || 'unknown',
+                    content: `Error: Tool "${call.name}" not found. Please use one of the available tools. If you are trying to reply to the user, DO NOT use a tool. Just output the text directly.`,
+                    name: call.name || 'unknown',
+                    status: "error"
+                }));
+            }
+        }
+
+        return { messages: results };
     }
 }

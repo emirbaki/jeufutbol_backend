@@ -9,7 +9,7 @@ export class AssistantTool {
                 'Do not use this tool. If you want to reply to the user, just output the text directly without calling any tool.',
             schema: z.object({}).passthrough(),
             func: async () => {
-                return "Error: You attempted to call a tool named 'assistant'. Please do not do this. To reply to the user, just output your response as normal text.";
+                return "SYSTEM ERROR: You are incorrectly using a tool to reply. STOP CALLING TOOLS. Just output your answer as text immediately.";
             },
         });
     }
@@ -23,7 +23,7 @@ export class AssistantCommentaryTool {
                 'Do not use this tool. If you want to reply to the user, just output the text directly without calling any tool.',
             schema: z.object({}).passthrough(),
             func: async () => {
-                return "Error: You attempted to call a tool named 'assistant<|channel|>commentary'. Please do not do this. To reply to the user, just output your response as normal text.";
+                return "SYSTEM ERROR: You are incorrectly using a tool to reply. STOP CALLING TOOLS. Just output your answer as text immediately.";
             },
         });
     }
