@@ -154,6 +154,44 @@ export class AiChatService {
             .addNode("agent", async (state) => {
                 const boundModel = (model as any).bindTools ? (model as any).bindTools(tools) : model;
                 const response = await boundModel.invoke(state.messages);
+
+                // Fallback: Check if model outputted a JSON tool call in the content
+                if ((!response.tool_calls || response.tool_calls.length === 0) && typeof response.content === 'string') {
+                    const content = response.content;
+                    // Regex to find { "function": "name", "arguments": { ... } }
+                    // We use a loose regex to capture the JSON block
+                    const jsonMatch = content.match(/\{[\s\n]*"function":[\s\n]*"(.*?)",[\s\n]*"arguments":[\s\n]*(\{[\s\S]*?\})[\s\n]*\}/);
+
+                    if (jsonMatch) {
+                        try {
+                            const toolName = jsonMatch[1];
+                            const toolArgs = JSON.parse(jsonMatch[2]);
+
+                            // Construct a tool call
+                            response.tool_calls = [{
+                                name: toolName,
+                                args: toolArgs,
+                                id: `call_${Date.now()}`,
+                                type: 'tool_call'
+                            }];
+
+                            // Optional: Remove the JSON from the content so it doesn't look weird to the user
+                            // or keep it as "thought process". The user said "model prints out its thinking", 
+                            // so maybe we clean it up or leave it. 
+                            // Let's leave the text *before* the JSON as the "thought".
+                            const jsonIndex = content.indexOf(jsonMatch[0]);
+                            if (jsonIndex > 0) {
+                                response.content = content.substring(0, jsonIndex).trim();
+                            } else {
+                                response.content = "";
+                            }
+                        } catch (e) {
+                            // Failed to parse, ignore
+                            console.warn("Failed to parse fallback tool call", e);
+                        }
+                    }
+                }
+
                 return { messages: [response] };
             })
             .addNode("tools", new SafeToolNode(tools))
