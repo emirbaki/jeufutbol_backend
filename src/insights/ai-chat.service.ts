@@ -6,9 +6,10 @@ import { ChatMessage } from './entities/chat-message.entity';
 import { LLMService, LLMProvider, LLMTypes } from './llm.service';
 import { AIInsightsService } from './ai-insights.service';
 import { PostsService } from '../post/post.service';
-import { createAgent } from 'langchain';
-import { MemorySaver } from '@langchain/langgraph';
+import { MemorySaver, StateGraph, MessagesAnnotation } from '@langchain/langgraph';
+import { SafeToolNode } from './utils/safe-tool-node';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
+import { StructuredTool } from '@langchain/core/tools';
 import {
     PostGeneratorTool,
     TrendAnalysisTool,
@@ -20,7 +21,7 @@ import {
     PublishPostTool,
 } from './tools/post-management.tool';
 import { SqlTools } from './tools/sql.tool';
-import { AssistantTool } from './tools/assistant.tool';
+import { AssistantTool, AssistantCommentaryTool } from './tools/assistant.tool';
 
 @Injectable()
 export class AiChatService {
@@ -143,14 +144,30 @@ export class AiChatService {
             PublishPostTool.createTool(this.postsService, userId, tenantId),
             ...(await SqlTools.createTools(this.dataSource, model)),
             AssistantTool.createTool(),
-        ];
+            AssistantCommentaryTool.createTool(),
+        ] as StructuredTool[];
 
-        const memory = new MemorySaver(); // We use ephemeral memory for the agent run, but feed persistent history
-        const agent = createAgent({
-            model,
-            tools,
-            checkpointer: memory,
-        });
+        const memory = new MemorySaver();
+
+        // Define the graph manually to use SafeToolNode
+        const workflow = new StateGraph(MessagesAnnotation)
+            .addNode("agent", async (state) => {
+                const boundModel = (model as any).bindTools ? (model as any).bindTools(tools) : model;
+                const response = await boundModel.invoke(state.messages);
+                return { messages: [response] };
+            })
+            .addNode("tools", new SafeToolNode(tools))
+            .addEdge("__start__", "agent")
+            .addConditionalEdges("agent", (state) => {
+                const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+                if (lastMessage.tool_calls?.length) {
+                    return "tools";
+                }
+                return "__end__";
+            })
+            .addEdge("tools", "agent");
+
+        const agent = workflow.compile({ checkpointer: memory });
 
         const config = {
             configurable: { thread_id: `run-${Date.now()}` },

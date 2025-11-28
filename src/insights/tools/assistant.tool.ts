@@ -14,3 +14,17 @@ export class AssistantTool {
         });
     }
 }
+
+export class AssistantCommentaryTool {
+    static createTool() {
+        return new DynamicStructuredTool({
+            name: 'assistant<|channel|>commentary',
+            description:
+                'Do not use this tool. If you want to reply to the user, just output the text directly without calling any tool.',
+            schema: z.object({}).passthrough(),
+            func: async () => {
+                return "Error: You attempted to call a tool named 'assistant<|channel|>commentary'. Please do not do this. To reply to the user, just output your response as normal text.";
+            },
+        });
+    }
+}
