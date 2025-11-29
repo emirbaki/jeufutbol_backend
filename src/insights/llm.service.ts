@@ -7,6 +7,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOllama, type ChatOllamaInput } from '@langchain/ollama';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { HumanMessage } from '@langchain/core/messages';
 
 export type LLMProvider = 'openai' | 'gemini' | 'ollama' | 'claude';
 export enum LLMTypes {
@@ -24,7 +25,7 @@ export class LLMService {
   constructor(
     @InjectRepository(LlmCredential)
     private readonly credentialRepo: Repository<LlmCredential>,
-  ) {}
+  ) { }
 
   async GetLLMCredentials(userId: string): Promise<LlmCredential[]> {
     const credentials = await this.credentialRepo.find({
@@ -120,7 +121,7 @@ export class LLMService {
     provider: LLMProvider,
   ): Promise<string> {
     const model = await this.getModel(userId, provider);
-    const response = await model.invoke(prompt);
+    const response = await model.invoke([new HumanMessage(prompt)]);
     return response.content.toString();
   }
 }

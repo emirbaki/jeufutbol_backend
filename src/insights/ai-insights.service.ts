@@ -242,6 +242,7 @@ export class AIInsightsService {
       const insights = await this.analyzeWithLLM(
         relevantTweets,
         userId,
+        dto.tenantId,
         topic,
         llmProvider,
       );
@@ -263,6 +264,7 @@ export class AIInsightsService {
   private async analyzeWithLLM(
     tweets: Tweet[],
     userId: string,
+    tenantId: string,
     topic?: string,
     llmProvider?: LLMProvider,
   ): Promise<Insight[]> {
@@ -319,6 +321,7 @@ Content should be in Turkish.
       return parsedInsights.map((data: any) => {
         const insight = new Insight();
         insight.userId = userId;
+        insight.tenantId = tenantId; // Add tenantId!
         insight.type = data.type as InsightType;
         insight.title = data.title;
         insight.description = data.description;
