@@ -92,10 +92,15 @@ export class PostsService {
     // Allow editing DRAFT, SCHEDULED, and FAILED posts
     Object.assign(post, updates);
 
-    // Reset failure reasons when editing a failed post
-    if (post.status === PostStatus.FAILED) {
-      post.failureReasons = undefined;
+    // Update status based on scheduledFor
+    if (post.scheduledFor) {
+      post.status = PostStatus.SCHEDULED;
+    } else {
+      post.status = PostStatus.DRAFT;
     }
+
+    // Reset failure reasons when editing
+    post.failureReasons = undefined;
 
     return this.postRepository.save(post);
   }
