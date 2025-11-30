@@ -22,7 +22,7 @@ export class PostsService {
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
-  ) {}
+  ) { }
 
   async createPost(
     userId: string,
@@ -79,10 +79,18 @@ export class PostsService {
   ): Promise<Post> {
     const post = await this.getPost(postId, userId, tenantId);
 
+    // Only block editing of successfully published posts
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Cannot update a published post');
 
+    // Allow editing DRAFT, SCHEDULED, and FAILED posts
     Object.assign(post, updates);
+
+    // Reset failure reasons when editing a failed post
+    if (post.status === PostStatus.FAILED) {
+      post.failureReasons = undefined;
+    }
+
     return this.postRepository.save(post);
   }
 
@@ -173,14 +181,78 @@ export class PostsService {
     if (publishResults.length > 0) {
       post.status = PostStatus.PUBLISHED;
       await this.publishedPostRepository.insert(publishResults);
+      post.failureReasons = undefined; // Clear any previous failures
     } else {
       post.status = PostStatus.FAILED;
+
+      // Store failure reasons for each platform
+      post.failureReasons = errors.reduce(
+        (acc, err) => {
+          acc[err.platform] = err.error;
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+
       this.logger.error(
         `Publishing failed for all platforms: ${JSON.stringify(errors)}`,
       );
     }
 
-    await this.postRepository.update(post.id, { status: post.status });
+    await this.postRepository.update(post.id, {
+      status: post.status,
+      failureReasons: post.failureReasons,
+    });
     return this.getPost(postId, userId, tenantId);
+  }
+
+  /**
+   * Retry publishing a failed post
+   * Only retries platforms that failed (keeps successful platforms)
+   */
+  async retryPublishPost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<Post> {
+    const post = await this.getPost(postId, userId, tenantId);
+
+    if (post.status !== PostStatus.FAILED) {
+      throw new Error('Can only retry failed posts');
+    }
+
+    // Get platforms that already succeeded
+    const publishedPosts = await this.publishedPostRepository.find({
+      where: { postId: post.id },
+    });
+    const succeededPlatforms = publishedPosts.map((p) => p.platform);
+
+    // Filter target platforms to only retry failed ones
+    const originalPlatforms = [...post.targetPlatforms];
+    const failedPlatforms = originalPlatforms.filter(
+      (platform) => !succeededPlatforms.includes(platform as PlatformType),
+    );
+
+
+    if (failedPlatforms.length === 0) {
+      throw new Error('No failed platforms to retry');
+    }
+
+    // Temporarily set target platforms to only failed ones
+    post.targetPlatforms = failedPlatforms;
+
+    // Reset status to draft for republishing
+    post.status = PostStatus.DRAFT;
+    post.failureReasons = undefined;
+    await this.postRepository.save(post);
+
+    // Publish only to failed platforms
+    const result = await this.publishPost(postId, userId, tenantId);
+
+    // Restore original target platforms
+    result.targetPlatforms = originalPlatforms;
+    await this.postRepository.save(result);
+
+    return result;
   }
 }

@@ -13,7 +13,7 @@ export class TokenRefreshService {
     private httpService: HttpService,
     private configService: ConfigService,
     private encryptionService: EncryptionService,
-  ) {}
+  ) { }
 
   /**
    * Refresh Twitter/X OAuth2 token
@@ -106,7 +106,8 @@ export class TokenRefreshService {
 
   /**
    * Refresh Instagram token
-   * Instagram uses long-lived tokens that can be refreshed before expiry
+   * Instagram Business accounts use Facebook Graph API token exchange
+   * Note: Instagram Basic Display API uses a different refresh mechanism
    */
   async refreshInstagramToken(credential: Credential): Promise<{
     accessToken: string;
@@ -117,75 +118,33 @@ export class TokenRefreshService {
       const currentAccessToken = this.encryptionService.decrypt(
         credential.accessToken!,
       );
+      const appId = this.configService.get('INSTAGRAM_APP_ID');
+      const appSecret = this.configService.get('INSTAGRAM_APP_SECRET');
 
-      // Instagram Basic Display API refresh
+      // Instagram Business accounts use Facebook's token exchange
       const params = new URLSearchParams({
-        grant_type: 'ig_refresh_token',
-        access_token: currentAccessToken,
+        grant_type: 'fb_exchange_token',
+        client_id: appId!,
+        client_secret: appSecret!,
+        fb_exchange_token: currentAccessToken,
       });
 
       const response = await firstValueFrom(
         this.httpService.get(
-          'https://graph.instagram.com/refresh_access_token',
-          {
-            params,
-          },
+          'https://graph.facebook.com/v18.0/oauth/access_token',
+          { params },
         ),
       );
 
       return {
         accessToken: response.data.access_token,
-        // Instagram doesn't provide refresh tokens, only refreshed access tokens
+        // Instagram Business doesn't provide refresh tokens, just long-lived access tokens
         expiresIn: response.data.expires_in || 5184000, // ~60 days
       };
     } catch (error) {
       this.logger.error('Instagram token refresh failed:', error);
-
-      // Fallback: Try Facebook Graph API for Instagram Business accounts
-      try {
-        return await this.refreshInstagramBusinessToken(credential);
-      } catch (fallbackError) {
-        this.logger.error(
-          'Instagram Business token refresh also failed:',
-          fallbackError,
-        );
-        throw new Error('Failed to refresh Instagram token');
-      }
+      throw new Error('Failed to refresh Instagram token');
     }
-  }
-
-  /**
-   * Refresh Instagram Business account token (via Facebook)
-   */
-  private async refreshInstagramBusinessToken(credential: Credential): Promise<{
-    accessToken: string;
-    refreshToken?: string;
-    expiresIn: number;
-  }> {
-    const currentAccessToken = this.encryptionService.decrypt(
-      credential.accessToken!,
-    );
-    const appId = this.configService.get('FACEBOOK_APP_ID');
-    const appSecret = this.configService.get('FACEBOOK_APP_SECRET');
-
-    const params = new URLSearchParams({
-      grant_type: 'fb_exchange_token',
-      client_id: appId!,
-      client_secret: appSecret!,
-      fb_exchange_token: currentAccessToken,
-    });
-
-    const response = await firstValueFrom(
-      this.httpService.get(
-        'https://graph.facebook.com/v18.0/oauth/access_token',
-        { params },
-      ),
-    );
-
-    return {
-      accessToken: response.data.access_token,
-      expiresIn: response.data.expires_in || 5184000,
-    };
   }
 
   /**

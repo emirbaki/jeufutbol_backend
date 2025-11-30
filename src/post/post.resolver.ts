@@ -10,7 +10,7 @@ import { CreatePostInput } from 'src/graphql/inputs/post.input';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class PostsResolver {
-  constructor(private postsService: PostsService) {}
+  constructor(private postsService: PostsService) { }
 
   @Mutation(() => Post)
   async createPost(
@@ -73,5 +73,13 @@ export class PostsResolver {
     @Args('postId') postId: string,
   ): Promise<Post> {
     return this.postsService.publishPost(postId, user.id, user.tenantId);
+  }
+
+  @Mutation(() => Post)
+  async retryPublishPost(
+    @CurrentUser() user: User,
+    @Args('postId') postId: string,
+  ): Promise<Post> {
+    return this.postsService.retryPublishPost(postId, user.id, user.tenantId);
   }
 }
