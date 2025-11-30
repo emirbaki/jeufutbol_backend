@@ -63,7 +63,23 @@ export class TiktokPollingProcessor extends WorkerHost {
             if (statusData.status === 'PUBLISH_COMPLETE') {
                 // Extract the final post ID
                 const postIds = statusData.publicly_available_post_id || [];
-                const finalPostId = postIds[0] || publish_id;
+
+                // Log the full response for debugging
+                this.logger.log(
+                    `[Job ${job.id}] TikTok status data: ${JSON.stringify(statusData)}`,
+                );
+
+                if (postIds.length === 0) {
+                    this.logger.error(
+                        `[Job ${job.id}] TikTok returned PUBLISH_COMPLETE but no publicly_available_post_id. This may be a private post or under moderation.`,
+                    );
+                    throw new Error('No publicly_available_post_id returned by TikTok');
+                }
+
+                const finalPostId = postIds[0];
+                this.logger.log(
+                    `[Job ${job.id}] Using publicly_available_post_id: ${finalPostId}`,
+                );
 
                 // Construct the final URL
                 const urlPath = mediaType === 'video' ? 'video' : 'photo';

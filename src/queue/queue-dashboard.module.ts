@@ -24,6 +24,10 @@ import { QUEUE_NAMES } from './queue.config';
       name: QUEUE_NAMES.EMAIL_NOTIFICATIONS,
       adapter: BullMQAdapter,
     }),
+    BullBoardModule.forFeature({
+      name: QUEUE_NAMES.TIKTOK_POLLING,
+      adapter: BullMQAdapter,
+    }),
   ],
 })
-export class QueueDashboardModule {}
+export class QueueDashboardModule { }

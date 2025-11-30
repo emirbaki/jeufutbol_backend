@@ -18,6 +18,7 @@ import {
   ObjectType,
   registerEnumType,
 } from '@nestjs/graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 
 export enum PostStatus {
   DRAFT = 'draft',
@@ -93,7 +94,7 @@ export class Post {
   @Column({ nullable: true })
   tenantId: string;
 
-  @Field(() => String, { nullable: true })
+  @Field(() => GraphQLJSON, { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
   failureReasons?: Record<string, string>;
 }

@@ -233,14 +233,26 @@ export class TiktokPostGateway implements PostGateway {
       );
 
       const statusData = statusRes.data.data;
+
+      // Log full response for debugging
+      this.logger.log(
+        `[TikTok] Full status response: ${JSON.stringify(statusRes.data, null, 2)}`,
+      );
+
       this.logger.log(
         `[TikTok] Status check for ${publish_id}: ${statusData.status}`,
       );
 
+      // TikTok API has a typo: "publicaly_available_post_id" (one 'L')
+      // Check both spellings to be safe
+      const postIds =
+        statusData.publicaly_available_post_id || // TikTok's typo (one L)
+        statusData.publicly_available_post_id ||  // Correct spelling (two L's)
+        [];
+
       return {
         status: statusData.status,
-        publicly_available_post_id:
-          statusData.publicly_available_post_id || [],
+        publicly_available_post_id: postIds,
         fail_reason: statusData.fail_reason,
       };
     } catch (error: any) {
