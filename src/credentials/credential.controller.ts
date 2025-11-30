@@ -3,14 +3,14 @@ import {
   Get,
   Post,
   Query,
-  // Req,
+  Req,
   Res,
   UseGuards,
   Body,
   Delete,
   Param,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { CredentialsService } from './credential.service';
 import { PlatformName } from '../entities/credential.entity';
@@ -23,7 +23,7 @@ export class CredentialsController {
   constructor(
     private credentialsService: CredentialsService,
     private oauthService: OAuthService,
-  ) {}
+  ) { }
 
   /**
    * Get OAuth authorization URL (Step 1)
@@ -57,6 +57,7 @@ export class CredentialsController {
   async handleOAuthCallback(
     @Query('code') code: string,
     @Query('state') state: string,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     try {
@@ -93,13 +94,19 @@ export class CredentialsController {
         },
       );
 
+      // Determine frontend URL from request origin or environment
+      const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
+      const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
+
       // Redirect to success page
       res.redirect(
-        `${process.env.FRONTEND_URL}/settings?credential=connected&platform=${platform}`,
+        `${frontendUrl}/settings?credential=connected&platform=${platform}`,
       );
     } catch (error) {
       console.error('OAuth callback error:', error);
-      res.redirect(`${process.env.FRONTEND_URL}/settings?credential=error`);
+      const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
+      const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
+      res.redirect(`${frontendUrl}/settings?credential=error`);
     }
   }
 
