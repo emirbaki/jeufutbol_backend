@@ -8,19 +8,31 @@ export class FileValidationPipe implements PipeTransform {
     }
 
     const files = Array.isArray(value) ? value : [value];
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-    const maxSize = 8 * 1024 * 1024; // 5MB
+
+    // Allowed file types for images and videos
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo'];
+    const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+
+    const maxImageSize = 8 * 1024 * 1024; // 8MB for images
+    const maxVideoSize = 100 * 1024 * 1024; // 100MB for videos
 
     for (const file of files) {
+      // Check file type
       if (!allowedTypes.includes(file.mimetype)) {
         throw new BadRequestException(
-          `Invalid file type: ${file.mimetype}. Only JPEG, PNG, WEBP allowed.`,
+          `Invalid file type: ${file.mimetype}. Allowed types: JPEG, PNG, WEBP (images), MP4, MOV, WebM, AVI (videos).`,
         );
       }
 
+      // Check file size based on type
+      const isVideo = allowedVideoTypes.includes(file.mimetype);
+      const maxSize = isVideo ? maxVideoSize : maxImageSize;
+
       if (file.size > maxSize) {
+        const maxSizeMB = maxSize / (1024 * 1024);
         throw new BadRequestException(
-          `File too large: ${file.size}. Max allowed is 8MB.`,
+          `File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB. Max allowed is ${maxSizeMB}MB for ${isVideo ? 'videos' : 'images'}.`,
         );
       }
     }
