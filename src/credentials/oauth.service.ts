@@ -156,7 +156,7 @@ export class OAuthService {
     if (platform === PlatformName.X) {
       params.append('code_challenge', 'challenge');
       params.append('code_challenge_method', 'plain');
-      params.set('scope', config.scope.join('%20'));
+      params.set('scope', config.scope.join(' '));
     } else if (platform === PlatformName.TIKTOK) {
       params = new URLSearchParams({
         client_key: config.clientId,
@@ -166,8 +166,8 @@ export class OAuthService {
         state,
       });
     }
-    console.log(`${config.authUrl}?${decodeURIComponent(params.toString())}`);
-    return `${config.authUrl}?${decodeURIComponent(params.toString())}`;
+    console.log(`${config.authUrl}?${params.toString()}`);
+    return `${config.authUrl}?${params.toString()}`;
   }
 
   /**
@@ -220,8 +220,8 @@ export class OAuthService {
           platform === PlatformName.X
             ? headers
             : {
-                'Content-Type': 'application/x-www-form-urlencoded',
-              },
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
       }),
     );
 
