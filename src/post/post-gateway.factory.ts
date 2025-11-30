@@ -13,7 +13,7 @@ export class PostGatewayFactory {
     private readonly instagramGateway: InstagramPostGateway,
     private readonly tiktokGateway: TiktokPostGateway,
     private readonly xGateway: XPostGateway,
-  ) { }
+  ) {}
 
   getGateway(platform: PlatformType): PostGateway {
     switch (platform) {

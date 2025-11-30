@@ -9,19 +9,23 @@ import { Credential } from '../entities/credential.entity';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class CredentialsResolver {
-  constructor(private credentialsService: CredentialsService) { }
+  constructor(private credentialsService: CredentialsService) {}
 
   @Query(() => [Credential])
   async getCredentials(
     @CurrentUser() user: User,
     @Args('platform', { nullable: true }) platform?: string,
   ) {
-    return this.credentialsService.getUserCredentials(user.id, platform as any);
+    return this.credentialsService.getUserCredentials(
+      user.id,
+      user.tenantId,
+      platform as any,
+    );
   }
 
   @Query(() => [Credential])
   async getConnectedAccounts(@CurrentUser() user: User) {
-    return this.credentialsService.getUserCredentials(user.id);
+    return this.credentialsService.getUserCredentials(user.id, user.tenantId);
   }
 
   @Mutation(() => Boolean)
@@ -29,7 +33,11 @@ export class CredentialsResolver {
     @CurrentUser() user: User,
     @Args('credentialId') credentialId: string,
   ) {
-    await this.credentialsService.deleteCredential(credentialId, user.id);
+    await this.credentialsService.deleteCredential(
+      credentialId,
+      user.id,
+      user.tenantId,
+    );
     return true;
   }
 
@@ -38,6 +46,10 @@ export class CredentialsResolver {
     @CurrentUser() user: User,
     @Args('credentialId') credentialId: string,
   ) {
-    return this.credentialsService.testConnection(credentialId, user.id);
+    return this.credentialsService.testConnection(
+      credentialId,
+      user.id,
+      user.tenantId,
+    );
   }
 }

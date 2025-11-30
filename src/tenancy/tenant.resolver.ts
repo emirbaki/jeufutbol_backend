@@ -10,34 +10,36 @@ import { UserRole } from '../auth/user-role.enum';
 
 @Resolver(() => Tenant)
 export class TenantResolver {
-    constructor(
-        @InjectRepository(Tenant)
-        private tenantRepository: Repository<Tenant>,
-    ) { }
+  constructor(
+    @InjectRepository(Tenant)
+    private tenantRepository: Repository<Tenant>,
+  ) {}
 
-    @Query(() => Tenant)
-    @UseGuards(GqlAuthGuard)
-    async currentTenant(@CurrentUser() user: User): Promise<Tenant> {
-        if (!user.tenantId) {
-            throw new Error('User does not belong to any tenant');
-        }
-        return this.tenantRepository.findOneByOrFail({ id: user.tenantId });
+  @Query(() => Tenant)
+  @UseGuards(GqlAuthGuard)
+  async currentTenant(@CurrentUser() user: User): Promise<Tenant> {
+    if (!user.tenantId) {
+      throw new Error('User does not belong to any tenant');
     }
+    return this.tenantRepository.findOneByOrFail({ id: user.tenantId });
+  }
 
-    @Mutation(() => Tenant)
-    @UseGuards(GqlAuthGuard)
-    async updateTenant(
-        @CurrentUser() user: User,
-        @Args('name') name: string,
-    ): Promise<Tenant> {
-        if (!user.tenantId) {
-            throw new Error('User does not belong to any tenant');
-        }
-        if (user.role !== UserRole.ADMIN) {
-            throw new Error('Only admins can update organization settings');
-        }
-        const tenant = await this.tenantRepository.findOneByOrFail({ id: user.tenantId });
-        tenant.name = name;
-        return this.tenantRepository.save(tenant);
+  @Mutation(() => Tenant)
+  @UseGuards(GqlAuthGuard)
+  async updateTenant(
+    @CurrentUser() user: User,
+    @Args('name') name: string,
+  ): Promise<Tenant> {
+    if (!user.tenantId) {
+      throw new Error('User does not belong to any tenant');
     }
+    if (user.role !== UserRole.ADMIN) {
+      throw new Error('Only admins can update organization settings');
+    }
+    const tenant = await this.tenantRepository.findOneByOrFail({
+      id: user.tenantId,
+    });
+    tenant.name = name;
+    return this.tenantRepository.save(tenant);
+  }
 }

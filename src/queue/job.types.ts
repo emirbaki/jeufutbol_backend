@@ -4,39 +4,39 @@ import { JobStatusEnum } from '../insights/dto/job.dto';
 
 // Register enum for GraphQL
 registerEnumType(JobStatusEnum, {
-    name: 'JobStatus',
-    description: 'Status of a background job',
+  name: 'JobStatus',
+  description: 'Status of a background job',
 });
 
 @ObjectType()
 export class JobStatusObject {
-    @Field()
-    id: string;
+  @Field()
+  id: string;
 
-    @Field(() => JobStatusEnum)
-    status: JobStatusEnum;
+  @Field(() => JobStatusEnum)
+  status: JobStatusEnum;
 
-    @Field(() => Int)
-    progress: number;
+  @Field(() => Int)
+  progress: number;
 
-    @Field(() => GraphQLJSON, { nullable: true })
-    result?: any;
+  @Field(() => GraphQLJSON, { nullable: true })
+  result?: any;
 
-    @Field({ nullable: true })
-    error?: string;
+  @Field({ nullable: true })
+  error?: string;
 
-    @Field()
-    createdAt: Date;
+  @Field()
+  createdAt: Date;
 
-    @Field({ nullable: true })
-    finishedAt?: Date;
+  @Field({ nullable: true })
+  finishedAt?: Date;
 }
 
 @ObjectType()
 export class JobResultObject {
-    @Field()
-    jobId: string;
+  @Field()
+  jobId: string;
 
-    @Field(() => GraphQLJSON)
-    result: any;
+  @Field(() => GraphQLJSON)
+  result: any;
 }

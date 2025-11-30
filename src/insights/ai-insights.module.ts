@@ -45,4 +45,4 @@ import { AiChatResolver } from './ai-chat.resolver';
   exports: [AIInsightsService, VectorDbService, LLMService],
   controllers: [LLMController],
 })
-export class AIInsightsModule { }
+export class AIInsightsModule {}

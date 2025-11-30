@@ -18,4 +18,4 @@ import { ServeStaticModule } from '@nestjs/serve-static';
     }),
   ],
 })
-export class StaticFilesModule { }
+export class StaticFilesModule {}

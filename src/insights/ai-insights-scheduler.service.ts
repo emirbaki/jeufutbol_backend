@@ -13,7 +13,7 @@ export class AIInsightsSchedulerService {
     private aiInsightsService: AIInsightsService,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) { }
+  ) {}
 
   /**
    * Generate insights for all users daily (Now using queues!)
@@ -37,7 +37,9 @@ export class AIInsightsSchedulerService {
           });
           this.logger.log(`Enqueued insights job ${jobId} for user ${user.id}`);
         } catch (error) {
-          this.logger.error(`Failed to enqueue job for user ${user.id}: ${error.message}`);
+          this.logger.error(
+            `Failed to enqueue job for user ${user.id}: ${error.message}`,
+          );
         }
 
         // Small delay to avoid bursts (jobs will be processed by workers)

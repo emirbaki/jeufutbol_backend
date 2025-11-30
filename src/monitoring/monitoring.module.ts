@@ -24,4 +24,4 @@ import { MonitoringProcessor } from './monitoring.processor';
   ],
   exports: [MonitoringService],
 })
-export class MonitoringModule { }
+export class MonitoringModule {}

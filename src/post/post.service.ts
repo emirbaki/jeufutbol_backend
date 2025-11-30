@@ -22,9 +22,13 @@ export class PostsService {
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
-  ) { }
+  ) {}
 
-  async createPost(userId: string, tenantId: string, dto: CreatePostInput): Promise<Post> {
+  async createPost(
+    userId: string,
+    tenantId: string,
+    dto: CreatePostInput,
+  ): Promise<Post> {
     const post = this.postRepository.create({
       userId,
       tenantId,
@@ -39,7 +43,11 @@ export class PostsService {
     return this.postRepository.save(post);
   }
 
-  async getUserPosts(userId: string, tenantId: string, limit = 50): Promise<Post[]> {
+  async getUserPosts(
+    userId: string,
+    tenantId: string,
+    limit = 50,
+  ): Promise<Post[]> {
     // Get ALL posts from the organization (not just the user's posts)
     return this.postRepository.find({
       where: { tenantId },
@@ -49,7 +57,11 @@ export class PostsService {
     });
   }
 
-  async getPost(postId: string, userId: string, tenantId: string): Promise<Post> {
+  async getPost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<Post> {
     const post = await this.postRepository.findOne({
       where: { id: postId, userId, tenantId },
       relations: ['publishedPosts'],
@@ -74,14 +86,22 @@ export class PostsService {
     return this.postRepository.save(post);
   }
 
-  async deletePost(postId: string, userId: string, tenantId: string): Promise<boolean> {
+  async deletePost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
     const post = await this.getPost(postId, userId, tenantId);
     const urls = post.mediaUrls || [];
     await this.uploadService.deleteFileByUrl(urls);
     await this.postRepository.remove(post);
     return true;
   }
-  async publishPost(postId: string, userId: string, tenantId: string): Promise<Post> {
+  async publishPost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<Post> {
     const post = await this.getPost(postId, userId, tenantId);
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Post already published');
@@ -101,6 +121,7 @@ export class PostsService {
           // 1️⃣ Get credential for platform
           const credentials = await this.credentialsService.getUserCredentials(
             userId,
+            tenantId,
             platform as unknown as PlatformName,
           );
 
@@ -113,6 +134,7 @@ export class PostsService {
           const access_token = await this.credentialsService.getAccessToken(
             credential.id,
             userId,
+            tenantId,
           );
 
           // 2️⃣ Let the gateway handle posting logic

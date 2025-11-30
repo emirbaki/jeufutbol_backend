@@ -23,7 +23,7 @@ async function bootstrap() {
       'https://www.jeufutbol.com.tr',
       /^https:\/\/[a-zA-Z0-9-]+\.jeufutbol\.com\.tr$/,
       /^http:\/\/[a-zA-Z0-9-]+\.localhost:4200$/,
-      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4000$/
+      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4000$/,
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -33,19 +33,26 @@ async function bootstrap() {
   });
   app.setGlobalPrefix('api');
 
-  app.use(helmet({
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: {
-      directives: {
-        imgSrc: [`'self'`, 'data:', 'apollo-server-landing-page.cdn.apollographql.com'],
-        scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
-        manifestSrc: [`'self'`, 'apollo-server-landing-page.cdn.apollographql.com'],
-        frameSrc: [`'self'`, 'sandbox.embed.apollographql.com'],
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          imgSrc: [
+            `'self'`,
+            'data:',
+            'apollo-server-landing-page.cdn.apollographql.com',
+          ],
+          scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
+          manifestSrc: [
+            `'self'`,
+            'apollo-server-landing-page.cdn.apollographql.com',
+          ],
+          frameSrc: [`'self'`, 'sandbox.embed.apollographql.com'],
+        },
       },
-    },
-  }));
-
-
+    }),
+  );
 
   // Enable validation
   app.useGlobalPipes(

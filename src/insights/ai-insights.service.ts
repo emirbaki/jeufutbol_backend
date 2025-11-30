@@ -59,7 +59,7 @@ export class AIInsightsService {
     private postsService: PostsService,
     @InjectQueue(QUEUE_NAMES.AI_INSIGHTS)
     private aiInsightsQueue: Queue,
-  ) { }
+  ) {}
 
   /**
    * Index tweets to vector database
@@ -112,21 +112,27 @@ export class AIInsightsService {
 
         // Mark tweets as indexed
         await this.tweetRepository.update(
-          batch.map(t => t.id),
-          { isIndexedInVector: true }
+          batch.map((t) => t.id),
+          { isIndexedInVector: true },
         );
 
         totalIndexed += documents.length;
 
-        this.logger.log(`Indexed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tweets.length / BATCH_SIZE)} (${documents.length} tweets)`);
+        this.logger.log(
+          `Indexed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tweets.length / BATCH_SIZE)} (${documents.length} tweets)`,
+        );
 
         // Add delay between batches (except for last batch)
         if (i + BATCH_SIZE < tweets.length) {
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+          await new Promise((resolve) =>
+            setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS),
+          );
         }
       }
 
-      this.logger.log(`✓ Successfully indexed ${totalIndexed} new tweets for profile to vector DB`);
+      this.logger.log(
+        `✓ Successfully indexed ${totalIndexed} new tweets for profile to vector DB`,
+      );
       return totalIndexed;
     } catch (error) {
       this.logger.error(`Failed to index tweets: ${error.message}`);
@@ -137,9 +143,7 @@ export class AIInsightsService {
   /**
    * Generate AI insights for a user (Queue-based - returns job ID)
    */
-  async generateInsights(
-    dto: GenerateInsightsDto,
-  ): Promise<{ jobId: string }> {
+  async generateInsights(dto: GenerateInsightsDto): Promise<{ jobId: string }> {
     const jobData: GenerateInsightsJobData = dto;
 
     const job = await this.aiInsightsQueue.add(
@@ -161,9 +165,7 @@ export class AIInsightsService {
   /**
    * Generate AI insights for a user (Internal - called by processor)
    */
-  async generateInsightsInternal(
-    dto: GenerateInsightsDto,
-  ): Promise<Insight[]> {
+  async generateInsightsInternal(dto: GenerateInsightsDto): Promise<Insight[]> {
     const { userId, topic, llmProvider, useVectorSearch } = dto;
 
     try {
@@ -192,13 +194,19 @@ export class AIInsightsService {
             relevantTweets = await this.tweetRepository.find({
               where: { id: In(tweetIds) },
             });
-            this.logger.log(`Found ${relevantTweets.length} tweets via vector search for topic: "${topic}"`);
+            this.logger.log(
+              `Found ${relevantTweets.length} tweets via vector search for topic: "${topic}"`,
+            );
           } else {
-            this.logger.warn(`No vector search results for topic: "${topic}", falling back to recent tweets`);
+            this.logger.warn(
+              `No vector search results for topic: "${topic}", falling back to recent tweets`,
+            );
             relevantTweets = [];
           }
         } catch (error) {
-          this.logger.error(`Vector search failed: ${error.message}, falling back to recent tweets`);
+          this.logger.error(
+            `Vector search failed: ${error.message}, falling back to recent tweets`,
+          );
           relevantTweets = [];
         }
 
@@ -215,7 +223,9 @@ export class AIInsightsService {
             order: { createdAt: 'DESC' },
             take: 100,
           });
-          this.logger.log(`Using ${relevantTweets.length} recent tweets as fallback`);
+          this.logger.log(
+            `Using ${relevantTweets.length} recent tweets as fallback`,
+          );
         }
       } else {
         // Get recent tweets (last 7 days)
@@ -339,9 +349,7 @@ Content should be in Turkish.
   /**
    * Generate post template (Queue-based - returns job ID)
    */
-  async generatePostTemplate(
-    dto: PostTemplateDto,
-  ): Promise<{ jobId: string }> {
+  async generatePostTemplate(dto: PostTemplateDto): Promise<{ jobId: string }> {
     const jobData: GeneratePostJobData = dto;
 
     const job = await this.aiInsightsQueue.add(
@@ -575,9 +583,9 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
       avgEngagement:
         tweets.length > 0
           ? tweets.reduce(
-            (sum, t) => sum + t.likes + t.retweets + t.replies,
-            0,
-          ) / tweets.length
+              (sum, t) => sum + t.likes + t.retweets + t.replies,
+              0,
+            ) / tweets.length
           : 0,
       timeRange,
     };
@@ -636,7 +644,11 @@ Return as a JSON array of strings, no additional formatting.`;
   /**
    * Get insights for a user's organization
    */
-  async getInsightsForUser(userId: string, tenantId: string, limit = 20): Promise<Insight[]> {
+  async getInsightsForUser(
+    userId: string,
+    tenantId: string,
+    limit = 20,
+  ): Promise<Insight[]> {
     // Get ALL insights from the organization (not just the user's insights)
     return this.insightRepository.find({
       where: { tenantId },
@@ -661,7 +673,4 @@ Return as a JSON array of strings, no additional formatting.`;
     insight.isRead = true;
     return this.insightRepository.save(insight);
   }
-
-
-
 }

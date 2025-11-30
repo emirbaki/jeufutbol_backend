@@ -1,6 +1,10 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards, UseInterceptors, Inject } from '@nestjs/common';
-import { CacheInterceptor, CacheTTL, CACHE_MANAGER } from '@nestjs/cache-manager';
+import {
+  CacheInterceptor,
+  CacheTTL,
+  CACHE_MANAGER,
+} from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { GraphqlCacheInterceptor } from '../cache/graphql-cache.interceptor';
 import { AIInsightsService } from './ai-insights.service';
@@ -18,10 +22,11 @@ export class AIInsightsResolver {
   constructor(
     private aiInsightsService: AIInsightsService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  ) { }
+  ) {}
 
   @Mutation(() => JobIdResponse, {
-    description: 'Generate AI insights (returns job ID - query jobStatus to check progress)',
+    description:
+      'Generate AI insights (returns job ID - query jobStatus to check progress)',
   })
   async generateAIInsights(
     @CurrentUser() user: User,
@@ -38,7 +43,8 @@ export class AIInsightsResolver {
   }
 
   @Mutation(() => JobIdResponse, {
-    description: 'Generate post template (returns job ID - query jobStatus to check progress)',
+    description:
+      'Generate post template (returns job ID - query jobStatus to check progress)',
   })
   async generatePostTemplate(
     @CurrentUser() user: User,
@@ -84,7 +90,11 @@ export class AIInsightsResolver {
     @CurrentUser() user: User,
     @Args('limit', { nullable: true }) limit?: number,
   ) {
-    return this.aiInsightsService.getInsightsForUser(user.id, user.tenantId, limit);
+    return this.aiInsightsService.getInsightsForUser(
+      user.id,
+      user.tenantId,
+      limit,
+    );
   }
 
   @Mutation(() => Insight)
@@ -92,7 +102,10 @@ export class AIInsightsResolver {
     @CurrentUser() user: User,
     @Args('insightId') insightId: string,
   ) {
-    const result = await this.aiInsightsService.markInsightAsRead(insightId, user.id);
+    const result = await this.aiInsightsService.markInsightAsRead(
+      insightId,
+      user.id,
+    );
 
     // Invalidate getInsights cache
     // Note: Since getInsights has optional limit arg, we might need to invalidate multiple keys
@@ -105,7 +118,4 @@ export class AIInsightsResolver {
 
     return result;
   }
-
-
-
 }

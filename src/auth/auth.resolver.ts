@@ -29,7 +29,7 @@ export class MessageResponse {
 
 @Resolver()
 export class AuthResolver {
-  constructor(private authService: AuthService) { }
+  constructor(private authService: AuthService) {}
 
   @Mutation(() => MessageResponse)
   async register(

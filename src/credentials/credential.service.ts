@@ -26,6 +26,7 @@ export class CredentialsService {
    */
   async saveOAuthCredential(
     userId: string,
+    tenantId: string,
     platform: PlatformName,
     name: string,
     oauthData: {
@@ -40,6 +41,7 @@ export class CredentialsService {
   ): Promise<Credential> {
     const credential = new Credential();
     credential.userId = userId;
+    credential.tenantId = tenantId;
     credential.platform = platform;
     credential.type = CredentialType.OAUTH2;
     credential.name = name;
@@ -72,17 +74,22 @@ export class CredentialsService {
   async getCredential(
     credentialId: string,
     userId: string,
+    tenantId: string,
   ): Promise<Credential | null> {
     return this.credentialRepository.findOne({
-      where: { id: credentialId, userId },
+      where: { id: credentialId, userId, tenantId },
     });
   }
 
   /**
    * Get decrypted access token
    */
-  async getAccessToken(credentialId: string, userId: string): Promise<string> {
-    const credential = await this.getCredential(credentialId, userId);
+  async getAccessToken(
+    credentialId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<string> {
+    const credential = await this.getCredential(credentialId, userId, tenantId);
     if (!credential) {
       throw new Error('Credential not found');
     }
@@ -96,9 +103,9 @@ export class CredentialsService {
     }
     // Check if token is expired and refresh if needed
     if (this.isTokenExpired(credential)) {
-      await this.refreshAccessToken(credentialId, userId);
+      await this.refreshAccessToken(credentialId, userId, tenantId);
       // Reload credential after refresh
-      return this.getAccessToken(credentialId, userId);
+      return this.getAccessToken(credentialId, userId, tenantId);
     }
 
     return this.encryptionService.decrypt(credential.accessToken!);
@@ -121,8 +128,9 @@ export class CredentialsService {
   public async refreshAccessToken(
     credentialId: string,
     userId: string,
+    tenantId: string,
   ): Promise<void> {
-    const credential = await this.getCredential(credentialId, userId);
+    const credential = await this.getCredential(credentialId, userId, tenantId);
 
     if (!credential!.refreshToken) {
       throw new Error('No refresh token available');
@@ -178,9 +186,10 @@ export class CredentialsService {
    */
   async getUserCredentials(
     userId: string,
+    tenantId: string,
     platform?: PlatformName,
   ): Promise<Credential[]> {
-    const where: any = { userId, isActive: true };
+    const where: any = { userId, tenantId, isActive: true };
     if (platform) {
       where.platform = platform;
     }
@@ -194,16 +203,32 @@ export class CredentialsService {
   /**
    * Delete credential
    */
-  async deleteCredential(credentialId: string, userId: string): Promise<void> {
-    await this.credentialRepository.delete({ id: credentialId, userId });
+  async deleteCredential(
+    credentialId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<void> {
+    await this.credentialRepository.delete({
+      id: credentialId,
+      userId,
+      tenantId,
+    });
   }
 
   /**
    * Test credential connection
    */
-  async testConnection(credentialId: string, userId: string): Promise<boolean> {
-    const credential = await this.getCredential(credentialId, userId);
-    const access_token = await this.getAccessToken(credentialId, userId);
+  async testConnection(
+    credentialId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const credential = await this.getCredential(credentialId, userId, tenantId);
+    const access_token = await this.getAccessToken(
+      credentialId,
+      userId,
+      tenantId,
+    );
 
     // Test based on platform
     switch (credential!.platform) {

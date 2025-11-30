@@ -20,9 +20,8 @@ export class ThrottlerBehindProxyGuard extends ThrottlerGuard {
     if (context.getType<string>() === 'graphql') {
       const gqlCtx = GqlExecutionContext.create(context);
       const ctx = gqlCtx.getContext();
-      return { req: ctx.req, res: ctx.res || { header: () => { } } };
+      return { req: ctx.req, res: ctx.res || { header: () => {} } };
     }
     return super.getRequestResponse(context);
   }
 }
-

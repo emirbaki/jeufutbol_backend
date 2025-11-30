@@ -1,14 +1,14 @@
 import { registerEnumType } from '@nestjs/graphql';
 
 export enum PlatformType {
-    INSTAGRAM = 'instagram',
-    FACEBOOK = 'facebook',
-    X = 'x',
-    TIKTOK = 'tiktok',
-    YOUTUBE = 'youtube',
+  INSTAGRAM = 'instagram',
+  FACEBOOK = 'facebook',
+  X = 'x',
+  TIKTOK = 'tiktok',
+  YOUTUBE = 'youtube',
 }
 
 registerEnumType(PlatformType, {
-    name: 'PlatformType',
-    description: 'Supported social media platforms',
+  name: 'PlatformType',
+  description: 'Supported social media platforms',
 });

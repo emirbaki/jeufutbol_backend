@@ -30,4 +30,4 @@ import { EmailService } from 'src/email/email.service';
   providers: [AuthService, AuthResolver, JwtStrategy, EmailService],
   exports: [AuthService, JwtStrategy, PassportModule],
 })
-export class AuthModule { }
+export class AuthModule {}

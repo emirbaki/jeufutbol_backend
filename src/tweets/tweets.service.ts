@@ -31,7 +31,10 @@ export class TweetsService {
     // Initialize proxies from env
     const proxyList = process.env.TWITTER_PROXY_LIST || '';
     if (proxyList) {
-      this.proxies = proxyList.split(',').map((p) => p.trim()).filter((p) => p);
+      this.proxies = proxyList
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p);
       this.logger.log(`Loaded ${this.proxies.length} proxies`);
       // Randomize start index to avoid all workers hitting the same bad proxy first
       this.currentProxyIndex = Math.floor(Math.random() * this.proxies.length);
@@ -121,7 +124,9 @@ export class TweetsService {
         // 407: Proxy Auth Required
         // 5xx: Server errors
         // TypeError: Often happens when rettiwt fails to parse a non-JSON error response from a bad proxy
-        const isProxyError = error instanceof TypeError && error.message?.includes("reading 'errors'");
+        const isProxyError =
+          error instanceof TypeError &&
+          error.message?.includes("reading 'errors'");
         const isAuthError = error.status === 407 || error.statusCode === 407;
 
         const isRetryable =
@@ -147,11 +152,17 @@ export class TweetsService {
           }
 
           if (isProxyError) {
-            this.logger.warn(`Proxy returned invalid response for @${username}. Rotating proxy.`);
+            this.logger.warn(
+              `Proxy returned invalid response for @${username}. Rotating proxy.`,
+            );
           } else if (isAuthError) {
-            this.logger.warn(`Proxy authentication failed (407) for @${username}. Rotating proxy.`);
+            this.logger.warn(
+              `Proxy authentication failed (407) for @${username}. Rotating proxy.`,
+            );
           } else {
-            this.logger.warn(`Encountered error for @${username}. Rotating proxy if available.`);
+            this.logger.warn(
+              `Encountered error for @${username}. Rotating proxy if available.`,
+            );
           }
 
           // If we have proxies, switch to the next one immediately
@@ -168,9 +179,7 @@ export class TweetsService {
 
           // Fallback: Exponential backoff if no proxies or proxy failed
           const delaySeconds = 60 * attempt;
-          this.logger.warn(
-            `Waiting ${delaySeconds} seconds before retry...`,
-          );
+          this.logger.warn(`Waiting ${delaySeconds} seconds before retry...`);
           await this.sleep(delaySeconds * 1000);
           continue;
         }

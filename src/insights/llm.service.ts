@@ -25,7 +25,7 @@ export class LLMService {
   constructor(
     @InjectRepository(LlmCredential)
     private readonly credentialRepo: Repository<LlmCredential>,
-  ) { }
+  ) {}
 
   async GetLLMCredentials(userId: string): Promise<LlmCredential[]> {
     const credentials = await this.credentialRepo.find({
@@ -103,7 +103,7 @@ export class LLMService {
             Authorization: `Bearer ${apiKey}`,
           },
         };
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+
         model = new ChatOllama(config);
         break;
       }

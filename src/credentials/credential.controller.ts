@@ -38,6 +38,7 @@ export class CredentialsController {
     const state = Buffer.from(
       JSON.stringify({
         userId: user.id,
+        tenantId: user.tenantId,
         platform,
         credentialName,
         timestamp: Date.now(),
@@ -61,7 +62,7 @@ export class CredentialsController {
     try {
       // Decode state
       const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-      const { userId, platform, credentialName } = stateData;
+      const { userId, tenantId, platform, credentialName } = stateData;
 
       // Exchange code for tokens
       const tokenData = await this.oauthService.exchangeCodeForToken(
@@ -78,6 +79,7 @@ export class CredentialsController {
       // Save credential
       await this.credentialsService.saveOAuthCredential(
         userId,
+        tenantId,
         platform,
         credentialName || `${platform} - ${accountInfo.name}`,
         {
@@ -112,6 +114,7 @@ export class CredentialsController {
   ) {
     const credentials = await this.credentialsService.getUserCredentials(
       user.id,
+      user.tenantId,
       platform,
     );
 
@@ -142,6 +145,7 @@ export class CredentialsController {
     const isValid = await this.credentialsService.testConnection(
       credentialId,
       user.id,
+      user.tenantId,
     );
     return { valid: isValid };
   }
@@ -155,6 +159,7 @@ export class CredentialsController {
     const refreshToken = await this.credentialsService.refreshAccessToken(
       credendtialId,
       user.id,
+      user.tenantId,
     );
 
     return { refreshToken };
@@ -169,7 +174,11 @@ export class CredentialsController {
     @CurrentUser() user: User,
     @Param('id') credentialId: string,
   ) {
-    await this.credentialsService.deleteCredential(credentialId, user.id);
+    await this.credentialsService.deleteCredential(
+      credentialId,
+      user.id,
+      user.tenantId,
+    );
     return { success: true };
   }
 }

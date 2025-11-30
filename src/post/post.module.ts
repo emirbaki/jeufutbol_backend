@@ -42,4 +42,4 @@ import { EncryptionService } from 'src/credentials/token-encryption.service';
   ],
   exports: [PostsService],
 })
-export class PostModule { }
+export class PostModule {}

@@ -23,7 +23,7 @@ export class AuthService {
     private tenantRepository: Repository<Tenant>,
     private emailService: EmailService,
     private jwtService: JwtService,
-  ) { }
+  ) {}
 
   async register(
     email: string,
@@ -47,7 +47,9 @@ export class AuthService {
     // Simple slug generation: lowercase, replace spaces with dashes, remove non-alphanumeric
     let subdomain = organizationName.toLowerCase().replace(/[^a-z0-9]/g, '-');
     // Ensure subdomain is unique (simple check, might need retry logic in prod)
-    const existingTenant = await this.tenantRepository.findOne({ where: { subdomain } });
+    const existingTenant = await this.tenantRepository.findOne({
+      where: { subdomain },
+    });
     if (existingTenant) {
       subdomain = `${subdomain}-${uuidv4().substring(0, 4)}`;
     }
@@ -162,8 +164,7 @@ export class AuthService {
     if (!user) {
       // Don't reveal if user exists for security
       return {
-        message:
-          'This user is not registered with us.',
+        message: 'This user is not registered with us.',
       };
     }
 

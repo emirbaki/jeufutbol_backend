@@ -30,7 +30,7 @@ export class VectorDbService implements OnModuleInit {
   private chromaClient: ChromaClient;
   private readonly collectionName = 'tweets_collection';
 
-  constructor(private configService: ConfigService) { }
+  constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     await this.initializeChroma();

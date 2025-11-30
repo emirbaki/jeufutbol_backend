@@ -164,7 +164,9 @@ export class MonitoringService {
       },
     );
 
-    this.logger.log(`Enqueued tweet fetch job ${job.id} for profile ${profileId}`);
+    this.logger.log(
+      `Enqueued tweet fetch job ${job.id} for profile ${profileId}`,
+    );
     return { jobId: job.id || '' };
   }
 
@@ -180,7 +182,9 @@ export class MonitoringService {
     });
 
     if (!profile) {
-      this.logger.warn(`Profile ${profileId} not found during background fetch. It may have been deleted.`);
+      this.logger.warn(
+        `Profile ${profileId} not found during background fetch. It may have been deleted.`,
+      );
       return 0;
     }
 
@@ -242,7 +246,11 @@ export class MonitoringService {
   /**
    * Remove a monitored profile
    */
-  async removeProfile(userId: string, tenantId: string, profileId: string): Promise<boolean> {
+  async removeProfile(
+    userId: string,
+    tenantId: string,
+    profileId: string,
+  ): Promise<boolean> {
     const profile = await this.monitoredProfileRepository.findOne({
       where: { id: profileId, tenantId },
     });
@@ -262,7 +270,10 @@ export class MonitoringService {
   /**
    * Get all monitored profiles for a user
    */
-  async getMonitoredProfiles(userId: string, tenantId: string): Promise<MonitoredProfile[]> {
+  async getMonitoredProfiles(
+    userId: string,
+    tenantId: string,
+  ): Promise<MonitoredProfile[]> {
     // Get ALL profiles from the organization (shared watchlist)
     return this.monitoredProfileRepository.find({
       where: { tenantId, isActive: true },
@@ -364,7 +375,7 @@ export class MonitoringService {
 
       // Add minimal delay to prevent overwhelming Redis
       if (enqueuedCount < profiles.length) {
-        await new Promise(resolve => setTimeout(resolve, STAGGER_DELAY_MS));
+        await new Promise((resolve) => setTimeout(resolve, STAGGER_DELAY_MS));
       }
     }
 

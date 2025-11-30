@@ -1,6 +1,10 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards, UseInterceptors, Inject } from '@nestjs/common';
-import { CacheInterceptor, CacheTTL, CACHE_MANAGER } from '@nestjs/cache-manager';
+import {
+  CacheInterceptor,
+  CacheTTL,
+  CACHE_MANAGER,
+} from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { GraphqlCacheInterceptor } from '../cache/graphql-cache.interceptor';
 import { MonitoringService } from './monitoring.service';
@@ -21,7 +25,7 @@ export class MonitoringResolver {
     private monitoringService: MonitoringService,
     private tweetsService: TweetsService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  ) { }
+  ) {}
 
   @Query(() => [MonitoredProfile])
   async getMonitoredProfiles(
@@ -56,7 +60,11 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('profileId') profileId: string,
   ) {
-    return this.monitoringService.getProfileWithStats(profileId, user.id, user.tenantId);
+    return this.monitoringService.getProfileWithStats(
+      profileId,
+      user.id,
+      user.tenantId,
+    );
   }
 
   @Mutation(() => MonitoredProfile)
@@ -64,7 +72,11 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('xUsername') xUsername: string,
   ): Promise<MonitoredProfile> {
-    const profile = await this.monitoringService.addProfile(user.id, user.tenantId, { xUsername });
+    const profile = await this.monitoringService.addProfile(
+      user.id,
+      user.tenantId,
+      { xUsername },
+    );
 
     // Invalidate getMonitoredProfiles cache
     await this.cacheManager.del(`${user.id}:getMonitoredProfiles:{}`);
@@ -77,11 +89,17 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @Args('profileId') profileId: string,
   ): Promise<boolean> {
-    const result = await this.monitoringService.removeProfile(user.id, user.tenantId, profileId);
+    const result = await this.monitoringService.removeProfile(
+      user.id,
+      user.tenantId,
+      profileId,
+    );
 
     // Invalidate caches
     await this.cacheManager.del(`${user.id}:getMonitoredProfiles:{}`);
-    await this.cacheManager.del(`${user.id}:getMonitoredProfile:{"profileId":"${profileId}"}`);
+    await this.cacheManager.del(
+      `${user.id}:getMonitoredProfile:{"profileId":"${profileId}"}`,
+    );
 
     return result;
   }

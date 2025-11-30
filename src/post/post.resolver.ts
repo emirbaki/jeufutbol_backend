@@ -10,7 +10,7 @@ import { CreatePostInput } from 'src/graphql/inputs/post.input';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class PostsResolver {
-  constructor(private postsService: PostsService) { }
+  constructor(private postsService: PostsService) {}
 
   @Mutation(() => Post)
   async createPost(

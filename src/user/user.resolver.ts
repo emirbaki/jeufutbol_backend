@@ -9,18 +9,26 @@ import { User } from '../entities/user.entity';
 @Resolver(() => User)
 @UseGuards(GqlAuthGuard)
 export class UserResolver {
-    constructor(
-        @InjectRepository(User)
-        private userRepository: Repository<User>,
-    ) { }
+  constructor(
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+  ) {}
 
-    @Query(() => [User])
-    async getOrganizationUsers(@CurrentUser() user: User): Promise<User[]> {
-        // Get all users in the same tenant/organization
-        return this.userRepository.find({
-            where: { tenantId: user.tenantId, isActive: true },
-            order: { createdAt: 'ASC' },
-            select: ['id', 'email', 'firstName', 'lastName', 'role', 'createdAt', 'isVerified'],
-        });
-    }
+  @Query(() => [User])
+  async getOrganizationUsers(@CurrentUser() user: User): Promise<User[]> {
+    // Get all users in the same tenant/organization
+    return this.userRepository.find({
+      where: { tenantId: user.tenantId, isActive: true },
+      order: { createdAt: 'ASC' },
+      select: [
+        'id',
+        'email',
+        'firstName',
+        'lastName',
+        'role',
+        'createdAt',
+        'isVerified',
+      ],
+    });
+  }
 }
