@@ -119,14 +119,15 @@ export class TiktokPostGateway implements PostGateway {
       this.logger.log(`[TikTok] Video upload initialized: ${publish_id}`);
 
       // Step 2: Check upload status (poll until complete)
-      await this.pollUploadStatus(publish_id, access_token);
+      const publicIds = await this.pollUploadStatus(publish_id, access_token);
+      const finalPostId = publicIds[0] || publish_id; // Fallback to publish_id if empty
 
-      this.logger.log(`[TikTok] Video published successfully: ${publish_id}`);
+      this.logger.log(`[TikTok] Video published successfully: ${finalPostId}`);
 
       const username = options?.username || 'user';
       return {
-        id: publish_id,
-        url: `https://www.tiktok.com/@${username}/video/${publish_id}`,
+        id: finalPostId,
+        url: `https://www.tiktok.com/@${username}/video/${finalPostId}`,
       };
     } catch (err: any) {
       this.logger.error(
@@ -190,16 +191,17 @@ export class TiktokPostGateway implements PostGateway {
       this.logger.log(`[TikTok] Photo post initialized: ${publish_id}`);
 
       // Step 2: Check upload status
-      await this.pollUploadStatus(publish_id, access_token);
+      const publicIds = await this.pollUploadStatus(publish_id, access_token);
+      const finalPostId = publicIds[0] || publish_id; // Fallback to publish_id if empty
 
       this.logger.log(
-        `[TikTok] Photo post published successfully: ${publish_id}`,
+        `[TikTok] Photo post published successfully: ${finalPostId}`,
       );
 
       const username = options?.username || 'user';
       return {
-        id: publish_id,
-        url: `https://www.tiktok.com/@${username}/photo/${publish_id}`,
+        id: finalPostId,
+        url: `https://www.tiktok.com/@${username}/photo/${finalPostId}`,
       };
     } catch (err: any) {
       const errorDetails = {
@@ -225,7 +227,7 @@ export class TiktokPostGateway implements PostGateway {
     publish_id: string,
     access_token: string,
     maxAttempts: number = 30,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const DELAY_MS = 2000; // 2 seconds between checks
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -251,7 +253,8 @@ export class TiktokPostGateway implements PostGateway {
         this.logger.log(`[TikTok] Upload status: ${status}`);
 
         if (status === 'PUBLISH_COMPLETE') {
-          return; // Success!
+          // Return the public post IDs
+          return statusRes.data.data.publicly_available_post_id || [];
         }
 
         if (status === 'FAILED') {
