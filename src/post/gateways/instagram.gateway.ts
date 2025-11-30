@@ -389,6 +389,66 @@ export class InstagramPostGateway extends AsyncPostGateway {
   }
 
   /**
+   * Complete the publish after container is ready (FINISHED)
+   * This is called by the async polling processor
+   */
+  async completePublish(
+    containerId: string,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): Promise<{ postId?: string; postUrl?: string }> {
+    try {
+      const accountID = metadata.accountID;
+
+      if (!accountID) {
+        throw new Error('Missing accountID in metadata for Instagram publish');
+      }
+
+      this.logger.log(
+        `[Instagram] Publishing container ${containerId} for account ${accountID}`,
+      );
+
+      // Publish the container
+      const publish = await axios.post(
+        `${GRAPH_API_BASE}/${accountID}/media_publish`,
+        {
+          creation_id: containerId,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${access_token}`,
+          },
+        },
+      );
+
+      const postId = publish.data.id;
+      this.logger.log(`[Instagram] Reel published successfully: ${postId}`);
+
+      // Get permalink
+      const postUrl = await axios.get(
+        `${GRAPH_API_BASE}/${postId}`,
+        {
+          params: {
+            fields: 'permalink',
+            access_token: access_token,
+          },
+        },
+      );
+
+      return {
+        postId: postId,
+        postUrl: postUrl.data.permalink,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `[Instagram] Failed to publish container ${containerId}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get polling job data for Instagram Reels async uploads
    */
   getPollingJobData(

@@ -78,13 +78,43 @@ export class AsyncPollingProcessor extends WorkerHost {
                 status === 'FINISHED' ||
                 status === 'PUBLISHED'
             ) {
-                // ✅ Upload complete - update with final details
-                if (statusData.postId) {
+                // ✅ Upload complete - call platform-specific completion if needed
+                try {
+                    // Pass postId from status check to completion (TikTok needs this for URL)
+                    const completionMetadata = {
+                        ...(metadata || {}),
+                        postId: statusData.postId,
+                    };
+
+                    const completionResult = await gateway.completePublish(
+                        publish_id,
+                        access_token,
+                        completionMetadata,
+                    );
+
+                    // Update with completion results
+                    if (completionResult.postId) {
+                        publishedPost.platformPostId = completionResult.postId;
+                    }
+                    if (completionResult.postUrl) {
+                        publishedPost.platformPostUrl = completionResult.postUrl;
+                    }
+                } catch (error: any) {
+                    this.logger.error(
+                        `[Job ${job.id}] Error completing publish: ${error.message}`,
+                    );
+                    // Don't fail the entire job if completion fails
+                    // Some platforms don't need completion step
+                }
+
+                // Also use any postId/postUrl from the status check
+                if (statusData.postId && !publishedPost.platformPostId) {
                     publishedPost.platformPostId = statusData.postId;
                 }
-                if (statusData.postUrl) {
+                if (statusData.postUrl && !publishedPost.platformPostUrl) {
                     publishedPost.platformPostUrl = statusData.postUrl;
                 }
+
                 publishedPost.publishStatus = 'PUBLISH_COMPLETE';
 
                 await this.publishedPostRepository.save(publishedPost);
@@ -98,7 +128,7 @@ export class AsyncPollingProcessor extends WorkerHost {
                 }
 
                 this.logger.log(
-                    `[Job ${job.id}] ✅ ${platform} post published successfully: ${statusData.postUrl || statusData.postId}`,
+                    `[Job ${job.id}] ✅ ${platform} post published successfully: ${publishedPost.platformPostUrl || publishedPost.platformPostId}`,
                 );
             } else if (status === 'FAILED' || status === 'ERROR') {
                 // ❌ Upload failed

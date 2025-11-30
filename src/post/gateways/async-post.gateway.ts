@@ -26,7 +26,7 @@ export interface AsyncPublishStatus {
 /**
  * Abstract base class for gateways that require asynchronous polling
  * Extends the base PostGateway with async-specific methods
- * 
+ *
  * Use this for platforms like TikTok and Instagram Reels where:
  * - Upload happens in two steps (initiate + poll)
  * - Processing takes significant time
@@ -36,7 +36,7 @@ export abstract class AsyncPostGateway extends PostGateway {
     /**
      * Check the publish status for async uploads
      * Called periodically by the polling processor
-     * 
+     *
      * @param publishId - The container/upload ID from the platform
      * @param access_token - OAuth access token
      * @returns Status information for the polling processor
@@ -47,9 +47,9 @@ export abstract class AsyncPostGateway extends PostGateway {
     ): Promise<AsyncPublishStatus>;
 
     /**
-     * Get the polling job data after post creation
+     * Get polling job data for async uploads
      * Return null if this post doesn't need async polling
-     * 
+     *
      * @param publishedPost - The PublishedPost entity (before save)
      * @param result - Result from createNewPost()
      * @param access_token - OAuth access token
@@ -62,4 +62,25 @@ export abstract class AsyncPostGateway extends PostGateway {
         access_token: string,
         metadata: Record<string, any>,
     ): AsyncPollingJobData | null;
+
+    /**
+     * Complete the publish process after async upload finishes
+     * Called when status is FINISHED/PUBLISH_COMPLETE
+     *
+     * For platforms like Instagram that need a final "publish" API call
+     * after the container is ready. Default implementation does nothing.
+     *
+     * @param publishId - The container/upload ID
+     * @param access_token - OAuth access token
+     * @param metadata - Platform-specific metadata from job
+     * @returns Final post ID and URL if applicable
+     */
+    async completePublish(
+        publishId: string,
+        access_token: string,
+        metadata: Record<string, any>,
+    ): Promise<{ postId?: string; postUrl?: string }> {
+        // Default: no additional publishing step needed
+        return {};
+    }
 }
