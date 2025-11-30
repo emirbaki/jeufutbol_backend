@@ -1,16 +1,27 @@
-import { Injectable, NestMiddleware, NotFoundException } from '@nestjs/common';
+import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../entities/tenant.entity';
 import { TenancyStore } from './tenancy.store';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class TenancyMiddleware implements NestMiddleware {
+  private readonly logger = new Logger(TenancyMiddleware.name);
+  private readonly baseDomain: string | null;
+
   constructor(
     @InjectRepository(Tenant)
     private readonly tenantRepository: Repository<Tenant>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    // Get base domain from environment (e.g., 'jeufutbol.com.tr')
+    this.baseDomain = this.configService.get<string>('BASE_DOMAIN') || null;
+    if (this.baseDomain) {
+      this.logger.log(`Tenancy middleware configured with base domain: ${this.baseDomain}`);
+    }
+  }
 
   async use(req: Request, res: Response, next: NextFunction) {
     const host = req.headers.host;
@@ -23,17 +34,7 @@ export class TenancyMiddleware implements NestMiddleware {
     if (headerSubdomain) {
       subdomain = headerSubdomain;
     } else if (hostname) {
-      const parts = hostname.split('.');
-      if (hostname.endsWith('localhost')) {
-        if (parts.length >= 2) {
-          subdomain = parts[0];
-        }
-      } else {
-        // Production logic (e.g. app.com)
-        if (parts.length >= 3) {
-          subdomain = parts[0];
-        }
-      }
+      subdomain = this.extractSubdomain(hostname);
     }
 
     if (subdomain && subdomain !== 'www' && subdomain !== 'api') {
@@ -46,14 +47,54 @@ export class TenancyMiddleware implements NestMiddleware {
         TenancyStore.enterWith(tenant);
         // Also attach to request object for easier access in guards/interceptors if needed
         (req as any).tenant = tenant;
+        this.logger.debug(`Tenant context set: ${tenant.subdomain} (${tenant.name})`);
       } else {
-        // If subdomain exists but tenant not found -> 404?
-        // Or just proceed as public?
-        // Let's throw 404 for now if it looks like a tenant subdomain
-        throw new NotFoundException(`Tenant '${subdomain}' not found`);
+        // Don't throw error - proceed without tenant context
+        // The endpoint will use tenantId from JWT token instead
+        this.logger.debug(`Subdomain '${subdomain}' detected but no tenant found, proceeding without tenant context`);
       }
     }
 
     next();
+  }
+
+  /**
+   * Extract subdomain from hostname, accounting for base domain
+   */
+  private extractSubdomain(hostname: string): string | null {
+    // Handle localhost
+    if (hostname.endsWith('localhost')) {
+      const parts = hostname.split('.');
+      if (parts.length >= 2) {
+        return parts[0]; // e.g., 'tenant.localhost' -> 'tenant'
+      }
+      return null;
+    }
+
+    // If base domain is configured, extract subdomain relative to it
+    if (this.baseDomain) {
+      // e.g., hostname='tenant.jeufutbol.com.tr', baseDomain='jeufutbol.com.tr'
+      if (hostname === this.baseDomain) {
+        return null; // This IS the base domain, no subdomain
+      }
+
+      if (hostname.endsWith(`.${this.baseDomain}`)) {
+        // Extract everything before the base domain
+        const subdomainPart = hostname.slice(0, -(this.baseDomain.length + 1));
+        // If there are multiple levels, take only the first one
+        // e.g., 'a.b.jeufutbol.com.tr' -> 'a'
+        return subdomainPart.split('.')[0];
+      }
+
+      return null; // Different domain entirely
+    }
+
+    // Fallback: simple splitting (works for simple TLDs like .com, .org)
+    const parts = hostname.split('.');
+    if (parts.length >= 3) {
+      return parts[0];
+    }
+
+    return null;
   }
 }
