@@ -34,12 +34,14 @@ export class TiktokPostGateway implements PostGateway {
    * @param content Video/Photo caption
    * @param access_token OAuth access token
    * @param media Array of media URLs (videos or images)
+   * @param options Optional parameters (e.g. username)
    */
   async createNewPost(
     userId: string,
     content: string,
     access_token: string,
     media?: string[],
+    options?: { username?: string },
   ): Promise<any> {
     try {
       if (!media || media.length === 0) {
@@ -54,13 +56,19 @@ export class TiktokPostGateway implements PostGateway {
 
       if (isVideo) {
         // Handle video post
-        return await this.publishVideo(content, access_token, firstMediaUrl);
+        return await this.publishVideo(
+          content,
+          access_token,
+          firstMediaUrl,
+          options,
+        );
       } else {
         // Handle photo post (supports up to 35 images)
         return await this.publishPhotos(
           content,
           access_token,
           media.slice(0, 35),
+          options,
         );
       }
     } catch (err: any) {
@@ -77,6 +85,7 @@ export class TiktokPostGateway implements PostGateway {
     caption: string,
     access_token: string,
     videoUrl: string,
+    options?: { username?: string },
   ): Promise<any> {
     try {
       this.logger.log('[TikTok] Starting video upload...');
@@ -114,9 +123,10 @@ export class TiktokPostGateway implements PostGateway {
 
       this.logger.log(`[TikTok] Video published successfully: ${publish_id}`);
 
+      const username = options?.username || 'user';
       return {
         id: publish_id,
-        url: `https://www.tiktok.com/@user/video/${publish_id}`, // Approximate URL
+        url: `https://www.tiktok.com/@${username}/video/${publish_id}`,
       };
     } catch (err: any) {
       this.logger.error(
@@ -133,6 +143,7 @@ export class TiktokPostGateway implements PostGateway {
     caption: string,
     access_token: string,
     imageUrls: string[],
+    options?: { username?: string },
   ): Promise<any> {
     try {
       this.logger.log(
@@ -185,9 +196,10 @@ export class TiktokPostGateway implements PostGateway {
         `[TikTok] Photo post published successfully: ${publish_id}`,
       );
 
+      const username = options?.username || 'user';
       return {
         id: publish_id,
-        url: `https://www.tiktok.com/@user/video/${publish_id}`,
+        url: `https://www.tiktok.com/@${username}/video/${publish_id}`,
       };
     } catch (err: any) {
       const errorDetails = {

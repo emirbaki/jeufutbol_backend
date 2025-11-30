@@ -151,6 +151,7 @@ export class PostsService {
             post.content,
             access_token,
             post.mediaUrls,
+            { username: credential.accountName },
           );
 
           // 3️⃣ Notify gateway & persist
