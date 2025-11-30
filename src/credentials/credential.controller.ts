@@ -114,37 +114,42 @@ export class CredentialsController {
             <h1 class="success">Connection Successful!</h1>
             <p>Your account has been connected.</p>
             <p>This window should close automatically.</p>
+            <div id="debug" style="margin-top: 20px; text-align: left; background: #f0f0f0; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;"></div>
             <button class="btn" onclick="closeWindow()">Close Window</button>
 
             <script>
+              function log(msg) {
+                const debug = document.getElementById('debug');
+                debug.innerHTML += '<div>' + msg + '</div>';
+                console.log(msg);
+              }
+
               function closeWindow() {
                 try {
                   if (window.opener) {
-                    console.log('Posting success message to opener...');
-                    window.opener.postMessage({
+                    log('Found window.opener');
+                    const msg = {
                       type: 'OAUTH_SUCCESS',
                       platform: '${platform}',
                       credentialName: '${credentialName || accountInfo.name}'
-                    }, '*');
+                    };
+                    log('Posting message: ' + JSON.stringify(msg));
+                    window.opener.postMessage(msg, '*');
+                    log('Message posted.');
                   } else {
-                    console.warn('No window.opener found.');
+                    log('ERROR: No window.opener found!');
                   }
                 } catch (e) {
-                  console.error('Error posting message:', e);
+                  log('ERROR posting message: ' + e.message);
                 }
                 
-                console.log('Attempting to close window...');
-                window.close();
-                
-                // Fallback if window.close() is blocked
+                log('Closing in 3 seconds...');
                 setTimeout(() => {
-                   if (!window.closed) {
-                     document.body.innerHTML += '<p style="color:orange">Could not close automatically. Please use the button above.</p>';
-                   }
-                }, 1000);
+                  window.close();
+                }, 3000);
               }
 
-              // Try to close immediately
+              // Try to close automatically
               window.onload = closeWindow;
             </script>
           </body>
