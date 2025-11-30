@@ -199,7 +199,7 @@ export class TiktokPostGateway implements PostGateway {
       const username = options?.username || 'user';
       return {
         id: publish_id,
-        url: `https://www.tiktok.com/@${username}/video/${publish_id}`,
+        url: `https://www.tiktok.com/@${username}/photo/${publish_id}`,
       };
     } catch (err: any) {
       const errorDetails = {
