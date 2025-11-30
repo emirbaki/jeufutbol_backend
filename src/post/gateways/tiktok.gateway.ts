@@ -278,8 +278,6 @@ export class TiktokPostGateway extends AsyncPostGateway {
     access_token: string,
     metadata: Record<string, any>,
   ): Promise<{ postId?: string; postUrl?: string }> {
-    // TikTok returns the post ID in the status check, processor should have it
-    // We just need to construct the URL from metadata
     const username = metadata.username;
     const mediaType = metadata.mediaType || 'video';
     const postId = metadata.postId; // Should be set by processor from status check
@@ -289,12 +287,18 @@ export class TiktokPostGateway extends AsyncPostGateway {
       return {};
     }
 
+    // If no postId (API not approved for public posts), return profile URL only
     if (!postId) {
-      this.logger.warn('[TikTok] Missing postId in metadata, cannot construct URL');
-      return {};
+      const profileUrl = `https://www.tiktok.com/@${username}`;
+      this.logger.log(
+        `[TikTok] No public post ID available (API not approved). Using profile URL: ${profileUrl}`,
+      );
+      return {
+        postUrl: profileUrl,
+      };
     }
 
-    // Construct the final URL
+    // Construct the final URL with post ID
     const urlPath = mediaType === 'video' ? 'video' : 'photo';
     const postUrl = `https://www.tiktok.com/@${username}/${urlPath}/${postId}`;
 
