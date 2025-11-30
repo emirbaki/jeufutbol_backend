@@ -98,15 +98,54 @@ export class CredentialsController {
       const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
       const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
 
-      // Redirect to success page
-      res.redirect(
-        `${frontendUrl}/settings?credential=connected&platform=${platform}`,
-      );
+      // Return HTML that closes the window and notifies the opener
+      const html = `
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'OAUTH_SUCCESS',
+                  platform: '${platform}',
+                  credentialName: '${credentialName || accountInfo.name}'
+                }, '*');
+                window.close();
+              } else {
+                 window.location.href = '${frontendUrl}/settings?credential=connected&platform=${platform}';
+              }
+            </script>
+            <h1>Connection Successful</h1>
+            <p>You can close this window now.</p>
+          </body>
+        </html>
+      `;
+      res.send(html);
     } catch (error) {
       console.error('OAuth callback error:', error);
       const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
       const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
-      res.redirect(`${frontendUrl}/settings?credential=error`);
+
+      // Return HTML for error case too
+      const html = `
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'OAUTH_ERROR',
+                  error: 'Failed to connect account'
+                }, '*');
+                window.close();
+              } else {
+                window.location.href = '${frontendUrl}/settings?credential=error';
+              }
+            </script>
+            <h1>Connection Failed</h1>
+            <p>Please try again.</p>
+          </body>
+        </html>
+      `;
+      res.send(html);
     }
   }
 
