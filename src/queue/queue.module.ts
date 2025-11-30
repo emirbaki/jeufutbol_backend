@@ -31,9 +31,12 @@ import { JobResolver } from './job.resolver';
       {
         name: QUEUE_NAMES.EMAIL_NOTIFICATIONS,
       },
+      {
+        name: QUEUE_NAMES.TIKTOK_POLLING,
+      },
     ),
   ],
   providers: [QueueHealthService, JobService, JobResolver],
   exports: [BullModule, QueueHealthService, JobService],
 })
-export class QueueModule {}
+export class QueueModule { }

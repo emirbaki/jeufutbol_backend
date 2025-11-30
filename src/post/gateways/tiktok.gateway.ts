@@ -118,16 +118,11 @@ export class TiktokPostGateway implements PostGateway {
       const { publish_id } = initRes.data.data;
       this.logger.log(`[TikTok] Video upload initialized: ${publish_id}`);
 
-      // Step 2: Check upload status (poll until complete)
-      const publicIds = await this.pollUploadStatus(publish_id, access_token);
-      const finalPostId = publicIds[0] || publish_id; // Fallback to publish_id if empty
-
-      this.logger.log(`[TikTok] Video published successfully: ${finalPostId}`);
-
-      const username = options?.username || 'user';
+      // Return immediately with publish_id for async polling
       return {
-        id: finalPostId,
-        url: `https://www.tiktok.com/@${username}/video/${finalPostId}`,
+        id: publish_id,
+        url: null, // URL will be set by polling processor
+        publish_id: publish_id,
       };
     } catch (err: any) {
       this.logger.error(
@@ -190,18 +185,11 @@ export class TiktokPostGateway implements PostGateway {
       const { publish_id } = initRes.data.data;
       this.logger.log(`[TikTok] Photo post initialized: ${publish_id}`);
 
-      // Step 2: Check upload status
-      const publicIds = await this.pollUploadStatus(publish_id, access_token);
-      const finalPostId = publicIds[0] || publish_id; // Fallback to publish_id if empty
-
-      this.logger.log(
-        `[TikTok] Photo post published successfully: ${finalPostId}`,
-      );
-
-      const username = options?.username || 'user';
+      // Return immediately with publish_id for async polling
       return {
-        id: finalPostId,
-        url: `https://www.tiktok.com/@${username}/photo/${finalPostId}`,
+        id: publish_id,
+        url: null, // URL will be set by polling processor
+        publish_id: publish_id,
       };
     } catch (err: any) {
       const errorDetails = {
@@ -221,59 +209,46 @@ export class TiktokPostGateway implements PostGateway {
   }
 
   /**
-   * Poll upload status until complete or failed
+   * Check publish status once (called by background job processor)
+   * Returns status data for the polling processor to handle
    */
-  private async pollUploadStatus(
+  async checkPublishStatus(
     publish_id: string,
     access_token: string,
-    maxAttempts: number = 30,
-  ): Promise<string[]> {
-    const DELAY_MS = 2000; // 2 seconds between checks
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await this.delay(DELAY_MS);
-
-      this.logger.log(
-        `[TikTok] Checking status (${attempt + 1}/${maxAttempts})...`,
+  ): Promise<{
+    status: string;
+    publicly_available_post_id?: string[];
+    fail_reason?: string;
+  }> {
+    try {
+      const statusRes = await axios.post(
+        `${TIKTOK_API_BASE}/v2/post/publish/status/fetch/`,
+        { publish_id },
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+        },
       );
 
-      try {
-        const statusRes = await axios.post(
-          `${TIKTOK_API_BASE}/v2/post/publish/status/fetch/`,
-          { publish_id },
-          {
-            headers: {
-              Authorization: `Bearer ${access_token}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        );
+      const statusData = statusRes.data.data;
+      this.logger.log(
+        `[TikTok] Status check for ${publish_id}: ${statusData.status}`,
+      );
 
-        const status = statusRes.data.data.status;
-        this.logger.log(`[TikTok] Upload status: ${status}`);
-        this.logger.log(`[TikTok] Full status response: ${JSON.stringify(statusRes.data)}`);
-
-        if (status === 'PUBLISH_COMPLETE') {
-          // Return the public post IDs
-          return statusRes.data.data.publicly_available_post_id || [];
-        }
-
-        if (status === 'FAILED') {
-          throw new Error(
-            `Upload failed: ${statusRes.data.data.fail_reason || 'Unknown error'}`,
-          );
-        }
-
-        // Status is still PROCESSING_UPLOAD, continue polling
-      } catch (error: any) {
-        this.logger.error(`[TikTok] Status check error: ${error.message}`);
-        throw error;
-      }
+      return {
+        status: statusData.status,
+        publicly_available_post_id:
+          statusData.publicly_available_post_id || [],
+        fail_reason: statusData.fail_reason,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `[TikTok] Status check error: ${error.response?.data || error.message}`,
+      );
+      throw error;
     }
-
-    throw new Error(
-      `Upload timed out after ${(maxAttempts * DELAY_MS) / 1000} seconds`,
-    );
   }
 
   /**

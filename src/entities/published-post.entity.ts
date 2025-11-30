@@ -46,6 +46,14 @@ export class PublishedPost {
   @Column({ type: 'jsonb', nullable: true })
   publishMetadata?: Record<string, any>;
 
+  @Field(() => String, { nullable: true })
+  @Column({ nullable: true })
+  publishId?: string;
+
+  @Field(() => String, { nullable: true })
+  @Column({ nullable: true })
+  publishStatus?: string;
+
   @Field()
   @CreateDateColumn()
   publishedAt: Date;

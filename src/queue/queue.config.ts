@@ -64,6 +64,7 @@ export const QUEUE_NAMES = {
   AI_INSIGHTS: 'ai-insights',
   TWEET_MONITORING: 'tweet-monitoring',
   EMAIL_NOTIFICATIONS: 'email-notifications',
+  TIKTOK_POLLING: 'tiktok-polling',
 } as const;
 
 // Job types for AI Insights queue
@@ -78,4 +79,9 @@ export const MONITORING_JOBS = {
   FETCH_PROFILE_TWEETS: 'fetch-profile-tweets',
   REFRESH_ALL_PROFILES: 'refresh-all-profiles',
   UPDATE_PROFILE_INFO: 'update-profile-info',
+} as const;
+
+// Job types for TikTok Polling queue
+export const TIKTOK_POLLING_JOBS = {
+  POLL_STATUS: 'poll-status',
 } as const;

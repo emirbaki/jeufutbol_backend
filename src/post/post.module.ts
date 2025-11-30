@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
+import { BullModule } from '@nestjs/bullmq';
 import { PostsService } from './post.service';
 import { PostsResolver } from './post.resolver';
 import { Post } from '../entities/post.entity';
@@ -18,6 +19,8 @@ import { UploadService } from 'src/upload/upload.service';
 import { TweetsModule } from 'src/tweets/tweets.module';
 import { TokenRefreshService } from 'src/credentials/token-refresher.service';
 import { EncryptionService } from 'src/credentials/token-encryption.service';
+import { TiktokPollingProcessor } from './processors/tiktok-polling.processor';
+import { QUEUE_NAMES } from 'src/queue/queue.config';
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { EncryptionService } from 'src/credentials/token-encryption.service';
     CredentialsModule,
     UploadModule,
     TweetsModule,
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.TIKTOK_POLLING,
+    }),
   ],
   providers: [
     UploadService,
@@ -39,7 +45,8 @@ import { EncryptionService } from 'src/credentials/token-encryption.service';
     InstagramPostGateway,
     TiktokPostGateway,
     XPostGateway,
+    TiktokPollingProcessor,
   ],
   exports: [PostsService],
 })
-export class PostModule {}
+export class PostModule { }

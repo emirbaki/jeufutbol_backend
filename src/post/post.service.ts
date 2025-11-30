@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
 import { Post, PostStatus } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
@@ -9,6 +11,8 @@ import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
 import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
+import { QUEUE_NAMES, TIKTOK_POLLING_JOBS } from 'src/queue/queue.config';
+import { TikTokPollingJobData } from './processors/tiktok-polling.processor';
 
 @Injectable()
 export class PostsService {
@@ -19,6 +23,8 @@ export class PostsService {
     private postRepository: Repository<Post>,
     @InjectRepository(PublishedPost)
     private publishedPostRepository: Repository<PublishedPost>,
+    @InjectQueue(QUEUE_NAMES.TIKTOK_POLLING)
+    private tiktokPollingQueue: Queue,
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
@@ -163,11 +169,39 @@ export class PostsService {
             platform: platform,
             publishedAt: new Date(),
             platformPostId: result.id,
-            platformPostUrl: result.url,
+            platformPostUrl: result.url || 'pending',
             publishMetadata: result,
+            publishId: result.publish_id || undefined,
+            publishStatus: result.publish_id ? 'PROCESSING_UPLOAD' : undefined,
           });
 
           publishResults.push(publishedPost);
+
+          // 4️⃣ For TikTok, enqueue polling job if publish_id is present
+          if (platform === PlatformType.TIKTOK && result.publish_id) {
+            // Determine media type
+            const mediaType =
+              post.mediaUrls && post.mediaUrls.length > 0
+                ? this.isVideoFile(post.mediaUrls[0])
+                  ? 'video'
+                  : 'photo'
+                : 'photo';
+
+            const jobData: TikTokPollingJobData = {
+              publishedPostId: publishedPost.id, // Will be set after save
+              publish_id: result.publish_id,
+              access_token: access_token,
+              username: credential.accountName || 'user',
+              mediaType: mediaType,
+            };
+
+            // Note: we'll enqueue after saving publishedPost
+            (publishedPost as any).tiktokJobData = jobData;
+
+            this.logger.log(
+              `[TikTok] Prepared polling job for publish_id: ${result.publish_id}`,
+            );
+          }
         } catch (err: any) {
           // const detail = err.response!
           const message = err.message || 'Unknown error';
@@ -178,10 +212,39 @@ export class PostsService {
       }),
     );
 
-    // 4️⃣ Update post status
+    // 4️⃣ Update post status and save published posts
     if (publishResults.length > 0) {
       post.status = PostStatus.PUBLISHED;
-      await this.publishedPostRepository.insert(publishResults);
+
+      // Save all published posts
+      const savedPublishedPosts = await this.publishedPostRepository.save(publishResults);
+
+      // Enqueue TikTok polling jobs for saved posts
+      for (const savedPost of savedPublishedPosts) {
+        const jobData = (savedPost as any).tiktokJobData as TikTokPollingJobData;
+        if (jobData) {
+          // Update with actual saved ID
+          jobData.publishedPostId = savedPost.id;
+
+          await this.tiktokPollingQueue.add(
+            TIKTOK_POLLING_JOBS.POLL_STATUS,
+            jobData,
+            {
+              delay: 5000, // Start polling after 5 seconds
+              attempts: 15, // Poll up to 15 times
+              backoff: {
+                type: 'exponential',
+                delay: 5000, // 5s, 10s, 20s, 40s... up to ~5 minutes total
+              },
+            },
+          );
+
+          this.logger.log(
+            `[TikTok] Enqueued polling job for publish_id: ${jobData.publish_id}`,
+          );
+        }
+      }
+
       post.failureReasons = undefined; // Clear any previous failures
     } else {
       post.status = PostStatus.FAILED;
@@ -255,5 +318,14 @@ export class PostsService {
     await this.postRepository.save(result);
 
     return result;
+  }
+
+  /**
+   * Helper method to determine if a file URL is a video
+   */
+  private isVideoFile(url: string): boolean {
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'];
+    const lowerUrl = url.toLowerCase();
+    return videoExtensions.some((ext) => lowerUrl.includes(ext));
   }
 }
