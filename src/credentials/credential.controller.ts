@@ -99,23 +99,54 @@ export class CredentialsController {
       const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
 
       // Return HTML that closes the window and notifies the opener
+      // Return HTML that closes the window and notifies the opener
       const html = `
         <html>
+          <head>
+            <title>Connecting...</title>
+            <style>
+              body { font-family: sans-serif; text-align: center; padding: 40px; }
+              .success { color: #10b981; }
+              .btn { display: inline-block; padding: 10px 20px; background: #333; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; cursor: pointer; }
+            </style>
+          </head>
           <body>
+            <h1 class="success">Connection Successful!</h1>
+            <p>Your account has been connected.</p>
+            <p>This window should close automatically.</p>
+            <button class="btn" onclick="closeWindow()">Close Window</button>
+
             <script>
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'OAUTH_SUCCESS',
-                  platform: '${platform}',
-                  credentialName: '${credentialName || accountInfo.name}'
-                }, '*');
+              function closeWindow() {
+                try {
+                  if (window.opener) {
+                    console.log('Posting success message to opener...');
+                    window.opener.postMessage({
+                      type: 'OAUTH_SUCCESS',
+                      platform: '${platform}',
+                      credentialName: '${credentialName || accountInfo.name}'
+                    }, '*');
+                  } else {
+                    console.warn('No window.opener found.');
+                  }
+                } catch (e) {
+                  console.error('Error posting message:', e);
+                }
+                
+                console.log('Attempting to close window...');
                 window.close();
-              } else {
-                 window.location.href = '${frontendUrl}/settings?credential=connected&platform=${platform}';
+                
+                // Fallback if window.close() is blocked
+                setTimeout(() => {
+                   if (!window.closed) {
+                     document.body.innerHTML += '<p style="color:orange">Could not close automatically. Please use the button above.</p>';
+                   }
+                }, 1000);
               }
+
+              // Try to close immediately
+              window.onload = closeWindow;
             </script>
-            <h1>Connection Successful</h1>
-            <p>You can close this window now.</p>
           </body>
         </html>
       `;

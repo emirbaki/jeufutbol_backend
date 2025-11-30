@@ -251,6 +251,7 @@ export class TiktokPostGateway implements PostGateway {
 
         const status = statusRes.data.data.status;
         this.logger.log(`[TikTok] Upload status: ${status}`);
+        this.logger.log(`[TikTok] Full status response: ${JSON.stringify(statusRes.data)}`);
 
         if (status === 'PUBLISH_COMPLETE') {
           // Return the public post IDs
