@@ -225,21 +225,27 @@ export class OAuthService {
       }),
     );
 
-    let accessToken = response.data.access_token;
-    let refreshToken = response.data.refresh_token;
-    let expiresIn = response.data.expires_in || 3600;
-    let scope = response.data.scope?.split(' ');
+    console.log(`[OAuth] Token response for ${platform}:`, JSON.stringify(response.data, null, 2));
+
+    let accessToken = response.data?.access_token;
+    let refreshToken = response.data?.refresh_token;
+    let expiresIn = response.data?.expires_in || 3600;
+    let scope = response.data?.scope?.split(' ');
 
     // TikTok specific parsing
     if (platform === PlatformName.TIKTOK) {
-      accessToken = response.data.data.access_token;
-      refreshToken = response.data.data.refresh_token;
-      expiresIn = response.data.data.expires_in;
-      scope = response.data.data.scope?.split(',');
+      if (response.data?.data) {
+        accessToken = response.data.data.access_token;
+        refreshToken = response.data.data.refresh_token;
+        expiresIn = response.data.data.expires_in;
+        scope = response.data.data.scope?.split(',');
+      } else {
+        console.error('[OAuth] TikTok response missing data object:', response.data);
+      }
     }
 
-    // Exchange for long-lived token (Instagram & Facebook)
-    if (platform === PlatformName.INSTAGRAM || platform === PlatformName.FACEBOOK) {
+    // Exchange for long-lived token (Facebook)
+    if (platform === PlatformName.FACEBOOK) {
       try {
         const exchangeParams = new URLSearchParams({
           grant_type: 'fb_exchange_token',
@@ -257,11 +263,31 @@ export class OAuthService {
 
         accessToken = exchangeResponse.data.access_token;
         expiresIn = exchangeResponse.data.expires_in || 5184000; // ~60 days
-        // Note: Long-lived tokens might not come with a new refresh token, 
-        // but the access token itself is long-lived.
       } catch (error) {
         console.error(`Failed to exchange for long-lived token for ${platform}:`, error);
-        // Fallback to short-lived token if exchange fails
+      }
+    }
+
+    // Exchange for long-lived token (Instagram)
+    if (platform === PlatformName.INSTAGRAM) {
+      try {
+        const exchangeParams = new URLSearchParams({
+          grant_type: 'ig_exchange_token',
+          client_secret: config.clientSecret,
+          access_token: accessToken,
+        });
+
+        const exchangeResponse = await firstValueFrom(
+          this.httpService.get(
+            'https://graph.instagram.com/access_token',
+            { params: exchangeParams },
+          ),
+        );
+
+        accessToken = exchangeResponse.data.access_token;
+        expiresIn = exchangeResponse.data.expires_in || 5184000; // ~60 days
+      } catch (error) {
+        console.error(`Failed to exchange for long-lived token for ${platform}:`, error);
       }
     }
 
