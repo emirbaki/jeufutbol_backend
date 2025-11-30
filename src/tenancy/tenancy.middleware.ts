@@ -47,11 +47,11 @@ export class TenancyMiddleware implements NestMiddleware {
         TenancyStore.enterWith(tenant);
         // Also attach to request object for easier access in guards/interceptors if needed
         (req as any).tenant = tenant;
-        this.logger.debug(`Tenant context set: ${tenant.subdomain} (${tenant.name})`);
+        // this.logger.debug(`Tenant context set: ${tenant.subdomain} (${tenant.name})`);
       } else {
         // Don't throw error - proceed without tenant context
         // The endpoint will use tenantId from JWT token instead
-        this.logger.debug(`Subdomain '${subdomain}' detected but no tenant found, proceeding without tenant context`);
+        // this.logger.debug(`Subdomain '${subdomain}' detected but no tenant found, proceeding without tenant context`);
       }
     }
 

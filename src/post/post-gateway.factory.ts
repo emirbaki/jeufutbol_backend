@@ -13,10 +13,11 @@ export class PostGatewayFactory {
     private readonly instagramGateway: InstagramPostGateway,
     private readonly tiktokGateway: TiktokPostGateway,
     private readonly xGateway: XPostGateway,
-  ) {}
+  ) { }
 
   getGateway(platform: PlatformType): PostGateway {
-    switch (platform) {
+    const normalizedPlatform = platform.toLowerCase() as PlatformType;
+    switch (normalizedPlatform) {
       case PlatformType.FACEBOOK:
         return this.facebookGateway;
       case PlatformType.INSTAGRAM:
