@@ -31,16 +31,21 @@ export class CredentialsController {
   @Post('oauth/authorize-url')
   @UseGuards(AuthGuard('jwt'))
   async getOAuthUrl(
+    @Req() req: Request,
     @CurrentUser() user: User,
     @Body('platform') platform: PlatformName,
     @Body('credentialName') credentialName: string,
   ): Promise<{ authUrl: string; state: string }> {
+    const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
+    const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
+
     const state = Buffer.from(
       JSON.stringify({
         userId: user.id,
         tenantId: user.tenantId,
         platform,
         credentialName,
+        frontendUrl, // Store origin in state
         timestamp: Date.now(),
       }),
     ).toString('base64');
@@ -63,7 +68,7 @@ export class CredentialsController {
     try {
       // Decode state
       const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-      const { userId, tenantId, platform, credentialName } = stateData;
+      const { userId, tenantId, platform, credentialName, frontendUrl: storedFrontendUrl } = stateData;
 
       // Exchange code for tokens
       const tokenData = await this.oauthService.exchangeCodeForToken(
@@ -94,9 +99,8 @@ export class CredentialsController {
         },
       );
 
-      // Determine frontend URL from request origin or environment
-      const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
-      const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
+      // Use stored frontend URL or fallback
+      const frontendUrl = storedFrontendUrl || process.env.FRONTEND_URL || 'http://localhost:4200';
 
       // Redirect to frontend callback route
       const redirectUrl = new URL(`${frontendUrl}/oauth/callback`);
@@ -107,8 +111,13 @@ export class CredentialsController {
       res.redirect(redirectUrl.toString());
     } catch (error: any) {
       console.error('OAuth callback error:', error);
-      const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
-      const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
+
+      // Try to recover frontend URL from state if possible, otherwise fallback
+      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+      try {
+        const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+        if (stateData.frontendUrl) frontendUrl = stateData.frontendUrl;
+      } catch (e) { }
 
       const redirectUrl = new URL(`${frontendUrl}/oauth/callback`);
       redirectUrl.searchParams.append('status', 'error');
