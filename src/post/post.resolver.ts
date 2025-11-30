@@ -55,7 +55,7 @@ export class PostsResolver {
     return this.postsService.updatePost(postId, user.id, user.tenantId, {
       ...input,
       platformSpecificContent: input.platformSpecificContent,
-      // ? JSON.parse(input.platformSpecificContent): undefined,
+      scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : input.scheduledFor,
     });
   }
 
