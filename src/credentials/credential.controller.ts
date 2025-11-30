@@ -98,90 +98,23 @@ export class CredentialsController {
       const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
       const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
 
-      // Return HTML that closes the window and notifies the opener
-      // Return HTML that closes the window and notifies the opener
-      const html = `
-        <html>
-          <head>
-            <title>Connecting...</title>
-            <style>
-              body { font-family: sans-serif; text-align: center; padding: 40px; }
-              .success { color: #10b981; }
-              .btn { display: inline-block; padding: 10px 20px; background: #333; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; cursor: pointer; }
-            </style>
-          </head>
-          <body>
-            <h1 class="success">Connection Successful!</h1>
-            <p>Your account has been connected.</p>
-            <p>This window should close automatically.</p>
-            <div id="debug" style="margin-top: 20px; text-align: left; background: #f0f0f0; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;"></div>
-            <button class="btn" onclick="closeWindow()">Close Window</button>
+      // Redirect to frontend callback route
+      const redirectUrl = new URL(`${frontendUrl}/oauth/callback`);
+      redirectUrl.searchParams.append('status', 'success');
+      redirectUrl.searchParams.append('platform', platform);
+      redirectUrl.searchParams.append('credentialName', credentialName || accountInfo.name);
 
-            <script>
-              function log(msg) {
-                const debug = document.getElementById('debug');
-                debug.innerHTML += '<div>' + msg + '</div>';
-                console.log(msg);
-              }
-
-              function closeWindow() {
-                try {
-                  if (window.opener) {
-                    log('Found window.opener');
-                    const msg = {
-                      type: 'OAUTH_SUCCESS',
-                      platform: '${platform}',
-                      credentialName: '${credentialName || accountInfo.name}'
-                    };
-                    log('Posting message: ' + JSON.stringify(msg));
-                    window.opener.postMessage(msg, '*');
-                    log('Message posted.');
-                  } else {
-                    log('ERROR: No window.opener found!');
-                  }
-                } catch (e) {
-                  log('ERROR posting message: ' + e.message);
-                }
-                
-                log('Closing in 3 seconds...');
-                setTimeout(() => {
-                  window.close();
-                }, 3000);
-              }
-
-              // Try to close automatically
-              window.onload = closeWindow;
-            </script>
-          </body>
-        </html>
-      `;
-      res.send(html);
-    } catch (error) {
+      res.redirect(redirectUrl.toString());
+    } catch (error: any) {
       console.error('OAuth callback error:', error);
       const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
       const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
 
-      // Return HTML for error case too
-      const html = `
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'OAUTH_ERROR',
-                  error: 'Failed to connect account'
-                }, '*');
-                window.close();
-              } else {
-                window.location.href = '${frontendUrl}/settings?credential=error';
-              }
-            </script>
-            <h1>Connection Failed</h1>
-            <p>Please try again.</p>
-          </body>
-        </html>
-      `;
-      res.send(html);
+      const redirectUrl = new URL(`${frontendUrl}/oauth/callback`);
+      redirectUrl.searchParams.append('status', 'error');
+      redirectUrl.searchParams.append('error', error.message || 'Failed to connect account');
+
+      res.redirect(redirectUrl.toString());
     }
   }
 
