@@ -234,13 +234,9 @@ export class OAuthService {
 
     // TikTok specific parsing
     if (platform === PlatformName.TIKTOK) {
-      if (response.data?.data) {
-        accessToken = response.data.data.access_token;
-        refreshToken = response.data.data.refresh_token;
-        expiresIn = response.data.data.expires_in;
-        scope = response.data.data.scope?.split(',');
-      } else {
-        console.error('[OAuth] TikTok response missing data object:', response.data);
+      // TikTok scope is comma-separated
+      if (typeof response.data?.scope === 'string') {
+        scope = response.data.scope.split(',');
       }
     }
 
