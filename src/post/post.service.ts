@@ -11,8 +11,8 @@ import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
 import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
-import { QUEUE_NAMES, TIKTOK_POLLING_JOBS } from 'src/queue/queue.config';
-import { TikTokPollingJobData } from './processors/tiktok-polling.processor';
+import { QUEUE_NAMES, ASYNC_POLLING_JOBS } from 'src/queue/queue.config';
+import { AsyncPostGateway } from './gateways/async-post.gateway';
 
 @Injectable()
 export class PostsService {
@@ -23,8 +23,8 @@ export class PostsService {
     private postRepository: Repository<Post>,
     @InjectRepository(PublishedPost)
     private publishedPostRepository: Repository<PublishedPost>,
-    @InjectQueue(QUEUE_NAMES.TIKTOK_POLLING)
-    private tiktokPollingQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.ASYNC_POST_POLLING)
+    private asyncPollingQueue: Queue,
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
@@ -164,7 +164,6 @@ export class PostsService {
           await gateway.notifyPostPublished(post.id, platform, result);
 
           const publishedPost = this.publishedPostRepository.create({
-            // post: post,
             postId: post.id,
             platform: platform,
             publishedAt: new Date(),
@@ -177,30 +176,25 @@ export class PostsService {
 
           publishResults.push(publishedPost);
 
-          // 4️⃣ For TikTok, enqueue polling job if publish_id is present
-          if (platform === PlatformType.TIKTOK && result.publish_id) {
-            // Determine media type
-            const mediaType =
-              post.mediaUrls && post.mediaUrls.length > 0
-                ? this.isVideoFile(post.mediaUrls[0])
-                  ? 'video'
-                  : 'photo'
-                : 'photo';
-
-            const jobData: TikTokPollingJobData = {
-              publishedPostId: publishedPost.id, // Will be set after save
-              publish_id: result.publish_id,
-              access_token: access_token,
-              username: credential.accountName || 'user',
-              mediaType: mediaType,
-            };
-
-            // Note: we'll enqueue after saving publishedPost
-            (publishedPost as any).tiktokJobData = jobData;
-
-            this.logger.log(
-              `[TikTok] Prepared polling job for publish_id: ${result.publish_id}`,
+          // 4️⃣ For async gateways, prepare polling job data
+          if (gateway instanceof AsyncPostGateway) {
+            const jobData = gateway.getPollingJobData(
+              publishedPost,
+              result,
+              access_token,
+              {
+                username: credential.accountName,
+                mediaUrls: post.mediaUrls,
+              },
             );
+
+            if (jobData) {
+              // Store job data for enqueueing after save
+              (publishedPost as any).asyncJobData = jobData;
+              this.logger.log(
+                `[${platform}] Prepared async polling job for publish_id: ${result.publish_id}`,
+              );
+            }
           }
         } catch (err: any) {
           // const detail = err.response!
@@ -219,15 +213,15 @@ export class PostsService {
       // Save all published posts
       const savedPublishedPosts = await this.publishedPostRepository.save(publishResults);
 
-      // Enqueue TikTok polling jobs for saved posts
+      // Enqueue async polling jobs for saved posts
       for (const savedPost of savedPublishedPosts) {
-        const jobData = (savedPost as any).tiktokJobData as TikTokPollingJobData;
+        const jobData = (savedPost as any).asyncJobData;
         if (jobData) {
           // Update with actual saved ID
           jobData.publishedPostId = savedPost.id;
 
-          await this.tiktokPollingQueue.add(
-            TIKTOK_POLLING_JOBS.POLL_STATUS,
+          await this.asyncPollingQueue.add(
+            ASYNC_POLLING_JOBS.POLL_STATUS,
             jobData,
             {
               delay: 5000, // Start polling after 5 seconds
@@ -240,7 +234,7 @@ export class PostsService {
           );
 
           this.logger.log(
-            `[TikTok] Enqueued polling job for publish_id: ${jobData.publish_id}`,
+            `[${jobData.platform}] Enqueued async polling job for publish_id: ${jobData.publish_id}`,
           );
         }
       }
@@ -318,14 +312,5 @@ export class PostsService {
     await this.postRepository.save(result);
 
     return result;
-  }
-
-  /**
-   * Helper method to determine if a file URL is a video
-   */
-  private isVideoFile(url: string): boolean {
-    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'];
-    const lowerUrl = url.toLowerCase();
-    return videoExtensions.some((ext) => lowerUrl.includes(ext));
   }
 }

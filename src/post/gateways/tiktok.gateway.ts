@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
-import { PostGateway } from './post-base.gateway';
+import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
+import { isVideoFile, getMediaType } from '../utils/media-utils';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com';
 
 @Injectable()
-export class TiktokPostGateway implements PostGateway {
+export class TiktokPostGateway extends AsyncPostGateway {
   private readonly logger = new Logger(TiktokPostGateway.name);
 
   async notifyPostPublished(
@@ -52,7 +53,7 @@ export class TiktokPostGateway implements PostGateway {
 
       // Detect media type from first file
       const firstMediaUrl = media[0];
-      const isVideo = this.isVideoFile(firstMediaUrl);
+      const isVideo = isVideoFile(firstMediaUrl);
 
       if (isVideo) {
         // Handle video post
@@ -215,11 +216,7 @@ export class TiktokPostGateway implements PostGateway {
   async checkPublishStatus(
     publish_id: string,
     access_token: string,
-  ): Promise<{
-    status: string;
-    publicly_available_post_id?: string[];
-    fail_reason?: string;
-  }> {
+  ): Promise<AsyncPublishStatus> {
     try {
       const statusRes = await axios.post(
         `${TIKTOK_API_BASE}/v2/post/publish/status/fetch/`,
@@ -250,10 +247,19 @@ export class TiktokPostGateway implements PostGateway {
         statusData.publicly_available_post_id ||  // Correct spelling (two L's)
         [];
 
+      // If complete, construct the final URL
+      let postUrl: string | undefined = undefined;
+      if (statusData.status === 'PUBLISH_COMPLETE' && postIds.length > 0) {
+        // Note: We'll get username and mediaType from job metadata
+        // For now, just return the postId
+        postUrl = undefined; // Will be constructed by processor using metadata
+      }
+
       return {
         status: statusData.status,
-        publicly_available_post_id: postIds,
-        fail_reason: statusData.fail_reason,
+        postId: postIds.length > 0 ? postIds[0] : undefined,
+        postUrl: postUrl,
+        failReason: statusData.fail_reason,
       };
     } catch (error: any) {
       this.logger.error(
@@ -264,12 +270,34 @@ export class TiktokPostGateway implements PostGateway {
   }
 
   /**
-   * Determine if file is video based on URL
+   * Get polling job data for TikTok async uploads
    */
-  private isVideoFile(url: string): boolean {
-    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'];
-    const lowerUrl = url.toLowerCase();
-    return videoExtensions.some((ext) => lowerUrl.includes(ext));
+  getPollingJobData(
+    publishedPost: any,
+    result: any,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): AsyncPollingJobData | null {
+    // Only create polling job if publish_id is present
+    if (!result.publish_id) {
+      return null;
+    }
+
+    // Determine media type from first media URL
+    const mediaType = metadata.mediaUrls && metadata.mediaUrls.length > 0
+      ? getMediaType(metadata.mediaUrls[0])
+      : 'image';
+
+    return {
+      publishedPostId: publishedPost.id,
+      publish_id: result.publish_id,
+      access_token: access_token,
+      platform: PlatformType.TIKTOK,
+      metadata: {
+        username: metadata.username || 'user',
+        mediaType: mediaType,
+      },
+    };
   }
 
   /**

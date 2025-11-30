@@ -20,6 +20,7 @@ import { TweetsModule } from 'src/tweets/tweets.module';
 import { TokenRefreshService } from 'src/credentials/token-refresher.service';
 import { EncryptionService } from 'src/credentials/token-encryption.service';
 import { TiktokPollingProcessor } from './processors/tiktok-polling.processor';
+import { AsyncPollingProcessor } from './processors/async-polling.processor';
 import { QUEUE_NAMES } from 'src/queue/queue.config';
 
 @Module({
@@ -29,9 +30,14 @@ import { QUEUE_NAMES } from 'src/queue/queue.config';
     CredentialsModule,
     UploadModule,
     TweetsModule,
-    BullModule.registerQueue({
-      name: QUEUE_NAMES.TIKTOK_POLLING,
-    }),
+    BullModule.registerQueue(
+      {
+        name: QUEUE_NAMES.TIKTOK_POLLING, // Deprecated - keeping for backward compatibility
+      },
+      {
+        name: QUEUE_NAMES.ASYNC_POST_POLLING, // New generic async polling queue
+      },
+    ),
   ],
   providers: [
     UploadService,
@@ -45,7 +51,8 @@ import { QUEUE_NAMES } from 'src/queue/queue.config';
     InstagramPostGateway,
     TiktokPostGateway,
     XPostGateway,
-    TiktokPollingProcessor,
+    TiktokPollingProcessor, // Deprecated - keeping for backward compatibility
+    AsyncPollingProcessor, // New generic async processor
   ],
   exports: [PostsService],
 })

@@ -28,6 +28,10 @@ import { QUEUE_NAMES } from './queue.config';
       name: QUEUE_NAMES.TIKTOK_POLLING,
       adapter: BullMQAdapter,
     }),
+    BullBoardModule.forFeature({
+      name: QUEUE_NAMES.ASYNC_POST_POLLING,
+      adapter: BullMQAdapter,
+    }),
   ],
 })
 export class QueueDashboardModule { }

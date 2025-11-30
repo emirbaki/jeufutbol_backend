@@ -62,7 +62,7 @@ export class TiktokPollingProcessor extends WorkerHost {
             // 3️⃣ Handle different statuses
             if (statusData.status === 'PUBLISH_COMPLETE') {
                 // Extract the final post ID
-                const postIds = statusData.publicly_available_post_id || [];
+                const postIds = statusData.postId || [];
 
                 // Log the full response for debugging
                 this.logger.log(
@@ -108,7 +108,7 @@ export class TiktokPollingProcessor extends WorkerHost {
                 publishedPost.publishStatus = 'FAILED';
                 publishedPost.publishMetadata = {
                     ...publishedPost.publishMetadata,
-                    fail_reason: statusData.fail_reason,
+                    fail_reason: statusData.failReason,
                 };
 
                 await this.publishedPostRepository.save(publishedPost);
@@ -117,15 +117,15 @@ export class TiktokPollingProcessor extends WorkerHost {
                 await this.postRepository.update(publishedPost.postId, {
                     status: PostStatus.FAILED,
                     failureReasons: {
-                        tiktok: statusData.fail_reason || 'Upload failed',
+                        tiktok: statusData.failReason || 'Upload failed',
                     },
                 });
 
                 this.logger.error(
-                    `[Job ${job.id}] ❌ TikTok upload failed: ${statusData.fail_reason}`,
+                    `[Job ${job.id}] ❌ TikTok upload failed: ${statusData.failReason}`,
                 );
 
-                throw new Error(`TikTok upload failed: ${statusData.fail_reason}`);
+                throw new Error(`TikTok upload failed: ${statusData.failReason}`);
             } else {
                 // Status is PROCESSING_UPLOAD or similar - update status and retry
                 publishedPost.publishStatus = statusData.status;

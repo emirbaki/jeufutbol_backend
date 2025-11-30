@@ -64,7 +64,8 @@ export const QUEUE_NAMES = {
   AI_INSIGHTS: 'ai-insights',
   TWEET_MONITORING: 'tweet-monitoring',
   EMAIL_NOTIFICATIONS: 'email-notifications',
-  TIKTOK_POLLING: 'tiktok-polling',
+  TIKTOK_POLLING: 'tiktok-polling', // Deprecated - use ASYNC_POST_POLLING
+  ASYNC_POST_POLLING: 'async-post-polling', // Generic async polling for all platforms
 } as const;
 
 // Job types for AI Insights queue
@@ -81,7 +82,12 @@ export const MONITORING_JOBS = {
   UPDATE_PROFILE_INFO: 'update-profile-info',
 } as const;
 
-// Job types for TikTok Polling queue
+// Job types for TikTok Polling queue (Deprecated)
 export const TIKTOK_POLLING_JOBS = {
+  POLL_STATUS: 'poll-status',
+} as const;
+
+// Job types for Async Post Polling queue (Generic for all platforms)
+export const ASYNC_POLLING_JOBS = {
   POLL_STATUS: 'poll-status',
 } as const;

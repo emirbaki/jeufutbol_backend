@@ -117,6 +117,8 @@ type PublishedPost {
   platformPostId: String!
   platformPostUrl: String!
   publishMetadata: JSON
+  publishId: String
+  publishStatus: String
   publishedAt: DateTime!
   post: Post!
   tenantId: String
@@ -145,6 +147,7 @@ type Post {
   user: User!
   publishedPosts: [PublishedPost!]
   tenant: Tenant
+  failureReasons: JSON
 }
 
 """PostStatus enum representing the status of a post"""
@@ -276,6 +279,7 @@ type Mutation {
   updatePost(postId: String!, input: UpdatePostInput!): Post!
   deletePost(postId: String!): Boolean!
   publishPost(postId: String!): Post!
+  retryPublishPost(postId: String!): Post!
   deleteCredential(credentialId: String!): Boolean!
   testCredential(credentialId: String!): Boolean!
   register(email: String!, password: String!, firstName: String!, lastName: String!, organizationName: String!): MessageResponse!
