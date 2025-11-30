@@ -138,8 +138,8 @@ export class XPostGateway implements PostGateway {
 
       // Upload to Twitter
       const mediaId = await this.twitterClient.v2.uploadMedia(buffer, {
-        type: mimeType,
-      } as any);
+        media_type: mimeType as any,
+      });
 
       this.logger.log(`[X] Uploaded media ID: ${mediaId}`);
       return mediaId;
