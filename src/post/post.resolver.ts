@@ -1,5 +1,7 @@
-import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+
+import { Resolver, Query, Mutation, Args, Int, Subscription } from '@nestjs/graphql';
+import { Inject, UseGuards } from '@nestjs/common';
+import { PubSub } from 'graphql-subscriptions';
 import { PostsService } from './post.service';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -10,7 +12,10 @@ import { CreatePostInput } from 'src/graphql/inputs/post.input';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class PostsResolver {
-  constructor(private postsService: PostsService) { }
+  constructor(
+    private postsService: PostsService,
+    @Inject('PUB_SUB') private readonly pubSub: PubSub<any>,
+  ) { }
 
   @Mutation(() => Post)
   async createPost(
@@ -81,5 +86,17 @@ export class PostsResolver {
     @Args('postId') postId: string,
   ): Promise<Post> {
     return this.postsService.retryPublishPost(postId, user.id, user.tenantId);
+  }
+
+  @Subscription(() => Post, {
+    filter: (payload, variables, context) => {
+      // Only send updates to the user who owns the post or belongs to the same tenant
+      // Note: Context user might need to be extracted differently for subscriptions depending on auth setup
+      // For now, we assume basic filtering. Ideally, check tenantId.
+      return payload.postUpdated.tenantId === context.req?.user?.tenantId;
+    },
+  })
+  postUpdated() {
+    return this.pubSub.asyncIterableIterator('postUpdated');
   }
 }

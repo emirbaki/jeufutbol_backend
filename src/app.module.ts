@@ -30,6 +30,7 @@ import { RedisCacheModule } from './cache/redis-cache.module';
 import { QueueDashboardModule } from './queue/queue-dashboard.module';
 import { TenancyModule } from './tenancy/tenancy.module';
 import { UserModule } from './user/user.module';
+import { PubSubModule } from './pubsub/pubsub.module';
 
 @Module({
   imports: [
@@ -42,6 +43,9 @@ import { UserModule } from './user/user.module';
       playground: false,
       allowBatchedHttpRequests: false,
       introspection: process.env.NODE_ENV !== 'production',
+      subscriptions: {
+        'graphql-ws': true,
+      },
       validationRules: [
         ...createSecurityValidationRules({
           maxAliases: 15,
@@ -114,6 +118,7 @@ import { UserModule } from './user/user.module';
     QueueDashboardModule,
     TenancyModule,
     UserModule,
+    PubSubModule,
   ],
   controllers: [AppController, UploadController],
   providers: [
@@ -126,4 +131,4 @@ import { UserModule } from './user/user.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

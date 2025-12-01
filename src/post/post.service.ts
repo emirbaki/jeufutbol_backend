@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
+import { PubSub } from 'graphql-subscriptions';
 import { Post, PostStatus } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
 import { PlatformType } from '../enums/platform-type.enum';
@@ -28,6 +29,7 @@ export class PostsService {
     private asyncPollingQueue: Queue,
     @InjectQueue(QUEUE_NAMES.SCHEDULED_POSTS)
     private scheduledPostsQueue: Queue,
+    @Inject('PUB_SUB') private readonly pubSub: PubSub,
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
@@ -158,6 +160,7 @@ export class PostsService {
       await this.removeScheduledJob(postId);
     }
 
+    this.pubSub.publish('postUpdated', { postUpdated: savedPost });
     return savedPost;
   }
 
@@ -323,7 +326,9 @@ export class PostsService {
       status: post.status,
       failureReasons: post.failureReasons,
     });
-    return this.getPost(postId, userId, tenantId);
+    const updatedPost = await this.getPost(postId, userId, tenantId);
+    this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
+    return updatedPost;
   }
 
   /**

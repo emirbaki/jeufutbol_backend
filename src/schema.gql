@@ -326,3 +326,7 @@ input UpdatePostInput {
   platformSpecificContent: JSON
   scheduledFor: String
 }
+
+type Subscription {
+  postUpdated: Post!
+}

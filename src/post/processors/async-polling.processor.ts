@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { PubSub } from 'graphql-subscriptions';
 import { Repository } from 'typeorm';
 import { Job } from 'bullmq';
 import { QUEUE_NAMES } from 'src/queue/queue.config';
@@ -28,6 +29,7 @@ export class AsyncPollingProcessor extends WorkerHost {
         @InjectRepository(Post)
         private postRepository: Repository<Post>,
         private postGatewayFactory: PostGatewayFactory,
+        @Inject('PUB_SUB') private readonly pubSub: PubSub,
     ) {
         super();
     }
@@ -127,6 +129,12 @@ export class AsyncPollingProcessor extends WorkerHost {
                     });
                 }
 
+                // Publish update
+                const updatedPost = await this.postRepository.findOne({ where: { id: publishedPost.postId }, relations: ['publishedPosts'] });
+                if (updatedPost) {
+                    this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
+                }
+
                 this.logger.log(
                     `[Job ${job.id}] ✅ ${platform} post published successfully: ${publishedPost.platformPostUrl || publishedPost.platformPostId}`,
                 );
@@ -148,6 +156,12 @@ export class AsyncPollingProcessor extends WorkerHost {
                     },
                 });
 
+                // Publish update
+                const updatedPost = await this.postRepository.findOne({ where: { id: publishedPost.postId }, relations: ['publishedPosts'] });
+                if (updatedPost) {
+                    this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
+                }
+
                 this.logger.error(
                     `[Job ${job.id}] ❌ ${platform} upload failed: ${statusData.failReason}`,
                 );
@@ -157,6 +171,12 @@ export class AsyncPollingProcessor extends WorkerHost {
                 // ⏳ Still processing - update status and retry
                 publishedPost.publishStatus = statusData.status;
                 await this.publishedPostRepository.save(publishedPost);
+
+                // Publish update (optional, but good for progress tracking)
+                const updatedPost = await this.postRepository.findOne({ where: { id: publishedPost.postId }, relations: ['publishedPosts'] });
+                if (updatedPost) {
+                    this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
+                }
 
                 this.logger.log(
                     `[Job ${job.id}] ⏳ Still processing (${statusData.status}), will retry...`,
