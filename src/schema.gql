@@ -244,12 +244,12 @@ type JobResultObject {
 
 type Query {
   hello: String!
+  verifyEmail(token: String!): MessageResponse!
+  me: User!
   getUserPosts(limit: Int): [Post!]!
   getPost(postId: String!): Post!
   getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [Credential!]!
-  verifyEmail(token: String!): MessageResponse!
-  me: User!
   getMonitoredProfiles: [MonitoredProfile!]!
   getMonitoredProfile(profileId: String!): MonitoredProfile!
   getProfileTweets(profileId: String!, limit: Int, offset: Int): [Tweet!]!
@@ -275,6 +275,11 @@ type Query {
 }
 
 type Mutation {
+  register(email: String!, password: String!, firstName: String!, lastName: String!, organizationName: String!): MessageResponse!
+  login(email: String!, password: String!): AuthPayload!
+  requestPasswordReset(email: String!): MessageResponse!
+  resetPassword(token: String!, newPassword: String!): MessageResponse!
+  resendVerificationEmail: MessageResponse!
   createPost(input: CreatePostInput!): Post!
   updatePost(postId: String!, input: UpdatePostInput!): Post!
   deletePost(postId: String!): Boolean!
@@ -282,11 +287,6 @@ type Mutation {
   retryPublishPost(postId: String!): Post!
   deleteCredential(credentialId: String!): Boolean!
   testCredential(credentialId: String!): Boolean!
-  register(email: String!, password: String!, firstName: String!, lastName: String!, organizationName: String!): MessageResponse!
-  login(email: String!, password: String!): AuthPayload!
-  requestPasswordReset(email: String!): MessageResponse!
-  resetPassword(token: String!, newPassword: String!): MessageResponse!
-  resendVerificationEmail: MessageResponse!
   addMonitoredProfile(xUsername: String!): MonitoredProfile!
   removeMonitoredProfile(profileId: String!): Boolean!
   refreshProfileTweets(profileId: String!): JobIdResponse!
