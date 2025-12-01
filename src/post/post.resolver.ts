@@ -88,17 +88,27 @@ export class PostsResolver {
     return this.postsService.retryPublishPost(postId, user.id, user.tenantId);
   }
 
-  @Subscription(() => Post, {
-    filter: (payload, variables, context) => {
-      // Only send updates to the user who owns the post or belongs to the same tenant
-      const tenantId = payload.postUpdated?.tenantId;
-      const userTenantId = context.req?.user?.tenantId;
-      return tenantId === userTenantId;
-    },
-    resolve: (payload) => {
-      return payload.postUpdated;
-    },
-  })
+  @Mutation(() => Boolean)
+  async testPublish(
+    @CurrentUser() user: User,
+  ): Promise<boolean> {
+    console.log('Test publish triggered by user:', user.id);
+    const testPost: any = {
+      id: 'test-123',
+      content: 'Test post',
+      status: 'DRAFT',
+      tenantId: user.tenantId,
+      userId: user.id,
+      targetPlatforms: [],
+      createdAt: new Date(),
+    };
+
+    await this.pubSub.publish('postUpdated', { postUpdated: testPost });
+    console.log('Published test event');
+    return true;
+  }
+
+  @Subscription(() => Post)
   postUpdated() {
     return this.pubSub.asyncIterableIterator('postUpdated');
   }

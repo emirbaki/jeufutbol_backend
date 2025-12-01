@@ -285,6 +285,7 @@ type Mutation {
   deletePost(postId: String!): Boolean!
   publishPost(postId: String!): Post!
   retryPublishPost(postId: String!): Post!
+  testPublish: Boolean!
   deleteCredential(credentialId: String!): Boolean!
   testCredential(credentialId: String!): Boolean!
   addMonitoredProfile(xUsername: String!): MonitoredProfile!

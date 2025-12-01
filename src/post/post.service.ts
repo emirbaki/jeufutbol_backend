@@ -160,7 +160,16 @@ export class PostsService {
       await this.removeScheduledJob(postId);
     }
 
-    this.pubSub.publish('postUpdated', { postUpdated: savedPost });
+    // Reload with relations for subscription
+    const postWithRelations = await this.postRepository.findOne({
+      where: { id: savedPost.id },
+      relations: ['user', 'tenant', 'publishedPosts'],
+    });
+
+    if (postWithRelations) {
+      await this.pubSub.publish('postUpdated', { postUpdated: postWithRelations });
+    }
+
     return savedPost;
   }
 
