@@ -28,6 +28,6 @@ import { EmailService } from 'src/email/email.service';
     EmailModule,
   ],
   providers: [AuthService, AuthResolver, JwtStrategy, EmailService],
-  exports: [AuthService, JwtStrategy, PassportModule],
+  exports: [AuthService, JwtStrategy, PassportModule, JwtModule],
 })
-export class AuthModule {}
+export class AuthModule { }

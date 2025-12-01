@@ -14,7 +14,7 @@ import { CreatePostInput } from 'src/graphql/inputs/post.input';
 export class PostsResolver {
   constructor(
     private postsService: PostsService,
-    @Inject('PUB_SUB') private readonly pubSub: PubSub<any>,
+    @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) { }
 
   @Mutation(() => Post)
@@ -57,6 +57,7 @@ export class PostsResolver {
     // @Args('input') input: Partial<CreatePostDto>,
     @Args('input', { type: () => UpdatePostInput }) input: UpdatePostInput,
   ): Promise<Post> {
+    this.pubSub.publish('postUpdated', { postUpdated: input });
     return this.postsService.updatePost(postId, user.id, user.tenantId, {
       ...input,
       platformSpecificContent: input.platformSpecificContent,
