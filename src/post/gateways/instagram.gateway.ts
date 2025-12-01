@@ -353,7 +353,7 @@ export class InstagramPostGateway extends AsyncPostGateway {
             media_type: 'REELS',
             video_url: videoUrl,
             caption: caption,
-            share_to_feed: false, // Set to true if you want Reel to appear in feed
+            share_to_feed: true, // Set to true if you want Reel to appear in feed
           },
           {
             headers: {
