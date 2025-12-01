@@ -11,8 +11,9 @@ import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
 import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
-import { QUEUE_NAMES, ASYNC_POLLING_JOBS } from 'src/queue/queue.config';
+import { QUEUE_NAMES, ASYNC_POLLING_JOBS, SCHEDULED_POST_JOBS } from 'src/queue/queue.config';
 import { AsyncPostGateway } from './gateways/async-post.gateway';
+import { ScheduledPostJobData } from './processors/scheduled-post.processor';
 
 @Injectable()
 export class PostsService {
@@ -25,6 +26,8 @@ export class PostsService {
     private publishedPostRepository: Repository<PublishedPost>,
     @InjectQueue(QUEUE_NAMES.ASYNC_POST_POLLING)
     private asyncPollingQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.SCHEDULED_POSTS)
+    private scheduledPostsQueue: Queue,
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
@@ -46,7 +49,47 @@ export class PostsService {
       status: dto.scheduledFor ? PostStatus.SCHEDULED : PostStatus.DRAFT,
     });
 
-    return this.postRepository.save(post);
+    const savedPost = await this.postRepository.save(post);
+
+    // Schedule the job if needed
+    if (savedPost.status === PostStatus.SCHEDULED && savedPost.scheduledFor) {
+      await this.schedulePostJob(savedPost);
+    }
+
+    return savedPost;
+  }
+
+  private async schedulePostJob(post: Post) {
+    if (!post.scheduledFor) return;
+
+    const delay = new Date(post.scheduledFor).getTime() - Date.now();
+    if (delay <= 0) return; // Should be published immediately if in past, but we'll let user handle that or logic elsewhere
+
+    const jobData: ScheduledPostJobData = {
+      postId: post.id,
+      userId: post.userId,
+      tenantId: post.tenantId,
+    };
+
+    await this.scheduledPostsQueue.add(
+      SCHEDULED_POST_JOBS.PUBLISH_POST,
+      jobData,
+      {
+        delay,
+        jobId: `publish-post-${post.id}`, // Deterministic ID for easy removal
+        removeOnComplete: true,
+      },
+    );
+
+    this.logger.log(`Scheduled post ${post.id} for ${post.scheduledFor}`);
+  }
+
+  private async removeScheduledJob(postId: string) {
+    const job = await this.scheduledPostsQueue.getJob(`publish-post-${postId}`);
+    if (job) {
+      await job.remove();
+      this.logger.log(`Removed scheduled job for post ${postId}`);
+    }
   }
 
   async getUserPosts(
@@ -102,7 +145,20 @@ export class PostsService {
     // Reset failure reasons when editing
     post.failureReasons = undefined;
 
-    return this.postRepository.save(post);
+    const savedPost = await this.postRepository.save(post);
+
+    // Handle rescheduling
+    if (savedPost.status === PostStatus.SCHEDULED) {
+      // Remove existing job first (to be safe/clean)
+      await this.removeScheduledJob(postId);
+      // Add new job
+      await this.schedulePostJob(savedPost);
+    } else {
+      // If status changed to DRAFT or something else, remove the job
+      await this.removeScheduledJob(postId);
+    }
+
+    return savedPost;
   }
 
   async deletePost(
@@ -113,6 +169,7 @@ export class PostsService {
     const post = await this.getPost(postId, userId, tenantId);
     const urls = post.mediaUrls || [];
     await this.uploadService.deleteFileByUrl(urls);
+    await this.removeScheduledJob(postId);
     await this.postRepository.remove(post);
     return true;
   }

@@ -66,6 +66,7 @@ export const QUEUE_NAMES = {
   EMAIL_NOTIFICATIONS: 'email-notifications',
   TIKTOK_POLLING: 'tiktok-polling', // Deprecated - use ASYNC_POST_POLLING
   ASYNC_POST_POLLING: 'async-post-polling', // Generic async polling for all platforms
+  SCHEDULED_POSTS: 'scheduled-posts',
 } as const;
 
 // Job types for AI Insights queue
@@ -90,4 +91,9 @@ export const TIKTOK_POLLING_JOBS = {
 // Job types for Async Post Polling queue (Generic for all platforms)
 export const ASYNC_POLLING_JOBS = {
   POLL_STATUS: 'poll-status',
+} as const;
+
+// Job types for Scheduled Posts queue
+export const SCHEDULED_POST_JOBS = {
+  PUBLISH_POST: 'publish-post',
 } as const;
