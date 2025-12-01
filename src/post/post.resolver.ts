@@ -57,7 +57,7 @@ export class PostsResolver {
     // @Args('input') input: Partial<CreatePostDto>,
     @Args('input', { type: () => UpdatePostInput }) input: UpdatePostInput,
   ): Promise<Post> {
-    this.pubSub.publish('postUpdated', { postUpdated: input });
+
     return this.postsService.updatePost(postId, user.id, user.tenantId, {
       ...input,
       platformSpecificContent: input.platformSpecificContent,
@@ -92,9 +92,12 @@ export class PostsResolver {
   @Subscription(() => Post, {
     filter: (payload, variables, context) => {
       // Only send updates to the user who owns the post or belongs to the same tenant
-      // Note: Context user might need to be extracted differently for subscriptions depending on auth setup
-      // For now, we assume basic filtering. Ideally, check tenantId.
-      return payload.postUpdated.tenantId === context.req?.user?.tenantId;
+      const tenantId = payload.postUpdated?.tenantId;
+      const userTenantId = context.req?.user?.tenantId;
+      return tenantId === userTenantId;
+    },
+    resolve: (payload) => {
+      return payload.postUpdated;
     },
   })
   postUpdated() {
