@@ -43,6 +43,15 @@ export class VectorDbService implements OnModuleInit {
     } else {
       this.logger.warn('XENOVA_CACHE_DIR not set! Using default node_modules (Risk of data loss)');
     }
+
+    // Force CPU usage for ONNX Runtime (fixes "Specified device is not supported" error)
+    env.backends.onnx.wasm.numThreads = 1;
+    env.backends.onnx.wasm.simd = true;
+
+    // Disable GPU to force CPU execution
+    process.env.ONNXRUNTIME_DEVICE = 'cpu';
+
+    this.logger.log('Configured transformers to use CPU for embeddings');
   }
 
   async onModuleInit() {
