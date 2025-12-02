@@ -7,6 +7,10 @@ import helmet from 'helmet';
 // import * as fs from 'fs';
 
 async function bootstrap() {
+  // Force ONNX Runtime to use CPU (must be set BEFORE any models load)
+  process.env.ONNXRUNTIME_DEVICE = 'cpu';
+  process.env.ONNXRUNTIME_PROVIDER = 'CPUExecutionProvider';
+
   // const httpsOptions = {
   //   key: fs.readFileSync('./cert/key.pem'),
   //   cert: fs.readFileSync('./cert/cert.pem'),
