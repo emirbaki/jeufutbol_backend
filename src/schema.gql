@@ -192,6 +192,11 @@ type JobIdResponse {
   jobId: String!
 }
 
+type BatchIndexResponse {
+  jobIds: [String!]!
+  profileCount: Float!
+}
+
 type ChatMessage {
   id: ID!
   sessionId: String!
@@ -301,7 +306,14 @@ type Mutation {
   Generate post template (returns job ID - query jobStatus to check progress)
   """
   generatePostTemplate(insights: [String!]!, platform: String!, tone: String, llmProvider: String): JobIdResponse!
-  indexTweetsToVector(profileId: String!): Int!
+
+  """
+  Index tweets to vector database (returns job ID - query jobStatus to check progress)
+  """
+  indexTweetsToVector(profileId: String!): JobIdResponse!
+
+  """Index tweets for ALL monitored profiles (returns array of job IDs)"""
+  indexAllTweetsToVector: BatchIndexResponse!
   markInsightAsRead(insightId: String!): Insight!
   createChatSession(title: String): ChatSession!
   chatWithAI(message: String!, sessionId: String, llmProvider: String): ChatResponse!

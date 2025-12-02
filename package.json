@@ -24,7 +24,7 @@
     "@as-integrations/express5": "^1.1.2",
     "@bull-board/express": "^6.14.2",
     "@bull-board/nestjs": "^6.14.2",
-    "@chroma-core/default-embed": "^0.1.8",
+    "@chroma-core/default-embed": "^0.1.9",
     "@langchain/community": "^1.0.0",
     "@langchain/core": "^1.0.2",
     "@langchain/google-genai": "^1.0.0",

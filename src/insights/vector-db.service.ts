@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChromaClient } from 'chromadb';
+import { DefaultEmbeddingFunction } from '@chroma-core/default-embed';
 // 👇 1. Import 'env' from the library Chroma uses internally
 import { env } from '@xenova/transformers';
 // Note: If you don't have @xenova/transformers installed explicitly, 
@@ -61,11 +62,15 @@ export class VectorDbService implements OnModuleInit {
 
       this.logger.log(`Connecting to ChromaDB at ${chromaHost}:${chromaPort}`);
 
-      // Create or get collection (uses default all-MiniLM-L6-v2 embeddings)
+      // Create embedding function using Xenova transformers
+      const embedder = new DefaultEmbeddingFunction();
+
+      // Create or get collection with explicit embedding function
       try {
         await this.chromaClient.createCollection({
           name: this.collectionName,
           metadata: { description: 'Social media tweets collection' },
+          embeddingFunction: embedder,
         });
         this.logger.log('ChromaDB collection created');
       } catch (error) {

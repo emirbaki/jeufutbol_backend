@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
@@ -13,7 +13,7 @@ import { MonitoringProcessor } from './monitoring.processor';
   imports: [
     TypeOrmModule.forFeature([MonitoredProfile]),
     TweetsModule,
-    AIInsightsModule,
+    forwardRef(() => AIInsightsModule),
     ScheduleModule.forRoot(),
   ],
   providers: [
@@ -24,4 +24,4 @@ import { MonitoringProcessor } from './monitoring.processor';
   ],
   exports: [MonitoringService],
 })
-export class MonitoringModule {}
+export class MonitoringModule { }

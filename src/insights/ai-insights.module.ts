@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Tweet } from '../entities/tweet.entity';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
@@ -17,6 +17,7 @@ import { ChatSession } from './entities/chat-session.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { AiChatService } from './ai-chat.service';
 import { AiChatResolver } from './ai-chat.resolver';
+import { MonitoringModule } from '../monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AiChatResolver } from './ai-chat.resolver';
       ChatMessage,
     ]),
     PostModule,
+    forwardRef(() => MonitoringModule),
   ],
   providers: [
     AIInsightsService,
@@ -45,4 +47,4 @@ import { AiChatResolver } from './ai-chat.resolver';
   exports: [AIInsightsService, VectorDbService, LLMService],
   controllers: [LLMController],
 })
-export class AIInsightsModule {}
+export class AIInsightsModule { }
