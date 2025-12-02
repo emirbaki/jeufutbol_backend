@@ -1,11 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChromaClient } from 'chromadb';
-import { DefaultEmbeddingFunction } from '@chroma-core/default-embed';
-// 👇 1. Import 'env' from the library Chroma uses internally
+// Server-side embeddings are used - no client-side embedding function needed
 import { env } from '@xenova/transformers';
-// Note: If you don't have @xenova/transformers installed explicitly, 
-// you might need to install it: npm install @xenova/transformers
 export interface VectorDocument {
   id: string;
   content: string;
@@ -71,17 +68,15 @@ export class VectorDbService implements OnModuleInit {
 
       this.logger.log(`Connecting to ChromaDB at ${chromaHost}:${chromaPort}`);
 
-      // Create embedding function using Xenova transformers
-      const embedder = new DefaultEmbeddingFunction();
-
-      // Create or get collection with explicit embedding function
+      // Don't specify embedding function - let ChromaDB server handle it
+      // This avoids ONNX Runtime device issues on the client side
       try {
         await this.chromaClient.createCollection({
           name: this.collectionName,
           metadata: { description: 'Social media tweets collection' },
-          embeddingFunction: embedder,
+          // No embeddingFunction - server handles it
         });
-        this.logger.log('ChromaDB collection created');
+        this.logger.log('ChromaDB collection created (server-side embeddings)');
       } catch (error) {
         if (error.message?.includes('already exists')) {
           this.logger.log('ChromaDB collection already exists');
