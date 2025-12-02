@@ -36,6 +36,7 @@ export class VectorDbService implements OnModuleInit {
   constructor(private configService: ConfigService) {
     if (process.env.XENOVA_CACHE_DIR) {
       this.logger.log(`Setting Transformer Cache Dir to: ${process.env.XENOVA_CACHE_DIR}`);
+      this.logger.log(`Transformer Cache Dir: ${env.cacheDir}`);
       env.cacheDir = process.env.XENOVA_CACHE_DIR;
     } else {
       this.logger.warn('XENOVA_CACHE_DIR not set! Using default node_modules (Risk of data loss)');
