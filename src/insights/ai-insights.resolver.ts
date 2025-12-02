@@ -8,12 +8,13 @@ import {
 import { Cache } from 'cache-manager';
 import { GraphqlCacheInterceptor } from '../cache/graphql-cache.interceptor';
 import { AIInsightsService } from './ai-insights.service';
+import { MonitoringService } from '../monitoring/monitoring.service';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { Insight } from 'src/entities/insight.entity';
 import GraphQLJSON from 'graphql-type-json';
-import { JobIdResponse } from './types/job-response.types';
+import { JobIdResponse, BatchIndexResponse } from './types/job-response.types';
 
 @Resolver()
 @UseGuards(GqlAuthGuard)
@@ -21,8 +22,9 @@ import { JobIdResponse } from './types/job-response.types';
 export class AIInsightsResolver {
   constructor(
     private aiInsightsService: AIInsightsService,
+    private monitoringService: MonitoringService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  ) {}
+  ) { }
 
   @Mutation(() => JobIdResponse, {
     description:
@@ -76,12 +78,29 @@ export class AIInsightsResolver {
     });
   }
 
-  @Mutation(() => Int)
+  @Mutation(() => JobIdResponse, {
+    description:
+      'Index tweets to vector database (returns job ID - query jobStatus to check progress)',
+  })
   async indexTweetsToVector(
     @CurrentUser() user: User,
     @Args('profileId') profileId: string,
-  ) {
-    return this.aiInsightsService.indexTweetsToVectorDb(profileId);
+  ): Promise<JobIdResponse> {
+    // Verify user owns this profile before allowing indexing
+    await this.monitoringService.getProfile(profileId, user.id, user.tenantId);
+
+    return this.aiInsightsService.queueIndexTweets(profileId);
+  }
+
+  @Mutation(() => BatchIndexResponse, {
+    description:
+      'Index tweets for ALL monitored profiles (returns array of job IDs)',
+  })
+  async indexAllTweetsToVector(
+    @CurrentUser() user: User,
+  ): Promise<BatchIndexResponse> {
+    // Queue indexing for all profiles in the user's tenant
+    return this.aiInsightsService.queueIndexAllTweets(user.tenantId);
   }
 
   @CacheTTL(259200000) // 3 days

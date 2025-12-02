@@ -59,10 +59,75 @@ export class AIInsightsService {
     private postsService: PostsService,
     @InjectQueue(QUEUE_NAMES.AI_INSIGHTS)
     private aiInsightsQueue: Queue,
-  ) {}
+  ) { }
 
   /**
-   * Index tweets to vector database
+   * Index tweets to vector database (Queue-based - returns job ID)
+   */
+  async queueIndexTweets(profileId: string): Promise<{ jobId: string }> {
+    const jobData: IndexTweetsJobData = { profileId };
+
+    const job = await this.aiInsightsQueue.add(
+      AI_INSIGHTS_JOBS.INDEX_TWEETS,
+      jobData,
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(
+      `Enqueued tweet indexing job ${job.id} for profile ${profileId}`,
+    );
+
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Queue tweet indexing for ALL profiles in a tenant
+   */
+  async queueIndexAllTweets(
+    tenantId: string,
+  ): Promise<{ jobIds: string[]; profileCount: number }> {
+    // Get all active profiles for this tenant
+    const profiles = await this.monitoredProfileRepository.find({
+      where: { tenantId, isActive: true },
+    });
+
+    if (profiles.length === 0) {
+      this.logger.warn(`No active profiles found for tenant ${tenantId}`);
+      return { jobIds: [], profileCount: 0 };
+    }
+
+    const jobIds: string[] = [];
+
+    // Queue a job for each profile
+    for (const profile of profiles) {
+      const jobData: IndexTweetsJobData = { profileId: profile.id };
+
+      const job = await this.aiInsightsQueue.add(
+        AI_INSIGHTS_JOBS.INDEX_TWEETS,
+        jobData,
+        {
+          removeOnComplete: 100,
+          removeOnFail: 500,
+        },
+      );
+
+      if (job.id) {
+        jobIds.push(job.id);
+      }
+    }
+
+    this.logger.log(
+      `Enqueued ${jobIds.length} tweet indexing jobs for tenant ${tenantId} (${profiles.length} profiles)`,
+    );
+
+    return { jobIds, profileCount: profiles.length };
+  }
+
+  /**
+   * Index tweets to vector database (Internal - called by processor or directly)
    */
   async indexTweetsToVectorDb(profileId: string): Promise<number> {
     try {
@@ -583,9 +648,9 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
       avgEngagement:
         tweets.length > 0
           ? tweets.reduce(
-              (sum, t) => sum + t.likes + t.retweets + t.replies,
-              0,
-            ) / tweets.length
+            (sum, t) => sum + t.likes + t.retweets + t.replies,
+            0,
+          ) / tweets.length
           : 0,
       timeRange,
     };
