@@ -3,14 +3,14 @@ import {
   Get,
   Post,
   Query,
-  // Req,
+  Req,
   Res,
   UseGuards,
   Body,
   Delete,
   Param,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { CredentialsService } from './credential.service';
 import { PlatformName } from '../entities/credential.entity';
@@ -23,7 +23,7 @@ export class CredentialsController {
   constructor(
     private credentialsService: CredentialsService,
     private oauthService: OAuthService,
-  ) {}
+  ) { }
 
   /**
    * Get OAuth authorization URL (Step 1)
@@ -31,15 +31,21 @@ export class CredentialsController {
   @Post('oauth/authorize-url')
   @UseGuards(AuthGuard('jwt'))
   async getOAuthUrl(
+    @Req() req: Request,
     @CurrentUser() user: User,
     @Body('platform') platform: PlatformName,
     @Body('credentialName') credentialName: string,
   ): Promise<{ authUrl: string; state: string }> {
+    const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
+    const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
+
     const state = Buffer.from(
       JSON.stringify({
         userId: user.id,
+        tenantId: user.tenantId,
         platform,
         credentialName,
+        frontendUrl, // Store origin in state
         timestamp: Date.now(),
       }),
     ).toString('base64');
@@ -56,12 +62,13 @@ export class CredentialsController {
   async handleOAuthCallback(
     @Query('code') code: string,
     @Query('state') state: string,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     try {
       // Decode state
       const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-      const { userId, platform, credentialName } = stateData;
+      const { userId, tenantId, platform, credentialName, frontendUrl: storedFrontendUrl } = stateData;
 
       // Exchange code for tokens
       const tokenData = await this.oauthService.exchangeCodeForToken(
@@ -78,6 +85,7 @@ export class CredentialsController {
       // Save credential
       await this.credentialsService.saveOAuthCredential(
         userId,
+        tenantId,
         platform,
         credentialName || `${platform} - ${accountInfo.name}`,
         {
@@ -91,13 +99,31 @@ export class CredentialsController {
         },
       );
 
-      // Redirect to success page
-      res.redirect(
-        `${process.env.FRONTEND_URL}/settings?credential=connected&platform=${platform}`,
-      );
-    } catch (error) {
+      // Use stored frontend URL or fallback
+      const frontendUrl = storedFrontendUrl || process.env.FRONTEND_URL || 'http://localhost:4200';
+
+      // Redirect to frontend callback route
+      const redirectUrl = new URL(`${frontendUrl}/oauth/callback`);
+      redirectUrl.searchParams.append('status', 'success');
+      redirectUrl.searchParams.append('platform', platform);
+      redirectUrl.searchParams.append('credentialName', credentialName || accountInfo.name);
+
+      res.redirect(redirectUrl.toString());
+    } catch (error: any) {
       console.error('OAuth callback error:', error);
-      res.redirect(`${process.env.FRONTEND_URL}/settings?credential=error`);
+
+      // Try to recover frontend URL from state if possible, otherwise fallback
+      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+      try {
+        const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+        if (stateData.frontendUrl) frontendUrl = stateData.frontendUrl;
+      } catch (e) { }
+
+      const redirectUrl = new URL(`${frontendUrl}/oauth/callback`);
+      redirectUrl.searchParams.append('status', 'error');
+      redirectUrl.searchParams.append('error', error.message || 'Failed to connect account');
+
+      res.redirect(redirectUrl.toString());
     }
   }
 
@@ -112,6 +138,7 @@ export class CredentialsController {
   ) {
     const credentials = await this.credentialsService.getUserCredentials(
       user.id,
+      user.tenantId,
       platform,
     );
 
@@ -142,6 +169,7 @@ export class CredentialsController {
     const isValid = await this.credentialsService.testConnection(
       credentialId,
       user.id,
+      user.tenantId,
     );
     return { valid: isValid };
   }
@@ -155,6 +183,7 @@ export class CredentialsController {
     const refreshToken = await this.credentialsService.refreshAccessToken(
       credendtialId,
       user.id,
+      user.tenantId,
     );
 
     return { refreshToken };
@@ -169,7 +198,11 @@ export class CredentialsController {
     @CurrentUser() user: User,
     @Param('id') credentialId: string,
   ) {
-    await this.credentialsService.deleteCredential(credentialId, user.id);
+    await this.credentialsService.deleteCredential(
+      credentialId,
+      user.id,
+      user.tenantId,
+    );
     return { success: true };
   }
 }

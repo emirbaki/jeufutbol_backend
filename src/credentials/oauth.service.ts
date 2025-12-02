@@ -156,7 +156,7 @@ export class OAuthService {
     if (platform === PlatformName.X) {
       params.append('code_challenge', 'challenge');
       params.append('code_challenge_method', 'plain');
-      params.set('scope', config.scope.join('%20'));
+      params.set('scope', config.scope.join(' '));
     } else if (platform === PlatformName.TIKTOK) {
       params = new URLSearchParams({
         client_key: config.clientId,
@@ -166,8 +166,8 @@ export class OAuthService {
         state,
       });
     }
-    console.log(`${config.authUrl}?${decodeURIComponent(params.toString())}`);
-    return `${config.authUrl}?${decodeURIComponent(params.toString())}`;
+    console.log(`${config.authUrl}?${params.toString()}`);
+    return `${config.authUrl}?${params.toString()}`;
   }
 
   /**
@@ -220,17 +220,79 @@ export class OAuthService {
           platform === PlatformName.X
             ? headers
             : {
-                'Content-Type': 'application/x-www-form-urlencoded',
-              },
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
       }),
     );
 
+    console.log(`[OAuth] Token response for ${platform}:`, JSON.stringify(response.data, null, 2));
+
+    let accessToken = response.data?.access_token;
+    let refreshToken = response.data?.refresh_token;
+    let expiresIn = response.data?.expires_in || 3600;
+    let scope = response.data?.scope?.split(' ');
+
+    // TikTok specific parsing
+    if (platform === PlatformName.TIKTOK) {
+      // TikTok scope is comma-separated
+      if (typeof response.data?.scope === 'string') {
+        scope = response.data.scope.split(',');
+      }
+    }
+
+    // Exchange for long-lived token (Facebook)
+    if (platform === PlatformName.FACEBOOK) {
+      try {
+        const exchangeParams = new URLSearchParams({
+          grant_type: 'fb_exchange_token',
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
+          fb_exchange_token: accessToken,
+        });
+
+        const exchangeResponse = await firstValueFrom(
+          this.httpService.get(
+            'https://graph.facebook.com/v18.0/oauth/access_token',
+            { params: exchangeParams },
+          ),
+        );
+
+        accessToken = exchangeResponse.data.access_token;
+        expiresIn = exchangeResponse.data.expires_in || 5184000; // ~60 days
+      } catch (error) {
+        console.error(`Failed to exchange for long-lived token for ${platform}:`, error);
+      }
+    }
+
+    // Exchange for long-lived token (Instagram)
+    if (platform === PlatformName.INSTAGRAM) {
+      try {
+        const exchangeParams = new URLSearchParams({
+          grant_type: 'ig_exchange_token',
+          client_secret: config.clientSecret,
+          access_token: accessToken,
+        });
+
+        const exchangeResponse = await firstValueFrom(
+          this.httpService.get(
+            'https://graph.instagram.com/access_token',
+            { params: exchangeParams },
+          ),
+        );
+
+        accessToken = exchangeResponse.data.access_token;
+        expiresIn = exchangeResponse.data.expires_in || 5184000; // ~60 days
+      } catch (error) {
+        console.error(`Failed to exchange for long-lived token for ${platform}:`, error);
+      }
+    }
+
     return {
-      accessToken: response.data.access_token,
+      accessToken,
       accessSecret: response.data.access_secret,
-      refreshToken: response.data.refresh_token,
-      expiresIn: response.data.expires_in || 3600,
-      scope: response.data.scope?.split(' '),
+      refreshToken,
+      expiresIn,
+      scope,
     };
   }
 

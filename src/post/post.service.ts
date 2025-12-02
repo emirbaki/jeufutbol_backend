@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
+import { PubSub } from 'graphql-subscriptions';
 import { Post, PostStatus } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
 import { PlatformType } from '../enums/platform-type.enum';
@@ -9,6 +12,9 @@ import { CredentialsService } from 'src/credentials/credential.service';
 import { PlatformName } from '../entities/credential.entity';
 import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
+import { QUEUE_NAMES, ASYNC_POLLING_JOBS, SCHEDULED_POST_JOBS } from 'src/queue/queue.config';
+import { AsyncPostGateway } from './gateways/async-post.gateway';
+import { ScheduledPostJobData } from './processors/scheduled-post.processor';
 
 @Injectable()
 export class PostsService {
@@ -19,14 +25,24 @@ export class PostsService {
     private postRepository: Repository<Post>,
     @InjectRepository(PublishedPost)
     private publishedPostRepository: Repository<PublishedPost>,
+    @InjectQueue(QUEUE_NAMES.ASYNC_POST_POLLING)
+    private asyncPollingQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.SCHEDULED_POSTS)
+    private scheduledPostsQueue: Queue,
+    @Inject('PUB_SUB') private readonly pubSub: PubSub,
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
   ) { }
 
-  async createPost(userId: string, dto: CreatePostInput): Promise<Post> {
+  async createPost(
+    userId: string,
+    tenantId: string,
+    dto: CreatePostInput,
+  ): Promise<Post> {
     const post = this.postRepository.create({
       userId,
+      tenantId,
       content: dto.content,
       mediaUrls: dto.mediaUrls || [],
       targetPlatforms: dto.targetPlatforms,
@@ -35,21 +51,70 @@ export class PostsService {
       status: dto.scheduledFor ? PostStatus.SCHEDULED : PostStatus.DRAFT,
     });
 
-    return this.postRepository.save(post);
+    const savedPost = await this.postRepository.save(post);
+
+    // Schedule the job if needed
+    if (savedPost.status === PostStatus.SCHEDULED && savedPost.scheduledFor) {
+      await this.schedulePostJob(savedPost);
+    }
+
+    return savedPost;
   }
 
-  async getUserPosts(userId: string, limit = 50): Promise<Post[]> {
+  private async schedulePostJob(post: Post) {
+    if (!post.scheduledFor) return;
+
+    const delay = new Date(post.scheduledFor).getTime() - Date.now();
+    if (delay <= 0) return; // Should be published immediately if in past, but we'll let user handle that or logic elsewhere
+
+    const jobData: ScheduledPostJobData = {
+      postId: post.id,
+      userId: post.userId,
+      tenantId: post.tenantId,
+    };
+
+    await this.scheduledPostsQueue.add(
+      SCHEDULED_POST_JOBS.PUBLISH_POST,
+      jobData,
+      {
+        delay,
+        jobId: `publish-post-${post.id}`, // Deterministic ID for easy removal
+        removeOnComplete: true,
+      },
+    );
+
+    this.logger.log(`Scheduled post ${post.id} for ${post.scheduledFor}`);
+  }
+
+  private async removeScheduledJob(postId: string) {
+    const job = await this.scheduledPostsQueue.getJob(`publish-post-${postId}`);
+    if (job) {
+      await job.remove();
+      this.logger.log(`Removed scheduled job for post ${postId}`);
+    }
+  }
+
+  async getUserPosts(
+    userId: string,
+    tenantId: string,
+    limit = 50,
+  ): Promise<Post[]> {
+    // Get ALL posts from the organization (not just the user's posts)
     return this.postRepository.find({
-      where: { userId },
+      where: { tenantId },
       order: { createdAt: 'DESC' },
       take: limit,
-      relations: ['publishedPosts'],
+      relations: ['publishedPosts', 'user'], // Include user relation to show who created each post
     });
   }
 
-  async getPost(postId: string, userId: string): Promise<Post> {
+  async getPost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<Post> {
     const post = await this.postRepository.findOne({
-      where: { id: postId, userId },
+      where: { id: postId, userId, tenantId },
       relations: ['publishedPosts'],
     });
 
@@ -60,26 +125,72 @@ export class PostsService {
   async updatePost(
     postId: string,
     userId: string,
+    tenantId: string,
     updates: Partial<CreatePostInput>,
   ): Promise<Post> {
-    const post = await this.getPost(postId, userId);
+    const post = await this.getPost(postId, userId, tenantId);
 
+    // Only block editing of successfully published posts
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Cannot update a published post');
 
+    // Allow editing DRAFT, SCHEDULED, and FAILED posts
     Object.assign(post, updates);
-    return this.postRepository.save(post);
+
+    // Update status based on scheduledFor
+    if (post.scheduledFor) {
+      post.status = PostStatus.SCHEDULED;
+    } else {
+      post.status = PostStatus.DRAFT;
+    }
+
+    // Reset failure reasons when editing
+    post.failureReasons = undefined;
+
+    const savedPost = await this.postRepository.save(post);
+
+    // Handle rescheduling
+    if (savedPost.status === PostStatus.SCHEDULED) {
+      // Remove existing job first (to be safe/clean)
+      await this.removeScheduledJob(postId);
+      // Add new job
+      await this.schedulePostJob(savedPost);
+    } else {
+      // If status changed to DRAFT or something else, remove the job
+      await this.removeScheduledJob(postId);
+    }
+
+    // Reload with relations for subscription
+    const postWithRelations = await this.postRepository.findOne({
+      where: { id: savedPost.id },
+      relations: ['user', 'tenant', 'publishedPosts'],
+    });
+
+    if (postWithRelations) {
+      await this.pubSub.publish('postUpdated', { postUpdated: postWithRelations });
+    }
+
+    return savedPost;
   }
 
-  async deletePost(postId: string, userId: string): Promise<boolean> {
-    const post = await this.getPost(postId, userId);
+  async deletePost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const post = await this.getPost(postId, userId, tenantId);
     const urls = post.mediaUrls || [];
     await this.uploadService.deleteFileByUrl(urls);
+    await this.removeScheduledJob(postId);
     await this.postRepository.remove(post);
     return true;
   }
-  async publishPost(postId: string, userId: string): Promise<Post> {
-    const post = await this.getPost(postId, userId);
+  async publishPost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<Post> {
+    const post = await this.getPost(postId, userId, tenantId);
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Post already published');
 
@@ -98,6 +209,7 @@ export class PostsService {
           // 1️⃣ Get credential for platform
           const credentials = await this.credentialsService.getUserCredentials(
             userId,
+            tenantId,
             platform as unknown as PlatformName,
           );
 
@@ -110,6 +222,7 @@ export class PostsService {
           const access_token = await this.credentialsService.getAccessToken(
             credential.id,
             userId,
+            tenantId,
           );
 
           // 2️⃣ Let the gateway handle posting logic
@@ -118,22 +231,45 @@ export class PostsService {
             post.content,
             access_token,
             post.mediaUrls,
+            { username: credential.accountName },
           );
 
           // 3️⃣ Notify gateway & persist
           await gateway.notifyPostPublished(post.id, platform, result);
 
           const publishedPost = this.publishedPostRepository.create({
-            // post: post,
             postId: post.id,
             platform: platform,
             publishedAt: new Date(),
             platformPostId: result.id,
-            platformPostUrl: result.url,
+            platformPostUrl: result.url || 'pending',
             publishMetadata: result,
+            publishId: result.publish_id || undefined,
+            publishStatus: result.publish_id ? 'PROCESSING_UPLOAD' : undefined,
           });
 
           publishResults.push(publishedPost);
+
+          // 4️⃣ For async gateways, prepare polling job data
+          if (gateway instanceof AsyncPostGateway) {
+            const jobData = gateway.getPollingJobData(
+              publishedPost,
+              result,
+              access_token,
+              {
+                username: credential.accountName,
+                mediaUrls: post.mediaUrls,
+              },
+            );
+
+            if (jobData) {
+              // Store job data for enqueueing after save
+              (publishedPost as any).asyncJobData = jobData;
+              this.logger.log(
+                `[${platform}] Prepared async polling job for publish_id: ${result.publish_id}`,
+              );
+            }
+          }
         } catch (err: any) {
           // const detail = err.response!
           const message = err.message || 'Unknown error';
@@ -144,18 +280,113 @@ export class PostsService {
       }),
     );
 
-    // 4️⃣ Update post status
+    // 4️⃣ Update post status and save published posts
     if (publishResults.length > 0) {
       post.status = PostStatus.PUBLISHED;
-      await this.publishedPostRepository.insert(publishResults);
+
+      // Save all published posts
+      const savedPublishedPosts = await this.publishedPostRepository.save(publishResults);
+
+      // Enqueue async polling jobs for saved posts
+      for (const savedPost of savedPublishedPosts) {
+        const jobData = (savedPost as any).asyncJobData;
+        if (jobData) {
+          // Update with actual saved ID
+          jobData.publishedPostId = savedPost.id;
+
+          await this.asyncPollingQueue.add(
+            ASYNC_POLLING_JOBS.POLL_STATUS,
+            jobData,
+            {
+              delay: 5000, // Start polling after 5 seconds
+              attempts: 15, // Poll up to 15 times
+              backoff: {
+                type: 'exponential',
+                delay: 5000, // 5s, 10s, 20s, 40s... up to ~5 minutes total
+              },
+            },
+          );
+
+          this.logger.log(
+            `[${jobData.platform}] Enqueued async polling job for publish_id: ${jobData.publish_id}`,
+          );
+        }
+      }
+
+      post.failureReasons = undefined; // Clear any previous failures
     } else {
       post.status = PostStatus.FAILED;
+
+      // Store failure reasons for each platform
+      post.failureReasons = errors.reduce(
+        (acc, err) => {
+          acc[err.platform] = err.error;
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+
       this.logger.error(
         `Publishing failed for all platforms: ${JSON.stringify(errors)}`,
       );
     }
 
-    await this.postRepository.update(post.id, { status: post.status });
-    return this.getPost(postId, userId);
+    await this.postRepository.update(post.id, {
+      status: post.status,
+      failureReasons: post.failureReasons,
+    });
+    const updatedPost = await this.getPost(postId, userId, tenantId);
+    this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
+    return updatedPost;
+  }
+
+  /**
+   * Retry publishing a failed post
+   * Only retries platforms that failed (keeps successful platforms)
+   */
+  async retryPublishPost(
+    postId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<Post> {
+    const post = await this.getPost(postId, userId, tenantId);
+
+    if (post.status !== PostStatus.FAILED) {
+      throw new Error('Can only retry failed posts');
+    }
+
+    // Get platforms that already succeeded
+    const publishedPosts = await this.publishedPostRepository.find({
+      where: { postId: post.id },
+    });
+    const succeededPlatforms = publishedPosts.map((p) => p.platform);
+
+    // Filter target platforms to only retry failed ones
+    const originalPlatforms = [...post.targetPlatforms];
+    const failedPlatforms = originalPlatforms.filter(
+      (platform) => !succeededPlatforms.includes(platform as PlatformType),
+    );
+
+
+    if (failedPlatforms.length === 0) {
+      throw new Error('No failed platforms to retry');
+    }
+
+    // Temporarily set target platforms to only failed ones
+    post.targetPlatforms = failedPlatforms;
+
+    // Reset status to draft for republishing
+    post.status = PostStatus.DRAFT;
+    post.failureReasons = undefined;
+    await this.postRepository.save(post);
+
+    // Publish only to failed platforms
+    const result = await this.publishPost(postId, userId, tenantId);
+
+    // Restore original target platforms
+    result.targetPlatforms = originalPlatforms;
+    await this.postRepository.save(result);
+
+    return result;
   }
 }

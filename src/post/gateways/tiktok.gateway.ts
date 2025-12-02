@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
-import { PostGateway } from './post-base.gateway';
+import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
+import { isVideoFile, getMediaType } from '../utils/media-utils';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com';
 
 @Injectable()
-export class TiktokPostGateway implements PostGateway {
+export class TiktokPostGateway extends AsyncPostGateway {
   private readonly logger = new Logger(TiktokPostGateway.name);
 
   async notifyPostPublished(
@@ -34,12 +35,14 @@ export class TiktokPostGateway implements PostGateway {
    * @param content Video/Photo caption
    * @param access_token OAuth access token
    * @param media Array of media URLs (videos or images)
+   * @param options Optional parameters (e.g. username)
    */
   async createNewPost(
     userId: string,
     content: string,
     access_token: string,
     media?: string[],
+    options?: { username?: string },
   ): Promise<any> {
     try {
       if (!media || media.length === 0) {
@@ -50,17 +53,23 @@ export class TiktokPostGateway implements PostGateway {
 
       // Detect media type from first file
       const firstMediaUrl = media[0];
-      const isVideo = this.isVideoFile(firstMediaUrl);
+      const isVideo = isVideoFile(firstMediaUrl);
 
       if (isVideo) {
         // Handle video post
-        return await this.publishVideo(content, access_token, firstMediaUrl);
+        return await this.publishVideo(
+          content,
+          access_token,
+          firstMediaUrl,
+          options,
+        );
       } else {
         // Handle photo post (supports up to 35 images)
         return await this.publishPhotos(
           content,
           access_token,
           media.slice(0, 35),
+          options,
         );
       }
     } catch (err: any) {
@@ -77,6 +86,7 @@ export class TiktokPostGateway implements PostGateway {
     caption: string,
     access_token: string,
     videoUrl: string,
+    options?: { username?: string },
   ): Promise<any> {
     try {
       this.logger.log('[TikTok] Starting video upload...');
@@ -109,14 +119,11 @@ export class TiktokPostGateway implements PostGateway {
       const { publish_id } = initRes.data.data;
       this.logger.log(`[TikTok] Video upload initialized: ${publish_id}`);
 
-      // Step 2: Check upload status (poll until complete)
-      await this.pollUploadStatus(publish_id, access_token);
-
-      this.logger.log(`[TikTok] Video published successfully: ${publish_id}`);
-
+      // Return immediately with publish_id for async polling
       return {
         id: publish_id,
-        url: `https://www.tiktok.com/@user/video/${publish_id}`, // Approximate URL
+        url: null, // URL will be set by polling processor
+        publish_id: publish_id,
       };
     } catch (err: any) {
       this.logger.error(
@@ -133,6 +140,7 @@ export class TiktokPostGateway implements PostGateway {
     caption: string,
     access_token: string,
     imageUrls: string[],
+    options?: { username?: string },
   ): Promise<any> {
     try {
       this.logger.log(
@@ -151,7 +159,7 @@ export class TiktokPostGateway implements PostGateway {
         },
         source_info: {
           source: 'PULL_FROM_URL',
-          photo_cover_index: 1,
+          photo_cover_index: 0,
           photo_images: imageUrls,
         },
         post_mode: 'DIRECT_POST', // Add this
@@ -178,16 +186,11 @@ export class TiktokPostGateway implements PostGateway {
       const { publish_id } = initRes.data.data;
       this.logger.log(`[TikTok] Photo post initialized: ${publish_id}`);
 
-      // Step 2: Check upload status
-      await this.pollUploadStatus(publish_id, access_token);
-
-      this.logger.log(
-        `[TikTok] Photo post published successfully: ${publish_id}`,
-      );
-
+      // Return immediately with publish_id for async polling
       return {
         id: publish_id,
-        url: `https://www.tiktok.com/@user/video/${publish_id}`,
+        url: null, // URL will be set by polling processor
+        publish_id: publish_id,
       };
     } catch (err: any) {
       const errorDetails = {
@@ -207,66 +210,135 @@ export class TiktokPostGateway implements PostGateway {
   }
 
   /**
-   * Poll upload status until complete or failed
+   * Check publish status once (called by background job processor)
+   * Returns status data for the polling processor to handle
    */
-  private async pollUploadStatus(
+  async checkPublishStatus(
     publish_id: string,
     access_token: string,
-    maxAttempts: number = 30,
-  ): Promise<void> {
-    const DELAY_MS = 2000; // 2 seconds between checks
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await this.delay(DELAY_MS);
-
-      this.logger.log(
-        `[TikTok] Checking status (${attempt + 1}/${maxAttempts})...`,
+  ): Promise<AsyncPublishStatus> {
+    try {
+      const statusRes = await axios.post(
+        `${TIKTOK_API_BASE}/v2/post/publish/status/fetch/`,
+        { publish_id },
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+        },
       );
 
-      try {
-        const statusRes = await axios.post(
-          `${TIKTOK_API_BASE}/v2/post/publish/status/fetch/`,
-          { publish_id },
-          {
-            headers: {
-              Authorization: `Bearer ${access_token}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        );
+      const statusData = statusRes.data.data;
 
-        const status = statusRes.data.data.status;
-        this.logger.log(`[TikTok] Upload status: ${status}`);
+      // Log full response for debugging
+      this.logger.log(
+        `[TikTok] Full status response: ${JSON.stringify(statusRes.data, null, 2)}`,
+      );
 
-        if (status === 'PUBLISH_COMPLETE') {
-          return; // Success!
-        }
+      this.logger.log(
+        `[TikTok] Status check for ${publish_id}: ${statusData.status}`,
+      );
 
-        if (status === 'FAILED') {
-          throw new Error(
-            `Upload failed: ${statusRes.data.data.fail_reason || 'Unknown error'}`,
-          );
-        }
+      // TikTok API has a typo: "publicaly_available_post_id" (one 'L')
+      // Check both spellings to be safe
+      const postIds =
+        statusData.publicaly_available_post_id || // TikTok's typo (one L)
+        statusData.publicly_available_post_id ||  // Correct spelling (two L's)
+        [];
 
-        // Status is still PROCESSING_UPLOAD, continue polling
-      } catch (error: any) {
-        this.logger.error(`[TikTok] Status check error: ${error.message}`);
-        throw error;
+      // If complete, construct the final URL
+      let postUrl: string | undefined = undefined;
+      if (statusData.status === 'PUBLISH_COMPLETE' && postIds.length > 0) {
+        // Note: We'll get username and mediaType from job metadata
+        // For now, just return the postId
+        postUrl = undefined; // Will be constructed by processor using metadata
       }
-    }
 
-    throw new Error(
-      `Upload timed out after ${(maxAttempts * DELAY_MS) / 1000} seconds`,
-    );
+      return {
+        status: statusData.status,
+        postId: postIds.length > 0 ? postIds[0] : undefined,
+        postUrl: postUrl,
+        failReason: statusData.fail_reason,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `[TikTok] Status check error: ${error.response?.data || error.message}`,
+      );
+      throw error;
+    }
   }
 
   /**
-   * Determine if file is video based on URL
+   * Complete the publish for TikTok - construct final URL
+   * TikTok doesn't need a separate publish API call, but we need to construct the URL
    */
-  private isVideoFile(url: string): boolean {
-    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'];
-    const lowerUrl = url.toLowerCase();
-    return videoExtensions.some((ext) => lowerUrl.includes(ext));
+  async completePublish(
+    publishId: string,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): Promise<{ postId?: string; postUrl?: string }> {
+    const username = metadata.username;
+    const mediaType = metadata.mediaType || 'video';
+    const postId = metadata.postId; // Should be set by processor from status check
+
+    if (!username) {
+      this.logger.warn('[TikTok] Missing username in metadata, cannot construct URL');
+      return {};
+    }
+
+    // If no postId (API not approved for public posts), return profile URL only
+    if (!postId) {
+      const profileUrl = `https://www.tiktok.com/@${username}`;
+      this.logger.log(
+        `[TikTok] No public post ID available (API not approved). Using profile URL: ${profileUrl}`,
+      );
+      return {
+        postUrl: profileUrl,
+      };
+    }
+
+    // Construct the final URL with post ID
+    const urlPath = mediaType === 'video' ? 'video' : 'photo';
+    const postUrl = `https://www.tiktok.com/@${username}/${urlPath}/${postId}`;
+
+    this.logger.log(`[TikTok] Constructed post URL: ${postUrl}`);
+
+    return {
+      postId: postId,
+      postUrl: postUrl,
+    };
+  }
+
+  /**
+   * Get polling job data for TikTok async uploads
+   */
+  getPollingJobData(
+    publishedPost: any,
+    result: any,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): AsyncPollingJobData | null {
+    // Only create polling job if publish_id is present
+    if (!result.publish_id) {
+      return null;
+    }
+
+    // Determine media type from first media URL
+    const mediaType = metadata.mediaUrls && metadata.mediaUrls.length > 0
+      ? getMediaType(metadata.mediaUrls[0])
+      : 'image';
+
+    return {
+      publishedPostId: publishedPost.id,
+      publish_id: result.publish_id,
+      access_token: access_token,
+      platform: PlatformType.TIKTOK,
+      metadata: {
+        username: metadata.username || 'user',
+        mediaType: mediaType,
+      },
+    };
   }
 
   /**

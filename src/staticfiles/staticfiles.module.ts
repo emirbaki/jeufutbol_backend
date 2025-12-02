@@ -1,4 +1,3 @@
-// src/static-files/static-files.module.ts
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 // import * as path from 'path';
@@ -11,6 +10,10 @@ import { ServeStaticModule } from '@nestjs/serve-static';
       exclude: ['/api/{*test}'], // API route’ları ile çakışmasın
       serveStaticOptions: {
         fallthrough: false,
+        setHeaders: (res) => {
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        },
       },
     }),
   ],

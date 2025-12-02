@@ -74,13 +74,14 @@ export class MonitoringService {
    */
   async addProfile(
     userId: string,
+    tenantId: string,
     data: AddProfileDto,
   ): Promise<MonitoredProfile> {
     const username = data.xUsername.replace('@', '');
 
     // Check if profile already exists for this user
     const existing = await this.monitoredProfileRepository.findOne({
-      where: { userId, xUsername: username },
+      where: { userId, tenantId, xUsername: username },
     });
 
     if (existing) {
@@ -109,6 +110,7 @@ export class MonitoringService {
       // Create monitored profile with proper field mapping
       const profile = this.monitoredProfileRepository.create({
         userId,
+        tenantId,
         xUsername: username,
         xUserId: profileInfo.id,
         displayName: profileInfo.displayName,
@@ -162,7 +164,9 @@ export class MonitoringService {
       },
     );
 
-    this.logger.log(`Enqueued tweet fetch job ${job.id} for profile ${profileId}`);
+    this.logger.log(
+      `Enqueued tweet fetch job ${job.id} for profile ${profileId}`,
+    );
     return { jobId: job.id || '' };
   }
 
@@ -178,7 +182,9 @@ export class MonitoringService {
     });
 
     if (!profile) {
-      this.logger.warn(`Profile ${profileId} not found during background fetch. It may have been deleted.`);
+      this.logger.warn(
+        `Profile ${profileId} not found during background fetch. It may have been deleted.`,
+      );
       return 0;
     }
 
@@ -240,9 +246,13 @@ export class MonitoringService {
   /**
    * Remove a monitored profile
    */
-  async removeProfile(userId: string, profileId: string): Promise<boolean> {
+  async removeProfile(
+    userId: string,
+    tenantId: string,
+    profileId: string,
+  ): Promise<boolean> {
     const profile = await this.monitoredProfileRepository.findOne({
-      where: { id: profileId, userId },
+      where: { id: profileId, tenantId },
     });
 
     if (!profile) {
@@ -260,10 +270,15 @@ export class MonitoringService {
   /**
    * Get all monitored profiles for a user
    */
-  async getMonitoredProfiles(userId: string): Promise<MonitoredProfile[]> {
+  async getMonitoredProfiles(
+    userId: string,
+    tenantId: string,
+  ): Promise<MonitoredProfile[]> {
+    // Get ALL profiles from the organization (shared watchlist)
     return this.monitoredProfileRepository.find({
-      where: { userId, isActive: true },
+      where: { tenantId, isActive: true },
       order: { createdAt: 'DESC' },
+      relations: ['user'], // Include user relation to show who added each profile
     });
   }
 
@@ -273,9 +288,11 @@ export class MonitoringService {
   async getProfile(
     profileId: string,
     userId: string,
+    tenantId: string,
   ): Promise<MonitoredProfile> {
+    // this.logger.log(`Getting profile ${profileId} for user ${userId} and tenant ${tenantId}`);
     const profile = await this.monitoredProfileRepository.findOne({
-      where: { id: profileId, userId },
+      where: { id: profileId, tenantId },
     });
 
     if (!profile) {
@@ -358,7 +375,7 @@ export class MonitoringService {
 
       // Add minimal delay to prevent overwhelming Redis
       if (enqueuedCount < profiles.length) {
-        await new Promise(resolve => setTimeout(resolve, STAGGER_DELAY_MS));
+        await new Promise((resolve) => setTimeout(resolve, STAGGER_DELAY_MS));
       }
     }
 
@@ -372,11 +389,12 @@ export class MonitoringService {
   async getProfileWithStats(
     profileId: string,
     userId: string,
+    tenantId: string,
   ): Promise<{
     profile: MonitoredProfile;
     stats: any;
   }> {
-    const profile = await this.getProfile(profileId, userId);
+    const profile = await this.getProfile(profileId, userId, tenantId);
     const stats = await this.tweetsService.getTweetStats(profileId);
 
     return { profile, stats };

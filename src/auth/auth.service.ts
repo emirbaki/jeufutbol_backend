@@ -8,6 +8,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { EmailService } from '../email/email.service';
+import { Tenant } from '../entities/tenant.entity';
+import { UserRole } from './user-role.enum';
 import { User } from '../entities/user.entity';
 import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
@@ -17,15 +19,18 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Tenant)
+    private tenantRepository: Repository<Tenant>,
     private emailService: EmailService,
     private jwtService: JwtService,
-  ) { }
+  ) {}
 
   async register(
     email: string,
     password: string,
     firstName: string,
     lastName: string,
+    organizationName: string,
   ) {
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
@@ -37,6 +42,23 @@ export class AuthService {
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create Tenant
+    // Simple slug generation: lowercase, replace spaces with dashes, remove non-alphanumeric
+    let subdomain = organizationName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    // Ensure subdomain is unique (simple check, might need retry logic in prod)
+    const existingTenant = await this.tenantRepository.findOne({
+      where: { subdomain },
+    });
+    if (existingTenant) {
+      subdomain = `${subdomain}-${uuidv4().substring(0, 4)}`;
+    }
+
+    const tenant = this.tenantRepository.create({
+      name: organizationName,
+      subdomain: subdomain,
+    });
+    await this.tenantRepository.save(tenant);
 
     // Generate verification token
     const verificationToken = uuidv4();
@@ -52,6 +74,9 @@ export class AuthService {
       verificationToken,
       verificationTokenExpiry,
       isVerified: false,
+      tenant: tenant, // Assign to new tenant
+      tenantId: tenant.id,
+      role: UserRole.ADMIN, // Creator is always ADMIN
     });
 
     await this.userRepository.save(user);
@@ -103,7 +128,10 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    const user = await this.userRepository.findOne({ where: { email } });
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['tenant'],
+    });
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -136,8 +164,7 @@ export class AuthService {
     if (!user) {
       // Don't reveal if user exists for security
       return {
-        message:
-          'This user is not registered with us.',
+        message: 'This user is not registered with us.',
       };
     }
 
@@ -226,7 +253,10 @@ export class AuthService {
   }
 
   async validateUser(userId: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['tenant'],
+    });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }

@@ -44,6 +44,8 @@ services:
       - uploads_data:/var/www/uploads 
     environment:
       - UPLOAD_DIR=/var/www/uploads
+    networks:  # <--- CRITICAL: Must be indented under 'server'
+    - dokploy-network
 volumes:
   uploads_data:
 # The commented out section below is an example of how to define a PostgreSQL
@@ -79,3 +81,6 @@ volumes:
 #   db-password:
 #     file: db/password.txt
 
+networks:
+  dokploy-network:
+    external: true

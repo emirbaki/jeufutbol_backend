@@ -7,31 +7,56 @@ import helmet from 'helmet';
 // import * as fs from 'fs';
 
 async function bootstrap() {
+  // Force ONNX Runtime to use CPU (must be set BEFORE any models load)
+  process.env.ONNXRUNTIME_DEVICE = 'cpu';
+  process.env.ONNXRUNTIME_PROVIDER = 'CPUExecutionProvider';
+
   // const httpsOptions = {
   //   key: fs.readFileSync('./cert/key.pem'),
   //   cert: fs.readFileSync('./cert/cert.pem'),
   // };
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+  });
   app.enableCors({
-    origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
+    origin: [
+      'http://localhost:4000',
+      'http://localhost:4200',
+      'https://jeufutbol.com.tr',
+      'https://www.jeufutbol.com.tr',
+      /^https:\/\/[a-zA-Z0-9-]+\.jeufutbol\.com\.tr$/,
+      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4200$/,
+      /^http:\/\/[a-zA-Z0-9-]+\.localhost:4000$/,
+    ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Subdomain'],
+    exposedHeaders: ['X-Tenant-Subdomain'],
+    maxAge: 3600, // Cache preflight for 1 hour
   });
   app.setGlobalPrefix('api');
 
-  app.use(helmet({
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: {
-      directives: {
-        imgSrc: [`'self'`, 'data:', 'apollo-server-landing-page.cdn.apollographql.com'],
-        scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
-        manifestSrc: [`'self'`, 'apollo-server-landing-page.cdn.apollographql.com'],
-        frameSrc: [`'self'`, 'sandbox.embed.apollographql.com'],
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          imgSrc: [
+            `'self'`,
+            'data:',
+            'apollo-server-landing-page.cdn.apollographql.com',
+          ],
+          scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
+          manifestSrc: [
+            `'self'`,
+            'apollo-server-landing-page.cdn.apollographql.com',
+          ],
+          frameSrc: [`'self'`, 'sandbox.embed.apollographql.com'],
+        },
       },
-    },
-  }));
-
-
+    }),
+  );
 
   // Enable validation
   app.useGlobalPipes(

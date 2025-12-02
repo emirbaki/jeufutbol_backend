@@ -16,6 +16,8 @@ import {
   TrendAnalysisTool,
   ContentSuggestionTool,
 } from './tools/post-generator.tool';
+
+import { PostsService } from '../post/post.service';
 import { QUEUE_NAMES, AI_INSIGHTS_JOBS } from '../queue/queue.config';
 import {
   GenerateInsightsJobData,
@@ -25,6 +27,7 @@ import {
 
 export interface GenerateInsightsDto {
   userId: string;
+  tenantId: string;
   topic?: string;
   llmProvider?: LLMProvider;
   useVectorSearch?: boolean;
@@ -53,12 +56,78 @@ export class AIInsightsService {
     private insightRepository: Repository<Insight>,
     private vectorDbService: VectorDbService,
     private llmService: LLMService,
+    private postsService: PostsService,
     @InjectQueue(QUEUE_NAMES.AI_INSIGHTS)
     private aiInsightsQueue: Queue,
   ) { }
 
   /**
-   * Index tweets to vector database
+   * Index tweets to vector database (Queue-based - returns job ID)
+   */
+  async queueIndexTweets(profileId: string): Promise<{ jobId: string }> {
+    const jobData: IndexTweetsJobData = { profileId };
+
+    const job = await this.aiInsightsQueue.add(
+      AI_INSIGHTS_JOBS.INDEX_TWEETS,
+      jobData,
+      {
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.log(
+      `Enqueued tweet indexing job ${job.id} for profile ${profileId}`,
+    );
+
+    return { jobId: job.id || '' };
+  }
+
+  /**
+   * Queue tweet indexing for ALL profiles in a tenant
+   */
+  async queueIndexAllTweets(
+    tenantId: string,
+  ): Promise<{ jobIds: string[]; profileCount: number }> {
+    // Get all active profiles for this tenant
+    const profiles = await this.monitoredProfileRepository.find({
+      where: { tenantId, isActive: true },
+    });
+
+    if (profiles.length === 0) {
+      this.logger.warn(`No active profiles found for tenant ${tenantId}`);
+      return { jobIds: [], profileCount: 0 };
+    }
+
+    const jobIds: string[] = [];
+
+    // Queue a job for each profile
+    for (const profile of profiles) {
+      const jobData: IndexTweetsJobData = { profileId: profile.id };
+
+      const job = await this.aiInsightsQueue.add(
+        AI_INSIGHTS_JOBS.INDEX_TWEETS,
+        jobData,
+        {
+          removeOnComplete: 100,
+          removeOnFail: 500,
+        },
+      );
+
+      if (job.id) {
+        jobIds.push(job.id);
+      }
+    }
+
+    this.logger.log(
+      `Enqueued ${jobIds.length} tweet indexing jobs for tenant ${tenantId} (${profiles.length} profiles)`,
+    );
+
+    return { jobIds, profileCount: profiles.length };
+  }
+
+  /**
+   * Index tweets to vector database (Internal - called by processor or directly)
    */
   async indexTweetsToVectorDb(profileId: string): Promise<number> {
     try {
@@ -108,21 +177,27 @@ export class AIInsightsService {
 
         // Mark tweets as indexed
         await this.tweetRepository.update(
-          batch.map(t => t.id),
-          { isIndexedInVector: true }
+          batch.map((t) => t.id),
+          { isIndexedInVector: true },
         );
 
         totalIndexed += documents.length;
 
-        this.logger.log(`Indexed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tweets.length / BATCH_SIZE)} (${documents.length} tweets)`);
+        this.logger.log(
+          `Indexed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tweets.length / BATCH_SIZE)} (${documents.length} tweets)`,
+        );
 
         // Add delay between batches (except for last batch)
         if (i + BATCH_SIZE < tweets.length) {
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+          await new Promise((resolve) =>
+            setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS),
+          );
         }
       }
 
-      this.logger.log(`✓ Successfully indexed ${totalIndexed} new tweets for profile to vector DB`);
+      this.logger.log(
+        `✓ Successfully indexed ${totalIndexed} new tweets for profile to vector DB`,
+      );
       return totalIndexed;
     } catch (error) {
       this.logger.error(`Failed to index tweets: ${error.message}`);
@@ -133,9 +208,7 @@ export class AIInsightsService {
   /**
    * Generate AI insights for a user (Queue-based - returns job ID)
    */
-  async generateInsights(
-    dto: GenerateInsightsDto,
-  ): Promise<{ jobId: string }> {
+  async generateInsights(dto: GenerateInsightsDto): Promise<{ jobId: string }> {
     const jobData: GenerateInsightsJobData = dto;
 
     const job = await this.aiInsightsQueue.add(
@@ -157,17 +230,15 @@ export class AIInsightsService {
   /**
    * Generate AI insights for a user (Internal - called by processor)
    */
-  async generateInsightsInternal(
-    dto: GenerateInsightsDto,
-  ): Promise<Insight[]> {
+  async generateInsightsInternal(dto: GenerateInsightsDto): Promise<Insight[]> {
     const { userId, topic, llmProvider, useVectorSearch } = dto;
 
     try {
       this.logger.log(`Generating insights for user ${userId}`);
 
-      // Get user's monitored profiles
+      // Get organization's monitored profiles (all profiles in the tenant)
       const profiles = await this.monitoredProfileRepository.find({
-        where: { userId, isActive: true },
+        where: { tenantId: dto.tenantId, isActive: true },
       });
 
       if (profiles.length === 0) {
@@ -188,13 +259,19 @@ export class AIInsightsService {
             relevantTweets = await this.tweetRepository.find({
               where: { id: In(tweetIds) },
             });
-            this.logger.log(`Found ${relevantTweets.length} tweets via vector search for topic: "${topic}"`);
+            this.logger.log(
+              `Found ${relevantTweets.length} tweets via vector search for topic: "${topic}"`,
+            );
           } else {
-            this.logger.warn(`No vector search results for topic: "${topic}", falling back to recent tweets`);
+            this.logger.warn(
+              `No vector search results for topic: "${topic}", falling back to recent tweets`,
+            );
             relevantTweets = [];
           }
         } catch (error) {
-          this.logger.error(`Vector search failed: ${error.message}, falling back to recent tweets`);
+          this.logger.error(
+            `Vector search failed: ${error.message}, falling back to recent tweets`,
+          );
           relevantTweets = [];
         }
 
@@ -211,7 +288,9 @@ export class AIInsightsService {
             order: { createdAt: 'DESC' },
             take: 100,
           });
-          this.logger.log(`Using ${relevantTweets.length} recent tweets as fallback`);
+          this.logger.log(
+            `Using ${relevantTweets.length} recent tweets as fallback`,
+          );
         }
       } else {
         // Get recent tweets (last 7 days)
@@ -238,6 +317,7 @@ export class AIInsightsService {
       const insights = await this.analyzeWithLLM(
         relevantTweets,
         userId,
+        dto.tenantId,
         topic,
         llmProvider,
       );
@@ -259,6 +339,7 @@ export class AIInsightsService {
   private async analyzeWithLLM(
     tweets: Tweet[],
     userId: string,
+    tenantId: string,
     topic?: string,
     llmProvider?: LLMProvider,
   ): Promise<Insight[]> {
@@ -315,6 +396,7 @@ Content should be in Turkish.
       return parsedInsights.map((data: any) => {
         const insight = new Insight();
         insight.userId = userId;
+        insight.tenantId = tenantId; // Add tenantId!
         insight.type = data.type as InsightType;
         insight.title = data.title;
         insight.description = data.description;
@@ -332,9 +414,7 @@ Content should be in Turkish.
   /**
    * Generate post template (Queue-based - returns job ID)
    */
-  async generatePostTemplate(
-    dto: PostTemplateDto,
-  ): Promise<{ jobId: string }> {
+  async generatePostTemplate(dto: PostTemplateDto): Promise<{ jobId: string }> {
     const jobData: GeneratePostJobData = dto;
 
     const job = await this.aiInsightsQueue.add(
@@ -627,13 +707,19 @@ Return as a JSON array of strings, no additional formatting.`;
   }
 
   /**
-   * Get insights for a user
+   * Get insights for a user's organization
    */
-  async getInsightsForUser(userId: string, limit = 20): Promise<Insight[]> {
+  async getInsightsForUser(
+    userId: string,
+    tenantId: string,
+    limit = 20,
+  ): Promise<Insight[]> {
+    // Get ALL insights from the organization (not just the user's insights)
     return this.insightRepository.find({
-      where: { userId },
+      where: { tenantId },
       order: { relevanceScore: 'DESC', createdAt: 'DESC' },
       take: limit,
+      relations: ['user'], // Include user relation to show who created each insight
     });
   }
 

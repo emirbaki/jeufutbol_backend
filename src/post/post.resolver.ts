@@ -1,5 +1,7 @@
-import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+
+import { Resolver, Query, Mutation, Args, Int, Subscription } from '@nestjs/graphql';
+import { Inject, UseGuards } from '@nestjs/common';
+import { PubSub } from 'graphql-subscriptions';
 import { PostsService } from './post.service';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -10,7 +12,10 @@ import { CreatePostInput } from 'src/graphql/inputs/post.input';
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class PostsResolver {
-  constructor(private postsService: PostsService) {}
+  constructor(
+    private postsService: PostsService,
+    @Inject('PUB_SUB') private readonly pubSub: PubSub,
+  ) { }
 
   @Mutation(() => Post)
   async createPost(
@@ -21,7 +26,7 @@ export class PostsResolver {
     const _scheduledFor = input.scheduledFor
       ? new Date(input.scheduledFor)
       : null;
-    return this.postsService.createPost(user.id, {
+    return this.postsService.createPost(user.id, user.tenantId, {
       ...input,
       platformSpecificContent: input.platformSpecificContent,
       scheduledFor: _scheduledFor,
@@ -34,7 +39,7 @@ export class PostsResolver {
     @CurrentUser() user: User,
     @Args('limit', { type: () => Int, nullable: true }) limit?: number,
   ): Promise<Post[]> {
-    return this.postsService.getUserPosts(user.id, limit);
+    return this.postsService.getUserPosts(user.id, user.tenantId, limit);
   }
 
   @Query(() => Post)
@@ -42,7 +47,7 @@ export class PostsResolver {
     @CurrentUser() user: User,
     @Args('postId') postId: string,
   ): Promise<Post> {
-    return this.postsService.getPost(postId, user.id);
+    return this.postsService.getPost(postId, user.id, user.tenantId);
   }
 
   @Mutation(() => Post)
@@ -52,10 +57,10 @@ export class PostsResolver {
     // @Args('input') input: Partial<CreatePostDto>,
     @Args('input', { type: () => UpdatePostInput }) input: UpdatePostInput,
   ): Promise<Post> {
-    return this.postsService.updatePost(postId, user.id, {
+    return this.postsService.updatePost(postId, user.id, user.tenantId, {
       ...input,
       platformSpecificContent: input.platformSpecificContent,
-      // ? JSON.parse(input.platformSpecificContent): undefined,
+      scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : input.scheduledFor,
     });
   }
 
@@ -64,7 +69,7 @@ export class PostsResolver {
     @CurrentUser() user: User,
     @Args('postId') postId: string,
   ): Promise<boolean> {
-    return this.postsService.deletePost(postId, user.id);
+    return this.postsService.deletePost(postId, user.id, user.tenantId);
   }
 
   @Mutation(() => Post)
@@ -72,6 +77,39 @@ export class PostsResolver {
     @CurrentUser() user: User,
     @Args('postId') postId: string,
   ): Promise<Post> {
-    return this.postsService.publishPost(postId, user.id);
+    return this.postsService.publishPost(postId, user.id, user.tenantId);
+  }
+
+  @Mutation(() => Post)
+  async retryPublishPost(
+    @CurrentUser() user: User,
+    @Args('postId') postId: string,
+  ): Promise<Post> {
+    return this.postsService.retryPublishPost(postId, user.id, user.tenantId);
+  }
+
+  @Mutation(() => Boolean)
+  async testPublish(
+    @CurrentUser() user: User,
+  ): Promise<boolean> {
+    console.log('Test publish triggered by user:', user.id);
+    const testPost: any = {
+      id: 'test-123',
+      content: 'Test post',
+      status: 'DRAFT',
+      tenantId: user.tenantId,
+      userId: user.id,
+      targetPlatforms: [],
+      createdAt: new Date(),
+    };
+
+    await this.pubSub.publish('postUpdated', { postUpdated: testPost });
+    console.log('Published test event');
+    return true;
+  }
+
+  @Subscription(() => Post)
+  postUpdated() {
+    return this.pubSub.asyncIterableIterator('postUpdated');
   }
 }

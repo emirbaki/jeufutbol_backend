@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChromaClient } from 'chromadb';
-
+// Server-side embeddings are used - no client-side embedding function needed
+import { env } from '@xenova/transformers';
 export interface VectorDocument {
   id: string;
   content: string;
@@ -30,7 +31,25 @@ export class VectorDbService implements OnModuleInit {
   private chromaClient: ChromaClient;
   private readonly collectionName = 'tweets_collection';
 
-  constructor(private configService: ConfigService) { }
+  constructor(private configService: ConfigService) {
+    if (process.env.XENOVA_CACHE_DIR) {
+      this.logger.log(`Setting Transformer Cache Dir to: ${process.env.XENOVA_CACHE_DIR}`);
+
+      env.cacheDir = process.env.XENOVA_CACHE_DIR;
+      this.logger.log(`Transformer Cache Dir: ${env.cacheDir}`);
+    } else {
+      this.logger.warn('XENOVA_CACHE_DIR not set! Using default node_modules (Risk of data loss)');
+    }
+
+    // Force CPU usage for ONNX Runtime (fixes "Specified device is not supported" error)
+    env.backends.onnx.wasm.numThreads = 1;
+    env.backends.onnx.wasm.simd = true;
+
+    // Disable GPU to force CPU execution
+    process.env.ONNXRUNTIME_DEVICE = 'cpu';
+
+    this.logger.log('Configured transformers to use CPU for embeddings');
+  }
 
   async onModuleInit() {
     await this.initializeChroma();
@@ -49,13 +68,15 @@ export class VectorDbService implements OnModuleInit {
 
       this.logger.log(`Connecting to ChromaDB at ${chromaHost}:${chromaPort}`);
 
-      // Create or get collection (uses default all-MiniLM-L6-v2 embeddings)
+      // Don't specify embedding function - let ChromaDB server handle it
+      // This avoids ONNX Runtime device issues on the client side
       try {
         await this.chromaClient.createCollection({
           name: this.collectionName,
           metadata: { description: 'Social media tweets collection' },
+          // No embeddingFunction - server handles it
         });
-        this.logger.log('ChromaDB collection created');
+        this.logger.log('ChromaDB collection created (server-side embeddings)');
       } catch (error) {
         if (error.message?.includes('already exists')) {
           this.logger.log('ChromaDB collection already exists');

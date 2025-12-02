@@ -5,7 +5,7 @@ import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';
 import axios from 'axios';
-// import fs from 'fs';
+import { isVideoFile, getMimeType } from '../utils/media-utils';
 @Injectable()
 export class XPostGateway implements PostGateway {
   private readonly logger = new Logger(XPostGateway.name);
@@ -42,48 +42,39 @@ export class XPostGateway implements PostGateway {
     media?: string[],
   ): Promise<any> {
     try {
-      // this.twitterClient = new TwitterApi({
-      //   appKey: process.env.X_API_KEY!,
-      //   appSecret: process.env.X_API_SECRET!,
-      //   accessToken: access_token,
-      //   accessSecret: access_secret!,
-      // });
       this.twitterClient = new TwitterApi(access_token);
       const uploadStrings: string[] = [];
-      if (media !== undefined && media.length > 4) {
-        this.logger.log(`[X] A tweet only can have 4 images:`);
-      }
 
+      // Twitter supports max 4 images OR 1 video (not mixed)
       if (media && media.length > 0) {
-        // upload up to 4 media items sequentially
-        const toUpload = media.slice(0, 4);
-        for (const mediaString of toUpload) {
-          // const mediaBuffer = fs.readFileSync(mediaString);
-          const fileType =
-            mediaString.endsWith('.jpg') || mediaString.endsWith('.jpeg')
-              ? 'image/jpeg'
-              : 'video/mp4';
-          this.logger.log(`[X] media type: ${fileType}`);
+        // Detect if any media is video
+        const hasVideo = media.some((url) => isVideoFile(url));
 
-          const downStream = await axios({
-            method: 'GET',
-            responseType: 'arraybuffer',
-            url: mediaString,
-          }).catch((error) => {
-            this.logger.error('Download failed:', error);
-            throw error; // better throw than silently send in your context
-          });
+        if (hasVideo) {
+          // Video upload - only upload the first video
+          if (media.length > 1) {
+            this.logger.warn(
+              `[X] Only one video allowed per tweet. Using first video only.`,
+            );
+          }
+          const videoUrl = media.find((url) => isVideoFile(url));
+          if (videoUrl) {
+            const mediaId = await this.uploadMedia(videoUrl);
+            uploadStrings.push(mediaId);
+          }
+        } else {
+          // Image upload - up to 4 images
+          const imagesToUpload = media.slice(0, 4);
+          if (media.length > 4) {
+            this.logger.warn(
+              `[X] Maximum 4 images allowed per tweet. Using first 4 images.`,
+            );
+          }
 
-          const buffer = Buffer.from(downStream.data);
-
-          this.logger.log(`[X] buffered media size: ${buffer.byteLength}`);
-
-          const res = await this.twitterClient.v2.uploadMedia(buffer, {
-            media_type: fileType,
-          });
-
-          this.logger.log(`[X] Uploaded media ID: ${res}`);
-          uploadStrings.push(res);
+          for (const imageUrl of imagesToUpload) {
+            const mediaId = await this.uploadMedia(imageUrl);
+            uploadStrings.push(mediaId);
+          }
         }
       }
 
@@ -91,6 +82,7 @@ export class XPostGateway implements PostGateway {
       if (uploadStrings.length > 0) {
         payload.media = { media_ids: uploadStrings };
       }
+
       const _post = await this.twitterClient.v2.tweet(payload);
       const details = await this.rettiwt.tweet.details(_post.data.id);
 
@@ -106,6 +98,54 @@ export class XPostGateway implements PostGateway {
         err.detail || err.message || JSON.stringify(err),
       );
       throw err;
+    }
+  }
+
+  /**
+   * Upload media (image or video) to Twitter
+   */
+  private async uploadMedia(mediaUrl: string): Promise<string> {
+    try {
+      const mimeType = getMimeType(mediaUrl);
+      this.logger.log(`[X] Uploading media: ${mediaUrl} (${mimeType})`);
+
+      // Download media
+      const downStream = await axios({
+        method: 'GET',
+        responseType: 'arraybuffer',
+        url: mediaUrl,
+      }).catch((error) => {
+        this.logger.error(`[X] Download failed for ${mediaUrl}:`, error.message);
+        throw new Error(`Failed to download media: ${error.message}`);
+      });
+
+      const buffer = Buffer.from(downStream.data);
+      const fileSizeBytes = buffer.byteLength;
+      const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+
+      this.logger.log(`[X] Media size: ${fileSizeMB}MB`);
+
+      // Validate file size
+      const isVideo = isVideoFile(mediaUrl);
+      const maxSizeBytes = isVideo ? 512 * 1024 * 1024 : 5 * 1024 * 1024; // 512MB for video, 5MB for images
+
+      if (fileSizeBytes > maxSizeBytes) {
+        const maxSizeMB = maxSizeBytes / (1024 * 1024);
+        throw new Error(
+          `File size (${fileSizeMB}MB) exceeds Twitter's ${maxSizeMB}MB limit for ${isVideo ? 'videos' : 'images'}`,
+        );
+      }
+
+      // Upload to Twitter
+      const mediaId = await this.twitterClient.v2.uploadMedia(buffer, {
+        media_type: mimeType as any,
+      });
+
+      this.logger.log(`[X] Uploaded media ID: ${mediaId}`);
+      return mediaId;
+    } catch (error: any) {
+      this.logger.error(`[X] Media upload error: ${error.message}`);
+      throw error;
     }
   }
 }

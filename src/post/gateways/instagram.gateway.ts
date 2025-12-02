@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
-import { PostGateway } from './post-base.gateway';
+import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
+import { isVideoFile, getMediaType } from '../utils/media-utils';
 
 const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0';
 
 @Injectable()
-export class InstagramPostGateway implements PostGateway {
+export class InstagramPostGateway extends AsyncPostGateway {
   private readonly logger = new Logger(InstagramPostGateway.name);
 
   async notifyPostPublished(
@@ -54,6 +55,30 @@ export class InstagramPostGateway implements PostGateway {
           throw err;
         });
       const accountID = accountID_response.data.user_id;
+
+      // Detect if media contains videos
+      const hasVideo = media?.some((url) => isVideoFile(url)) || false;
+
+      if (hasVideo) {
+        // Instagram doesn't support mixed media (video + images)
+        // If there's a video, only process the first video as a Reel
+        const videoUrl = media!.find((url) => isVideoFile(url));
+
+        if (media!.length > 1) {
+          this.logger.warn(
+            `[Instagram] Mixed media or multiple videos not supported. Using first video as Reel.`,
+          );
+        }
+
+        return await this.publishReelAsync(
+          accountID,
+          videoUrl!,
+          content,
+          access_token,
+        );
+      }
+
+      // Image post flow (existing carousel/single image logic)
       //creating multiple media containers for carousel posts or single media post
       for (const url of media!) {
         this.logger.log(`[Instagram] Media URL: ${accountID}`);
@@ -133,7 +158,7 @@ export class InstagramPostGateway implements PostGateway {
           `https://graph.instagram.com/v24.0/${publish.data.id}`,
           {
             params: {
-              fields: 'media_url',
+              fields: 'permalink',
               access_token: access_token,
             },
           },
@@ -141,7 +166,7 @@ export class InstagramPostGateway implements PostGateway {
         await new Promise((resolve, reject) => {
           setTimeout(() => resolve('Promise is resolved'), 1000);
         });
-        return { id: publish.data.id, url: postUrl.data.media_url };
+        return { id: publish.data.id, url: postUrl.data.permalink };
       } else {
         // Step 2: Create a media container
         const mediaCreation = await axios
@@ -194,7 +219,7 @@ export class InstagramPostGateway implements PostGateway {
           `https://graph.instagram.com/v24.0/${publish.data.id}`,
           {
             params: {
-              fields: 'media_url',
+              fields: 'permalink',
               access_token: access_token,
             },
           },
@@ -203,7 +228,7 @@ export class InstagramPostGateway implements PostGateway {
           setTimeout(() => resolve('Promise is resolved'), 1000);
         });
 
-        return { id: publish.data.id, url: postUrl.data.media_url };
+        return { id: publish.data.id, url: postUrl.data.permalink };
       }
     } catch (err: any) {
       await this.notifyPostFailed('unknown', err.message);
@@ -212,23 +237,18 @@ export class InstagramPostGateway implements PostGateway {
   }
 
   /**
-   * Polls the Instagram Graph API to check the processing status of a media container.
-   * Throws an error if the container fails processing or times out.
-   * * @param containerId The ID of the media container (child or parent carousel).
-   * @param accessToken The access token.
-   * @param logger Your logging instance (e.g., this.logger in NestJS).
+   * Synchronous polling for image containers (images process quickly)
+   * Only used for non-video posts
    */
-  async pollMediaContainerStatus(
+  private async pollMediaContainerStatus(
     containerId: string,
     accessToken: string,
     logger: any,
   ): Promise<void> {
-    const MAX_ATTEMPTS = 12; // Max wait time of 60 seconds (12 * 5s)
+    const MAX_ATTEMPTS = 12;
     const DELAY_MS = 5000;
-    const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0'; // Define if not globally available
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      // 1. Wait 5 seconds before the check
       if (attempt > 0) {
         await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
       }
@@ -238,9 +258,8 @@ export class InstagramPostGateway implements PostGateway {
       );
 
       try {
-        // 2. GET the container status
         const statusResponse = await axios.get(
-          `${GRAPH_API_BASE}/${containerId}`, // Note: using the containerId here
+          `${GRAPH_API_BASE}/${containerId}`,
           {
             params: {
               fields: 'status_code',
@@ -255,7 +274,7 @@ export class InstagramPostGateway implements PostGateway {
           logger.log(
             `[Instagram] Container ${containerId} status is FINISHED. Ready to publish.`,
           );
-          return; // Exit successfully!
+          return;
         }
 
         if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
@@ -263,13 +282,10 @@ export class InstagramPostGateway implements PostGateway {
             `Media container ${containerId} failed processing with status: ${statusCode}.`,
           );
         }
-
-        // If IN_PROGRESS, loop again
-      } catch (error) {
+      } catch (error: any) {
         logger.error(
           `[Instagram] Polling failed for ${containerId}: ${error.message}`,
         );
-        // Re-throw if it's a critical error (like token expiry)
         throw error;
       }
     }
@@ -278,4 +294,184 @@ export class InstagramPostGateway implements PostGateway {
       `Media container ${containerId} timed out after ${(MAX_ATTEMPTS * DELAY_MS) / 1000} seconds. Status still IN_PROGRESS.`,
     );
   }
+
+  /**
+   * Check publish status for Instagram Reels (async polling)
+   */
+  async checkPublishStatus(
+    containerId: string,
+    access_token: string,
+  ): Promise<AsyncPublishStatus> {
+    try {
+      const statusResponse = await axios.get(
+        `${GRAPH_API_BASE}/${containerId}`,
+        {
+          params: {
+            fields: 'status_code',
+            access_token: access_token,
+          },
+        },
+      );
+
+      const statusCode = statusResponse.data.status_code;
+
+      this.logger.log(
+        `[Instagram] Container ${containerId} status: ${statusCode}`,
+      );
+
+      return {
+        status: statusCode, // FINISHED, IN_PROGRESS, ERROR, EXPIRED
+        postId: undefined, // Will be set after publishing
+        postUrl: undefined, // Will be set after publishing
+        failReason: statusCode === 'ERROR' || statusCode === 'EXPIRED' ? 'Container processing failed' : undefined,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `[Instagram] Status check error for ${containerId}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Publish a video as Instagram Reel (async - returns container ID for polling)
+   */
+  private async publishReelAsync(
+    accountID: string,
+    videoUrl: string,
+    caption: string,
+    access_token: string,
+  ): Promise<any> {
+    try {
+      this.logger.log(`[Instagram] Creating Reel container with video: ${videoUrl}`);
+
+      // Step 1: Create video container
+      const mediaContainer = await axios
+        .post(
+          `${GRAPH_API_BASE}/${accountID}/media`,
+          {
+            media_type: 'REELS',
+            video_url: videoUrl,
+            caption: caption,
+            share_to_feed: true, // Set to true if you want Reel to appear in feed
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${access_token}`,
+            },
+          },
+        )
+        .catch((err) => {
+          const errortext = JSON.stringify(err.toJSON());
+          const req = err.request;
+          this.logger.error('Request:', req && req._header);
+          this.logger.error(
+            `[Instagram] Error creating video container: ${errortext || err.message}`,
+          );
+          throw err;
+        });
+
+      const containerId = mediaContainer.data.id;
+      this.logger.log(`[Instagram] Video Container ID: ${containerId} - will poll asynchronously`);
+
+      // Return container ID for async polling
+      return {
+        id: containerId,
+        url: null, // Will be set by polling processor
+        publish_id: containerId, // Container ID is the publish_id
+        accountID: accountID, // Store for later publishing
+      };
+    } catch (err: any) {
+      this.logger.error(`[Instagram] Reel container creation failed: ${err.message}`);
+      throw err;
+    }
+  }
+
+  /**
+   * Complete the publish after container is ready (FINISHED)
+   * This is called by the async polling processor
+   */
+  async completePublish(
+    containerId: string,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): Promise<{ postId?: string; postUrl?: string }> {
+    try {
+      const accountID = metadata.accountID;
+
+      if (!accountID) {
+        throw new Error('Missing accountID in metadata for Instagram publish');
+      }
+
+      this.logger.log(
+        `[Instagram] Publishing container ${containerId} for account ${accountID}`,
+      );
+
+      // Publish the container
+      const publish = await axios.post(
+        `${GRAPH_API_BASE}/${accountID}/media_publish`,
+        {
+          creation_id: containerId,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${access_token}`,
+          },
+        },
+      );
+
+      const postId = publish.data.id;
+      this.logger.log(`[Instagram] Reel published successfully: ${postId}`);
+
+      // Get permalink
+      const postUrl = await axios.get(
+        `${GRAPH_API_BASE}/${postId}`,
+        {
+          params: {
+            fields: 'permalink',
+            access_token: access_token,
+          },
+        },
+      );
+
+      return {
+        postId: postId,
+        postUrl: postUrl.data.permalink,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `[Instagram] Failed to publish container ${containerId}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get polling job data for Instagram Reels async uploads
+   */
+  getPollingJobData(
+    publishedPost: any,
+    result: any,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): AsyncPollingJobData | null {
+    // Only create polling job if publish_id (container ID) is present
+    if (!result.publish_id) {
+      return null;
+    }
+
+    return {
+      publishedPostId: publishedPost.id,
+      publish_id: result.publish_id,
+      access_token: access_token,
+      platform: PlatformType.INSTAGRAM,
+      metadata: {
+        accountID: result.accountID,
+        mediaType: 'video',
+      },
+    };
+  }
+
 }

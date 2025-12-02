@@ -11,6 +11,7 @@ import { PostModule } from './post/post.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { JwtService } from '@nestjs/jwt';
 import { UploadService } from './upload/upload.service';
 import { UploadController } from './upload/upload.controller';
 import { StaticFilesModule } from './staticfiles/staticfiles.module';
@@ -28,54 +29,68 @@ import { ThrottlerBehindProxyGuard } from './throttle-behind-proxy/throttle-behi
 import { QueueModule } from './queue/queue.module';
 import { RedisCacheModule } from './cache/redis-cache.module';
 import { QueueDashboardModule } from './queue/queue-dashboard.module';
+import { TenancyModule } from './tenancy/tenancy.module';
+import { UserModule } from './user/user.module';
+import { PubSubModule } from './pubsub/pubsub.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    GraphQLModule.forRoot<ApolloDriverConfig>({
+    GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-      playground: false,
-      allowBatchedHttpRequests: false,
-      introspection: process.env.NODE_ENV !== 'production',
-      validationRules: [
-        ...createSecurityValidationRules({
-          maxAliases: 15,
-          maxDirectives: 10,
-        }),
-      ],
-      formatError: (error: any) => {
-        if (process.env.NODE_ENV === 'production') {
-          const code = error.extensions?.code || 'INTERNAL_SERVER_ERROR';
-          // Only mask the message if it's an internal server error
-          if (code === 'INTERNAL_SERVER_ERROR') {
+      imports: [AuthModule],
+      inject: [JwtService],
+      useFactory: (jwtService: JwtService) => ({
+        autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+        playground: false,
+        allowBatchedHttpRequests: false,
+        introspection: process.env.NODE_ENV !== 'production',
+        subscriptions: {
+          'graphql-ws': {
+            onConnect: (context: any) => {
+              const { connectionParams, extra } = context;
+              const token = connectionParams?.Authorization?.replace('Bearer ', '') ||
+                connectionParams?.authorization?.replace('Bearer ', '');
+              if (token) {
+                try {
+                  const user = jwtService.verify(token);
+                  extra.user = user;
+                  extra.token = token;
+                } catch (err) {
+                  console.error('WebSocket auth failed:', err.message);
+                }
+              }
+            },
+          },
+        },
+        context: ({ req, extra }) => {
+          if (extra) {
             return {
-              message: 'Internal Server Error / GTFO',
-              code: code,
-              locations: error.locations,
-              path: error.path,
+              req: {
+                ...req,
+                user: extra.user,
+                headers: {
+                  ...req?.headers,
+                  authorization: extra.token ? `Bearer ${extra.token}` : undefined,
+                },
+              },
             };
           }
-          // For other errors (e.g. validation), return the message
-          return {
-            message: error.message,
-            code: code,
-            locations: error.locations,
-            path: error.path,
-          };
-        }
-        return error;
-      },
-      // cors: {
-      //   origin: ['http://localhost:4200', 'https://jeufutbol.com.tr'],
-      //   credentials: true,
-      // },
-      plugins:
-        process.env.NODE_ENV === 'development'
-          ? [ApolloServerPluginLandingPageLocalDefault()]
-          : [],
+          return { req };
+        },
+        validationRules: [
+          ...createSecurityValidationRules({
+            maxAliases: 15,
+            maxDirectives: 10,
+          }),
+        ],
+        plugins:
+          process.env.NODE_ENV === 'development'
+            ? [ApolloServerPluginLandingPageLocalDefault()]
+            : [],
+      }),
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -104,12 +119,15 @@ import { QueueDashboardModule } from './queue/queue-dashboard.module';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 20,
+        limit: 1000,
       },
     ]),
     QueueModule,
     RedisCacheModule,
     QueueDashboardModule,
+    TenancyModule,
+    UserModule,
+    PubSubModule,
   ],
   controllers: [AppController, UploadController],
   providers: [

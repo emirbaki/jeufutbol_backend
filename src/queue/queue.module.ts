@@ -8,32 +8,35 @@ import { JobResolver } from './job.resolver';
 
 @Global()
 @Module({
-    imports: [
-        BullModule.forRootAsync({
-            imports: [ConfigModule],
-            useFactory: (configService: ConfigService) => {
-                const config = getQueueConfig(configService);
-                return {
-                    connection: config.connection,
-                    defaultJobOptions: config.defaultJobOptions,
-                };
-            },
-            inject: [ConfigService],
-        }),
-        // Register queues
-        BullModule.registerQueue(
-            {
-                name: QUEUE_NAMES.AI_INSIGHTS,
-            },
-            {
-                name: QUEUE_NAMES.TWEET_MONITORING,
-            },
-            {
-                name: QUEUE_NAMES.EMAIL_NOTIFICATIONS,
-            },
-        ),
-    ],
-    providers: [QueueHealthService, JobService, JobResolver],
-    exports: [BullModule, QueueHealthService, JobService],
+  imports: [
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const config = getQueueConfig(configService);
+        return {
+          connection: config.connection,
+          defaultJobOptions: config.defaultJobOptions,
+        };
+      },
+      inject: [ConfigService],
+    }),
+    // Register queues
+    BullModule.registerQueue(
+      {
+        name: QUEUE_NAMES.AI_INSIGHTS,
+      },
+      {
+        name: QUEUE_NAMES.TWEET_MONITORING,
+      },
+      {
+        name: QUEUE_NAMES.EMAIL_NOTIFICATIONS,
+      },
+      {
+        name: QUEUE_NAMES.TIKTOK_POLLING,
+      },
+    ),
+  ],
+  providers: [QueueHealthService, JobService, JobResolver],
+  exports: [BullModule, QueueHealthService, JobService],
 })
 export class QueueModule { }

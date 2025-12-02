@@ -9,6 +9,9 @@ import {
 } from 'typeorm';
 import { Post } from './post.entity';
 import { MonitoredProfile } from './monitored-profile.entity';
+import { Tenant } from './tenant.entity';
+import { ManyToOne, JoinColumn } from 'typeorm';
+import { UserRole } from '../auth/user-role.enum';
 
 @ObjectType() // 👈 This makes it a valid GraphQL type
 @Entity('users')
@@ -65,6 +68,23 @@ export class User {
   posts: Post[];
 
   @Field(() => [MonitoredProfile], { nullable: true })
+  @Field(() => [MonitoredProfile], { nullable: true })
   @OneToMany(() => MonitoredProfile, (profile) => profile.user)
   monitoredProfiles: MonitoredProfile[];
+
+  @Field(() => Tenant, { nullable: true })
+  @ManyToOne(() => Tenant, (tenant) => tenant.users, { nullable: true })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
+
+  @Column({ nullable: true })
+  tenantId: string;
+
+  @Field(() => UserRole)
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  role: UserRole;
 }

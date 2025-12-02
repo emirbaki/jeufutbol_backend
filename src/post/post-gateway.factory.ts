@@ -16,7 +16,8 @@ export class PostGatewayFactory {
   ) { }
 
   getGateway(platform: PlatformType): PostGateway {
-    switch (platform) {
+    const normalizedPlatform = platform.toLowerCase() as PlatformType;
+    switch (normalizedPlatform) {
       case PlatformType.FACEBOOK:
         return this.facebookGateway;
       case PlatformType.INSTAGRAM:
