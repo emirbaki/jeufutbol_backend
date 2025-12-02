@@ -1,7 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChromaClient } from 'chromadb';
-
+// 👇 1. Import 'env' from the library Chroma uses internally
+import { env } from '@xenova/transformers';
+// Note: If you don't have @xenova/transformers installed explicitly, 
+// you might need to install it: npm install @xenova/transformers
 export interface VectorDocument {
   id: string;
   content: string;
@@ -30,7 +33,14 @@ export class VectorDbService implements OnModuleInit {
   private chromaClient: ChromaClient;
   private readonly collectionName = 'tweets_collection';
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) {
+    if (process.env.XENOVA_CACHE_DIR) {
+      this.logger.log(`Setting Transformer Cache Dir to: ${process.env.XENOVA_CACHE_DIR}`);
+      env.cacheDir = process.env.XENOVA_CACHE_DIR;
+    } else {
+      this.logger.warn('XENOVA_CACHE_DIR not set! Using default node_modules (Risk of data loss)');
+    }
+  }
 
   async onModuleInit() {
     await this.initializeChroma();
