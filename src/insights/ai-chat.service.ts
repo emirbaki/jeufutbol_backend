@@ -44,7 +44,7 @@ export class AiChatService {
     private aiInsightsService: AIInsightsService,
     private postsService: PostsService,
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   async createChatSession(
     userId: string,
@@ -93,6 +93,7 @@ export class AiChatService {
     sessionId: string | null,
     message: string,
     llmProvider: LLMProvider = LLMTypes.OPENAI,
+    credentialId?: number,
   ): Promise<{ response: string; sessionId: string }> {
     let currentSessionId = sessionId;
 
@@ -142,7 +143,7 @@ export class AiChatService {
     });
 
     // 4. Initialize Agent
-    const model = await this.llmService.getModel(userId, llmProvider);
+    const model = await this.llmService.getModel(userId, llmProvider, credentialId);
     const tools = [
       PostGeneratorTool.createTool(this.aiInsightsService),
       TrendAnalysisTool.createTool(this.aiInsightsService),

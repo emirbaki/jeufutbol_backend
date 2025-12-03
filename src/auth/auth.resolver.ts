@@ -29,7 +29,7 @@ export class MessageResponse {
 
 @Resolver()
 export class AuthResolver {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
   @Mutation(() => MessageResponse)
   async register(
@@ -83,6 +83,24 @@ export class AuthResolver {
     @CurrentUser() user: User,
   ): Promise<MessageResponse> {
     return await this.authService.resendVerificationEmail(user.email);
+  }
+
+  @Mutation(() => AuthPayload)
+  async acceptInvitation(
+    @Args('token') token: string,
+    @Args('email') email: string,
+    @Args('firstName') firstName: string,
+    @Args('lastName') lastName: string,
+    @Args('password') password: string,
+  ): Promise<AuthPayload> {
+    const { user, accessToken } = await this.authService.acceptInvitation(
+      token,
+      email,
+      firstName,
+      lastName,
+      password,
+    );
+    return { user, accessToken };
   }
 
   @Query(() => User)

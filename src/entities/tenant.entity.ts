@@ -24,6 +24,13 @@ export class Tenant {
   @Column({ unique: true })
   subdomain: string;
 
+  @Field({ nullable: true })
+  @Column({ unique: true, nullable: true })
+  clientId: string;
+
+  @Column({ nullable: true })
+  clientSecretHash: string;
+
   @Field(() => [User], { nullable: true })
   @OneToMany(() => User, (user) => user.tenant)
   users: User[];

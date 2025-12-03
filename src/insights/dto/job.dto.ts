@@ -7,16 +7,18 @@ export interface GenerateInsightsJobData {
   topic?: string;
   llmProvider?: LLMProvider;
   useVectorSearch?: boolean;
+  credentialId?: number;
 }
 
 export interface GeneratePostJobData {
   insights: string[];
-  platform: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
+  platform: 'twitter' | 'instagram' | 'facebook' | 'tiktok';
   tone?: 'professional' | 'casual' | 'humorous' | 'informative' | 'engaging';
   includeHashtags?: boolean;
   includeEmojis?: boolean;
   userId?: string;
   llmProvider?: LLMProvider;
+  credentialId?: number;
 }
 
 export interface IndexTweetsJobData {

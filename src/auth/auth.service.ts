@@ -11,8 +11,12 @@ import { EmailService } from '../email/email.service';
 import { Tenant } from '../entities/tenant.entity';
 import { UserRole } from './user-role.enum';
 import { User } from '../entities/user.entity';
+import { UserInvitation, InvitationStatus } from '../entities/user-invitation.entity';
 import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
+import { ApiKey } from '../entities/api-key.entity';
+import * as crypto from 'crypto';
+import { ApiKeyScope } from './api-key-scopes.enum';
 
 @Injectable()
 export class AuthService {
@@ -21,9 +25,13 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
+    @InjectRepository(UserInvitation)
+    private invitationRepository: Repository<UserInvitation>,
+    @InjectRepository(ApiKey)
+    private apiKeyRepository: Repository<ApiKey>,
     private emailService: EmailService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async register(
     email: string,
@@ -57,6 +65,8 @@ export class AuthService {
     const tenant = this.tenantRepository.create({
       name: organizationName,
       subdomain: subdomain,
+      clientId: `jeu_${uuidv4().replace(/-/g, '').substring(0, 16)}`,
+      clientSecretHash: crypto.createHash('sha256').update(crypto.randomBytes(32).toString('hex')).digest('hex'), // Initial secret is lost but can be regenerated
     });
     await this.tenantRepository.save(tenant);
 
@@ -252,6 +262,86 @@ export class AuthService {
     return { message: 'Verification email sent! Please check your inbox.' };
   }
 
+  async acceptInvitation(
+    token: string,
+    email: string,
+    firstName: string,
+    lastName: string,
+    password: string,
+  ) {
+    // Find invitation by token
+    const invitation = await this.invitationRepository.findOne({
+      where: { token },
+      relations: ['tenant'],
+    });
+
+    if (!invitation) {
+      throw new BadRequestException('Invalid invitation token');
+    }
+
+    // Validate invitation status
+    if (invitation.status !== InvitationStatus.PENDING) {
+      throw new BadRequestException(
+        'This invitation is no longer valid. It may have been revoked or already used.',
+      );
+    }
+
+    // Check expiration
+    if (invitation.expiresAt < new Date()) {
+      // Mark as expired
+      invitation.status = InvitationStatus.EXPIRED;
+      await this.invitationRepository.save(invitation);
+      throw new BadRequestException(
+        'This invitation has expired. Please request a new one.',
+      );
+    }
+
+    // Verify email matches
+    if (invitation.email !== email) {
+      throw new BadRequestException('Email does not match invitation');
+    }
+
+    // Check if user already exists
+    const existingUser = await this.userRepository.findOne({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('User with this email already exists');
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user with the invited role and tenant
+    const user = this.userRepository.create({
+      email,
+      passwordHash: hashedPassword,
+      firstName,
+      lastName,
+      isVerified: true, // Auto-verify invited users
+      tenant: invitation.tenant,
+      tenantId: invitation.tenantId,
+      role: invitation.role,
+    });
+
+    await this.userRepository.save(user);
+
+    // Mark invitation as accepted
+    invitation.status = InvitationStatus.ACCEPTED;
+    await this.invitationRepository.save(invitation);
+
+    // Generate JWT token for auto-login
+    const payload = { sub: user.id, email: user.email };
+    const accessToken = this.jwtService.sign(payload);
+
+    return {
+      message: 'Account created successfully! You are now logged in.',
+      accessToken,
+      user,
+    };
+  }
+
   async validateUser(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -261,6 +351,78 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
     return user;
+  }
+
+  async validateApiKey(clientId: string, clientSecret: string): Promise<ApiKey> {
+    // Hash the secret
+    const hashedKey = crypto.createHash('sha256').update(clientSecret).digest('hex');
+
+    const apiKey = await this.apiKeyRepository.findOne({
+      where: { key: hashedKey, isActive: true },
+      relations: ['tenant'],
+    });
+
+    if (!apiKey) {
+      throw new UnauthorizedException('Invalid API Key');
+    }
+
+    // Check if client_id matches keyPrefix (if provided)
+    if (clientId && apiKey.keyPrefix !== clientId) {
+      throw new UnauthorizedException('Invalid Client ID');
+    }
+
+    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
+      throw new UnauthorizedException('API Key expired');
+    }
+
+    return apiKey;
+  }
+
+  async generateAccessTokenForApiKey(apiKey: ApiKey) {
+    const payload = {
+      sub: apiKey.id,
+      type: 'api_key',
+      scope: apiKey.scopes,
+    };
+
+    // Short expiration for access token (e.g. 1 hour)
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '1h' });
+
+    return {
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: 3600,
+    };
+  }
+
+  async validateClientCredentials(clientId: string, clientSecret: string): Promise<Tenant> {
+    const tenant = await this.tenantRepository.findOne({ where: { clientId } });
+    if (!tenant || !tenant.clientSecretHash) {
+      throw new UnauthorizedException('Invalid Client ID');
+    }
+
+    const hash = crypto.createHash('sha256').update(clientSecret).digest('hex');
+    if (hash !== tenant.clientSecretHash) {
+      throw new UnauthorizedException('Invalid Client Secret');
+    }
+
+    return tenant;
+  }
+
+  async generateAccessTokenForTenant(tenant: Tenant, scopes: string[] = []) {
+    const payload = {
+      sub: tenant.id,
+      type: 'tenant_client',
+      scope: scopes.length > 0 ? scopes : [ApiKeyScope.ADMIN], // Default to Admin if no scopes requested
+    };
+
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '1h' });
+
+    return {
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: 3600,
+    };
   }
 }
 export interface JwtPayload {

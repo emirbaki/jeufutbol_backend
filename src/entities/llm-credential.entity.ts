@@ -6,16 +6,21 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Unique,
 } from 'typeorm';
 import { Tenant } from './tenant.entity';
 
 @Entity('llm_credentials')
+@Unique(['userId', 'provider'])
 export class LlmCredential {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'uuid', unique: true })
+  @Column({ type: 'uuid' })
   userId: string;
+
+  @Column({ nullable: true })
+  name: string;
 
   @Column()
   provider: string;

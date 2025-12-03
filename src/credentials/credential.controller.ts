@@ -17,6 +17,11 @@ import { PlatformName } from '../entities/credential.entity';
 import { OAuthService } from './oauth.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
+import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
+import { ApiKeyScopeGuard } from '../auth/guards/api-key-scope.guard';
+import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
+import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
+import { ApiKey } from '../entities/api-key.entity';
 
 @Controller('credentials')
 export class CredentialsController {
@@ -29,20 +34,28 @@ export class CredentialsController {
    * Get OAuth authorization URL (Step 1)
    */
   @Post('oauth/authorize-url')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
+  @RequireScopes('credentials:write')
   async getOAuthUrl(
     @Req() req: Request,
-    @CurrentUser() user: User,
     @Body('platform') platform: PlatformName,
     @Body('credentialName') credentialName: string,
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
   ): Promise<{ authUrl: string; state: string }> {
+    const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+
+    if (!userId) {
+      throw new Error('User context required');
+    }
     const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
     const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
 
     const state = Buffer.from(
       JSON.stringify({
-        userId: user.id,
-        tenantId: user.tenantId,
+        userId,
+        tenantId,
         platform,
         credentialName,
         frontendUrl, // Store origin in state
@@ -131,14 +144,22 @@ export class CredentialsController {
    * Get user's credentials
    */
   @Get()
-  @UseGuards(AuthGuard('jwt'))
+  @Get()
+  @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
+  @RequireScopes('credentials:read')
   async getUserCredentials(
-    @CurrentUser() user: User,
     @Query('platform') platform?: PlatformName,
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
   ) {
+    const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+
+    if (!userId || !tenantId) throw new Error('User context required');
+
     const credentials = await this.credentialsService.getUserCredentials(
-      user.id,
-      user.tenantId,
+      userId,
+      tenantId,
       platform,
     );
 
@@ -161,29 +182,45 @@ export class CredentialsController {
    * Test credential connection
    */
   @Post(':id/test')
-  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/test')
+  @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
+  @RequireScopes('credentials:read')
   async testCredential(
-    @CurrentUser() user: User,
     @Param('id') credentialId: string,
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
   ) {
+    const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+
+    if (!userId || !tenantId) throw new Error('User context required');
+
     const isValid = await this.credentialsService.testConnection(
       credentialId,
-      user.id,
-      user.tenantId,
+      userId,
+      tenantId,
     );
     return { valid: isValid };
   }
 
   @Post(':id/refresh')
-  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/refresh')
+  @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
+  @RequireScopes('credentials:write')
   async refreshTokenByPlatform(
-    @CurrentUser() user: User,
     @Param('credential') credendtialId: string,
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
   ) {
+    const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+
+    if (!userId || !tenantId) throw new Error('User context required');
+
     const refreshToken = await this.credentialsService.refreshAccessToken(
       credendtialId,
-      user.id,
-      user.tenantId,
+      userId,
+      tenantId,
     );
 
     return { refreshToken };
@@ -193,15 +230,23 @@ export class CredentialsController {
    * Delete credential
    */
   @Delete(':id')
-  @UseGuards(AuthGuard('jwt'))
+  @Delete(':id')
+  @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
+  @RequireScopes('credentials:write')
   async deleteCredential(
-    @CurrentUser() user: User,
     @Param('id') credentialId: string,
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
   ) {
+    const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+
+    if (!userId || !tenantId) throw new Error('User context required');
+
     await this.credentialsService.deleteCredential(
       credentialId,
-      user.id,
-      user.tenantId,
+      userId,
+      tenantId,
     );
     return { success: true };
   }

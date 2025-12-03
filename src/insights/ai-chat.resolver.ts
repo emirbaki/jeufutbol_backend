@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -20,7 +20,7 @@ class ChatResponse {
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class AiChatResolver {
-  constructor(private aiChatService: AiChatService) {}
+  constructor(private aiChatService: AiChatService) { }
 
   @Mutation(() => ChatSession)
   async createChatSession(
@@ -49,6 +49,7 @@ export class AiChatResolver {
     @Args('message') message: string,
     @Args('sessionId', { nullable: true }) sessionId?: string,
     @Args('llmProvider', { nullable: true }) llmProvider?: string,
+    @Args('credentialId', { nullable: true, type: () => Int }) credentialId?: number,
   ) {
     return this.aiChatService.chatWithAI(
       user.id,
@@ -56,6 +57,7 @@ export class AiChatResolver {
       sessionId || null,
       message,
       llmProvider as any,
+      credentialId,
     );
   }
 

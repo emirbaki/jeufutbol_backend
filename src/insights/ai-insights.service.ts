@@ -31,16 +31,18 @@ export interface GenerateInsightsDto {
   topic?: string;
   llmProvider?: LLMProvider;
   useVectorSearch?: boolean;
+  credentialId?: number;
 }
 
 export interface PostTemplateDto {
   insights: string[];
-  platform: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
+  platform: 'twitter' | 'instagram' | 'facebook' | 'tiktok';
   tone?: 'professional' | 'casual' | 'humorous' | 'informative' | 'engaging';
   includeHashtags?: boolean;
   includeEmojis?: boolean;
   userId?: string;
   llmProvider?: LLMProvider;
+  credentialId?: number;
 }
 
 @Injectable()
@@ -231,7 +233,7 @@ export class AIInsightsService {
    * Generate AI insights for a user (Internal - called by processor)
    */
   async generateInsightsInternal(dto: GenerateInsightsDto): Promise<Insight[]> {
-    const { userId, topic, llmProvider, useVectorSearch } = dto;
+    const { userId, topic, llmProvider, credentialId, useVectorSearch } = dto;
 
     try {
       this.logger.log(`Generating insights for user ${userId}`);
@@ -320,6 +322,7 @@ export class AIInsightsService {
         dto.tenantId,
         topic,
         llmProvider,
+        credentialId
       );
 
       // Save insights to database
@@ -342,6 +345,7 @@ export class AIInsightsService {
     tenantId: string,
     topic?: string,
     llmProvider?: LLMProvider,
+    credentialId?: number,
   ): Promise<Insight[]> {
     const tweetsSummary = tweets.slice(0, 30).map((t, idx) => ({
       index: idx + 1,
@@ -382,6 +386,7 @@ Content should be in Turkish.
         userId,
         prompt,
         llmProvider || LLMTypes.OPENAI,
+        credentialId,
       );
 
       // Parse LLM response
@@ -450,11 +455,12 @@ Content should be in Turkish.
       includeEmojis = true,
       userId = 'system',
       llmProvider = LLMTypes.OPENAI,
+      credentialId,
     } = dto;
 
     try {
       // Get the LLM model
-      const model = await this.llmService.getModel(userId, llmProvider);
+      const model = await this.llmService.getModel(userId, llmProvider, credentialId);
 
       // Create tools with all three tools including PostGeneratorTool
       const tools = [
@@ -549,9 +555,10 @@ Return as JSON with: content, hashtags (array), estimatedReach
       includeEmojis = true,
       userId = 'system',
       llmProvider = LLMTypes.OPENAI,
+      credentialId,
     } = dto;
 
-    const model = await this.llmService.getModel(userId, llmProvider);
+    const model = await this.llmService.getModel(userId, llmProvider, credentialId);
 
     const prompt = `Generate a compelling social media post for ${platform} using these insights:
 

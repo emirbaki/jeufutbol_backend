@@ -11,9 +11,16 @@ export class EmailService {
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    if (!apiKey) {
+      this.logger.warn('RESEND_API_KEY is not set. Email sending will fail.');
+    }
     this.resend = new Resend(apiKey);
-    this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL')!;
+    this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL') || 'onboarding@resend.dev';
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL_PROD')!;
+
+    if (!this.fromEmail) {
+      this.logger.warn('RESEND_FROM_EMAIL is not set. Using default: onboarding@resend.dev');
+    }
   }
 
   /**
@@ -290,6 +297,114 @@ export class EmailService {
       );
     } catch (error) {
       this.logger.error('Error sending welcome email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send user invitation email
+   */
+  async sendInvitationEmail(
+    email: string,
+    inviterName: string,
+    organizationName: string,
+    invitationToken: string,
+  ): Promise<void> {
+    try {
+      const invitationUrl = `${this.frontendUrl}/auth/accept-invitation?token=${invitationToken}&email=${encodeURIComponent(email)}`;
+
+      this.logger.log(`Sending invitation email from: ${this.fromEmail} to: ${email}`);
+
+      const { data, error } = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: email,
+        subject: `You're invited to join ${organizationName}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                      <!-- Header -->
+                      <tr>
+                        <td style="background-color: #673AB7; padding: 30px; text-align: center;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 28px;">You're Invited! 🎉</h1>
+                        </td>
+                      </tr>
+                      
+                      <!-- Content -->
+                      <tr>
+                        <td style="padding: 40px 30px;">
+                          <h2 style="color: #333333; margin-top: 0;">Hi there,</h2>
+                          <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                            <strong>${inviterName}</strong> has invited you to join <strong>${organizationName}</strong>.
+                          </p>
+                          <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                            Click the button below to accept the invitation and set up your account:
+                          </p>
+                          
+                          <!-- Button -->
+                          <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                            <tr>
+                              <td align="center">
+                                <a href="${invitationUrl}" 
+                                   style="display: inline-block; padding: 14px 40px; background-color: #673AB7; 
+                                          color: #ffffff; text-decoration: none; border-radius: 5px; 
+                                          font-weight: bold; font-size: 16px;">
+                                  Accept Invitation
+                                </a>
+                              </td>
+                            </tr>
+                          </table>
+                          
+                          <p style="color: #666666; font-size: 14px; line-height: 1.6;">
+                            Or copy and paste this link in your browser:
+                          </p>
+                          <p style="color: #673AB7; font-size: 14px; word-break: break-all;">
+                            ${invitationUrl}
+                          </p>
+                          
+                          <p style="color: #ff5722; font-size: 14px; margin-top: 30px;">
+                            ⚠️ This invitation will expire in 7 days.
+                          </p>
+                        </td>
+                      </tr>
+                      
+                      <!-- Footer -->
+                      <tr>
+                        <td style="background-color: #f8f8f8; padding: 20px; text-align: center;">
+                          <p style="color: #999999; font-size: 12px; margin: 0;">
+                            If you weren't expecting this invitation, you can safely ignore this email.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+          </html>
+        `,
+      });
+
+      if (error) {
+        this.logger.error(
+          `Failed to send invitation email to ${email}. Error: ${JSON.stringify(error)}`,
+        );
+        throw new Error(`Failed to send invitation email: ${error.message || JSON.stringify(error)}`);
+      }
+
+      this.logger.log(
+        `Invitation email sent successfully to ${email}, ID: ${data?.id}`,
+      );
+    } catch (error) {
+      this.logger.error('Error sending invitation email:', error);
       throw error;
     }
   }

@@ -25,7 +25,7 @@ export class LLMService {
   constructor(
     @InjectRepository(LlmCredential)
     private readonly credentialRepo: Repository<LlmCredential>,
-  ) {}
+  ) { }
 
   async GetLLMCredentials(userId: string): Promise<LlmCredential[]> {
     const credentials = await this.credentialRepo.find({
@@ -40,6 +40,7 @@ export class LLMService {
     userId: string,
     data: {
       provider: LLMProvider;
+      name?: string;
       apiKey: string;
       baseUrl?: string;
       modelName?: string;
@@ -52,27 +53,72 @@ export class LLMService {
       {
         userId,
         provider: data.provider,
+        name: data.name,
         apiKey: encryptedKey,
         baseUrl: data.baseUrl,
         modelName: data.modelName,
         temperature: data.temperature ?? 0.7,
       },
-      ['userId'],
+      ['userId', 'provider'],
     );
 
     this.logger.log(`Saved credentials for user ${userId}`);
   }
 
+  async updateUserCredentials(
+    userId: string,
+    credentialId: number,
+    data: {
+      name?: string;
+      apiKey?: string;
+      baseUrl?: string;
+      modelName?: string;
+      temperature?: number;
+    },
+  ) {
+    const credential = await this.credentialRepo.findOne({
+      where: { id: credentialId, userId },
+    });
+
+    if (!credential) {
+      throw new Error('Credential not found');
+    }
+
+    if (data.name) credential.name = data.name;
+    if (data.apiKey) credential.apiKey = EncryptionUtil.encrypt(data.apiKey);
+    if (data.baseUrl !== undefined) credential.baseUrl = data.baseUrl;
+    if (data.modelName !== undefined) credential.modelName = data.modelName;
+    if (data.temperature !== undefined) credential.temperature = data.temperature;
+
+    await this.credentialRepo.save(credential);
+    this.logger.log(`Updated credential ${credentialId} for user ${userId}`);
+  }
+
+  async deleteCredential(userId: string, id: number) {
+    await this.credentialRepo.delete({ id, userId });
+    this.logger.log(`Deleted credential ${id} for user ${userId}`);
+  }
+
   async getModel(
     userId: string,
     provider: LLMProvider,
+    credentialId?: number,
   ): Promise<BaseChatModel> {
-    const cacheKey = `${userId}_${provider}`;
+    const cacheKey = `${userId}_${provider}_${credentialId || 'default'}`;
     if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
 
-    const cred = await this.credentialRepo.findOne({
-      where: { userId, provider },
-    });
+    let cred: LlmCredential | null = null;
+
+    if (credentialId) {
+      cred = await this.credentialRepo.findOne({
+        where: { id: credentialId, userId },
+      });
+    } else {
+      cred = await this.credentialRepo.findOne({
+        where: { userId, provider },
+      });
+    }
+
     if (!cred) throw new Error(`No credentials found for ${provider}`);
 
     const apiKey = EncryptionUtil.decrypt(cred.apiKey);
@@ -119,8 +165,9 @@ export class LLMService {
     userId: string,
     prompt: string,
     provider: LLMProvider,
+    credentialId?: number,
   ): Promise<string> {
-    const model = await this.getModel(userId, provider);
+    const model = await this.getModel(userId, provider, credentialId);
     const response = await model.invoke([new HumanMessage(prompt)]);
     return response.content.toString();
   }

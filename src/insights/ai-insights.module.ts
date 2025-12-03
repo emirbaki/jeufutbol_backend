@@ -10,6 +10,7 @@ import { LLMService } from './llm.service';
 import { LlmCredential } from '../entities/llm-credential.entity';
 import { AIInsightsSchedulerService } from './ai-insights-scheduler.service';
 import { User } from '../entities/user.entity';
+import { ApiKey } from '../entities/api-key.entity';
 import { AIInsightsProcessor } from './processors/ai-insights.processor';
 import { LLMController } from './llm.controller';
 import { PostModule } from '../post/post.module';
@@ -18,6 +19,8 @@ import { ChatMessage } from './entities/chat-message.entity';
 import { AiChatService } from './ai-chat.service';
 import { AiChatResolver } from './ai-chat.resolver';
 import { MonitoringModule } from '../monitoring/monitoring.module';
+import { AuthModule } from '../auth/auth.module';
+import { Tenant } from 'src/entities/tenant.entity';
 
 @Module({
   imports: [
@@ -26,13 +29,15 @@ import { MonitoringModule } from '../monitoring/monitoring.module';
       MonitoredProfile,
       Insight,
       LlmCredential,
-      LlmCredential,
       User,
+      Tenant,
+      ApiKey,
       ChatSession,
       ChatMessage,
     ]),
     PostModule,
     forwardRef(() => MonitoringModule),
+    AuthModule,
   ],
   providers: [
     AIInsightsService,

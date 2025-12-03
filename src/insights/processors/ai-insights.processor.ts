@@ -60,7 +60,7 @@ export class AIInsightsProcessor extends WorkerHost {
   private async handleGenerateInsights(
     job: Job<GenerateInsightsJobData, GenerateInsightsJobResult>,
   ): Promise<GenerateInsightsJobResult> {
-    const { userId, topic, llmProvider, useVectorSearch, tenantId } = job.data;
+    const { userId, topic, llmProvider, credentialId, useVectorSearch, tenantId } = job.data;
 
     // Update progress: Starting
     await job.updateProgress(10);
@@ -70,6 +70,7 @@ export class AIInsightsProcessor extends WorkerHost {
       userId,
       topic,
       llmProvider,
+      credentialId,
       useVectorSearch,
       tenantId,
     });

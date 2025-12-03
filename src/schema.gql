@@ -6,6 +6,7 @@ type Tenant {
   id: ID!
   name: String!
   subdomain: String!
+  clientId: String
   users: [User!]
   createdAt: DateTime!
   updatedAt: DateTime!
@@ -179,6 +180,41 @@ type Credential {
   tenantId: String
 }
 
+type ApiKey {
+  id: ID!
+  name: String!
+  keyPrefix: String!
+  tenant: Tenant!
+  createdBy: User
+  scopes: [String!]!
+  isActive: Boolean!
+  lastUsedAt: DateTime
+  expiresAt: DateTime
+  metadata: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type UserInvitation {
+  id: ID!
+  email: String!
+  tenant: Tenant!
+  invitedBy: User!
+  role: UserRole!
+  token: String!
+  status: InvitationStatus!
+  expiresAt: DateTime!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 type AuthPayload {
   user: User!
   accessToken: String!
@@ -186,6 +222,15 @@ type AuthPayload {
 
 type MessageResponse {
   message: String!
+}
+
+type CreateApiKeyResponse {
+  id: String!
+  name: String!
+  apiKey: String!
+  keyPrefix: String!
+  scopes: [String!]!
+  expiresAt: DateTime
 }
 
 type JobIdResponse {
@@ -251,10 +296,12 @@ type Query {
   hello: String!
   verifyEmail(token: String!): MessageResponse!
   me: User!
+  listApiKeys: [ApiKey!]!
   getUserPosts(limit: Int): [Post!]!
   getPost(postId: String!): Post!
   getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [Credential!]!
+  currentTenant: Tenant!
   getMonitoredProfiles: [MonitoredProfile!]!
   getMonitoredProfile(profileId: String!): MonitoredProfile!
   getProfileTweets(profileId: String!, limit: Int, offset: Int): [Tweet!]!
@@ -275,8 +322,8 @@ type Query {
 
   """Get all jobs from a specific queue"""
   queueJobs(queueName: String!): [JobStatusObject!]!
-  currentTenant: Tenant!
   getOrganizationUsers: [User!]!
+  listPendingInvitations: [UserInvitation!]!
 }
 
 type Mutation {
@@ -285,6 +332,10 @@ type Mutation {
   requestPasswordReset(email: String!): MessageResponse!
   resetPassword(token: String!, newPassword: String!): MessageResponse!
   resendVerificationEmail: MessageResponse!
+  acceptInvitation(token: String!, email: String!, firstName: String!, lastName: String!, password: String!): AuthPayload!
+  createApiKey(input: CreateApiKeyInput!): CreateApiKeyResponse!
+  revokeApiKey(apiKeyId: ID!): Boolean!
+  updateApiKeyScopes(apiKeyId: ID!, scopes: [String!]!): ApiKey!
   createPost(input: CreatePostInput!): Post!
   updatePost(postId: String!, input: UpdatePostInput!): Post!
   deletePost(postId: String!): Boolean!
@@ -293,6 +344,8 @@ type Mutation {
   testPublish: Boolean!
   deleteCredential(credentialId: String!): Boolean!
   testCredential(credentialId: String!): Boolean!
+  updateTenant(name: String!): Tenant!
+  regenerateClientSecret: String!
   addMonitoredProfile(xUsername: String!): MonitoredProfile!
   removeMonitoredProfile(profileId: String!): Boolean!
   refreshProfileTweets(profileId: String!): JobIdResponse!
@@ -300,12 +353,12 @@ type Mutation {
   """
   Generate AI insights (returns job ID - query jobStatus to check progress)
   """
-  generateAIInsights(topic: String, llmProvider: String): JobIdResponse!
+  generateAIInsights(topic: String, llmProvider: String, credentialId: Int): JobIdResponse!
 
   """
   Generate post template (returns job ID - query jobStatus to check progress)
   """
-  generatePostTemplate(insights: [String!]!, platform: String!, tone: String, llmProvider: String): JobIdResponse!
+  generatePostTemplate(insights: [String!]!, platform: String!, tone: String, llmProvider: String, credentialId: Int): JobIdResponse!
 
   """
   Index tweets to vector database (returns job ID - query jobStatus to check progress)
@@ -316,12 +369,19 @@ type Mutation {
   indexAllTweetsToVector: BatchIndexResponse!
   markInsightAsRead(insightId: String!): Insight!
   createChatSession(title: String): ChatSession!
-  chatWithAI(message: String!, sessionId: String, llmProvider: String): ChatResponse!
+  chatWithAI(message: String!, sessionId: String, llmProvider: String, credentialId: Int): ChatResponse!
   deleteChatSession(sessionId: String!): Boolean!
 
   """Retry a failed job"""
   retryJob(jobId: String!): JobStatusObject!
-  updateTenant(name: String!): Tenant!
+  inviteUser(input: InviteUserInput!): UserInvitation!
+  revokeInvitation(invitationId: ID!): Boolean!
+}
+
+input CreateApiKeyInput {
+  name: String!
+  scopes: [String!]!
+  expiresAt: String
 }
 
 input CreatePostInput {
@@ -338,6 +398,11 @@ input UpdatePostInput {
   targetPlatforms: [String!]
   platformSpecificContent: JSON
   scheduledFor: String
+}
+
+input InviteUserInput {
+  email: String!
+  role: UserRole!
 }
 
 type Subscription {

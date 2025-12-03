@@ -6,6 +6,8 @@ import { PostsService } from './post.service';
 import { PostsResolver } from './post.resolver';
 import { Post } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
+import { User } from '../entities/user.entity';
+import { ApiKey } from '../entities/api-key.entity';
 import { PostGatewayFactory } from './post-gateway.factory';
 import { FacebookPostGateway } from './gateways/facebook.gateway';
 import { InstagramPostGateway } from './gateways/instagram.gateway';
@@ -23,14 +25,17 @@ import { TiktokPollingProcessor } from './processors/tiktok-polling.processor';
 import { AsyncPollingProcessor } from './processors/async-polling.processor';
 import { ScheduledPostProcessor } from './processors/scheduled-post.processor';
 import { QUEUE_NAMES } from 'src/queue/queue.config';
+import { AuthModule } from '../auth/auth.module';
+import { Tenant } from '../entities/tenant.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Post, PublishedPost, Credential]),
+    TypeOrmModule.forFeature([Post, PublishedPost, Credential, User, ApiKey, Tenant]),
     HttpModule,
     CredentialsModule,
     UploadModule,
     TweetsModule,
+    AuthModule,
     BullModule.registerQueue(
       {
         name: QUEUE_NAMES.TIKTOK_POLLING, // Deprecated - keeping for backward compatibility
