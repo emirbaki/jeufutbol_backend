@@ -308,7 +308,7 @@ type Query {
   getTimelineTweets(limit: Int, offset: Int): [Tweet!]!
   getProfileStats(profileId: String!): JSON!
   analyzeTrends(topic: String, timeRange: String): JSON!
-  searchTweets(query: String!, limit: Int): [Tweet!]!
+  searchTweets(query: String!, limit: Int, offset: Int): [Tweet!]!
   getInsights(limit: Float): [Insight!]!
   getUserChatSessions: [ChatSession!]!
   getChatSessionHistory(sessionId: String!): [ChatMessage!]!
@@ -370,6 +370,7 @@ type Mutation {
   """Index tweets for ALL monitored profiles (returns array of job IDs)"""
   indexAllTweetsToVector: BatchIndexResponse!
   markInsightAsRead(insightId: String!): Insight!
+  reindexAllTweets: Boolean!
   createChatSession(title: String): ChatSession!
   chatWithAI(message: String!, sessionId: String, llmProvider: String, credentialId: Int): ChatResponse!
   deleteChatSession(sessionId: String!): Boolean!

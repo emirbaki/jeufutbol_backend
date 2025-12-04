@@ -131,6 +131,9 @@ export class AIInsightsService {
   /**
    * Index tweets to vector database (Internal - called by processor or directly)
    */
+  /**
+   * Index tweets to vector database (Internal - called by processor or directly)
+   */
   async indexTweetsToVectorDb(profileId: string): Promise<number> {
     try {
       // Only fetch tweets that haven't been indexed yet
@@ -141,10 +144,7 @@ export class AIInsightsService {
         },
         order: { createdAt: 'DESC' },
         take: 100, // Reduced since we only fetch new tweets now
-      });
-
-      const profile = await this.monitoredProfileRepository.findOne({
-        where: { id: profileId },
+        relations: ['monitoredProfile'], // Ensure profile is loaded
       });
 
       if (tweets.length === 0) {
@@ -153,7 +153,18 @@ export class AIInsightsService {
       }
 
       this.logger.log(`Found ${tweets.length} unindexed tweets to process`);
+      return await this.indexTweetsBatch(tweets);
+    } catch (error) {
+      this.logger.error(`Failed to index tweets: ${error.message}`);
+      throw error;
+    }
+  }
 
+  /**
+   * Helper to index a batch of tweets
+   */
+  private async indexTweetsBatch(tweets: Tweet[]): Promise<number> {
+    try {
       // Process in smaller batches to avoid overwhelming ChromaDB
       const BATCH_SIZE = 50;
       const DELAY_BETWEEN_BATCHES_MS = 1000; // 1 second
@@ -167,7 +178,7 @@ export class AIInsightsService {
           content: tweet.content,
           metadata: {
             tweetId: tweet.tweetId,
-            username: profile?.xUsername || 'unknown',
+            username: tweet.monitoredProfile?.xUsername || 'unknown',
             timestamp: tweet.createdAt.toISOString(),
             likes: tweet.likes,
             retweets: tweet.retweets,
@@ -198,11 +209,11 @@ export class AIInsightsService {
       }
 
       this.logger.log(
-        `✓ Successfully indexed ${totalIndexed} new tweets for profile to vector DB`,
+        `✓ Successfully indexed ${totalIndexed} tweets to vector DB`,
       );
       return totalIndexed;
     } catch (error) {
-      this.logger.error(`Failed to index tweets: ${error.message}`);
+      this.logger.error(`Failed to batch index tweets: ${error.message}`);
       throw error;
     }
   }
@@ -339,11 +350,11 @@ export class AIInsightsService {
   /**
    * Search for tweets using vector similarity
    */
-  async searchTweets(query: string, limit = 10): Promise<Tweet[]> {
+  async searchTweets(query: string, limit = 10, offset = 0): Promise<Tweet[]> {
     try {
-      this.logger.log(`Searching tweets for query: "${query}"`);
+      this.logger.log(`Searching tweets for query: "${query}" (limit: ${limit}, offset: ${offset})`);
 
-      const searchResults = await this.vectorDbService.search(query, limit);
+      const searchResults = await this.vectorDbService.search(query, limit, offset);
       const tweetIds = searchResults.map((r) => r.id);
 
       if (tweetIds.length === 0) {
@@ -781,5 +792,43 @@ Return as a JSON array of strings, no additional formatting.`;
 
     insight.isRead = true;
     return this.insightRepository.save(insight);
+  }
+
+  /**
+   * Re-index all tweets in the database
+   * Useful when changing embedding models
+   */
+  async reindexAllTweets(): Promise<{ success: boolean; count: number }> {
+    try {
+      this.logger.log('Starting full re-indexing of tweets...');
+
+      // 1. Reset the vector database collection
+      await this.vectorDbService.resetCollection();
+
+      // 2. Fetch all tweets with profiles
+      const tweets = await this.tweetRepository.find({
+        relations: ['monitoredProfile'],
+      });
+
+      this.logger.log(`Found ${tweets.length} tweets to re-index.`);
+
+      if (tweets.length === 0) {
+        return { success: true, count: 0 };
+      }
+
+      // 3. Process in chunks to avoid memory issues
+      const chunkSize = 50;
+      for (let i = 0; i < tweets.length; i += chunkSize) {
+        const chunk = tweets.slice(i, i + chunkSize);
+        await this.indexTweetsBatch(chunk);
+        this.logger.log(`Indexed chunk ${i / chunkSize + 1}/${Math.ceil(tweets.length / chunkSize)}`);
+      }
+
+      this.logger.log('Full re-indexing completed successfully.');
+      return { success: true, count: tweets.length };
+    } catch (error) {
+      this.logger.error(`Re-indexing failed: ${error.message}`);
+      throw error;
+    }
   }
 }

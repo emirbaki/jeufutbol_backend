@@ -106,8 +106,9 @@ export class AIInsightsResolver {
   async searchTweets(
     @Args('query') query: string,
     @Args('limit', { nullable: true, type: () => Int }) limit?: number,
+    @Args('offset', { nullable: true, type: () => Int }) offset?: number,
   ) {
-    return this.aiInsightsService.searchTweets(query, limit || 10);
+    return this.aiInsightsService.searchTweets(query, limit || 10, offset || 0);
   }
 
   @Mutation(() => JobIdResponse, {
@@ -182,5 +183,12 @@ export class AIInsightsResolver {
     await this.cacheManager.del(`${userId}:getInsights:{}`);
 
     return result;
+  }
+
+  @Mutation(() => Boolean)
+  @RequireScopes(ApiKeyScope.INSIGHTS_GENERATE)
+  async reindexAllTweets(): Promise<boolean> {
+    const result = await this.aiInsightsService.reindexAllTweets();
+    return result.success;
   }
 }
