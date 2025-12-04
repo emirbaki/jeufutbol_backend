@@ -308,6 +308,7 @@ type Query {
   getTimelineTweets(limit: Int, offset: Int): [Tweet!]!
   getProfileStats(profileId: String!): JSON!
   analyzeTrends(topic: String, timeRange: String): JSON!
+  searchTweets(query: String!, limit: Int): [Tweet!]!
   getInsights(limit: Float): [Insight!]!
   getUserChatSessions: [ChatSession!]!
   getChatSessionHistory(sessionId: String!): [ChatMessage!]!

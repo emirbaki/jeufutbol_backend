@@ -337,6 +337,43 @@ export class AIInsightsService {
   }
 
   /**
+   * Search for tweets using vector similarity
+   */
+  async searchTweets(query: string, limit = 10): Promise<Tweet[]> {
+    try {
+      this.logger.log(`Searching tweets for query: "${query}"`);
+
+      const searchResults = await this.vectorDbService.search(query, limit);
+      const tweetIds = searchResults.map((r) => r.id);
+
+      if (tweetIds.length === 0) {
+        return [];
+      }
+
+      // Fetch full tweet entities
+      // We use find with whereInIds equivalent
+      const tweets = await this.tweetRepository.find({
+        where: { id: In(tweetIds) },
+        relations: ['monitoredProfile'],
+        order: { createdAt: 'DESC' }, // Optional: sort by date, or we could try to preserve relevance order
+      });
+
+      // If we want to preserve the order from vector search (relevance), we need to sort manually
+      // Create a map for O(1) lookup
+      const tweetMap = new Map(tweets.map(t => [t.id, t]));
+
+      // Map IDs back to tweets, filtering out any that might have been deleted from DB but exist in Vector DB
+      return tweetIds
+        .map(id => tweetMap.get(id))
+        .filter(t => !!t);
+
+    } catch (error) {
+      this.logger.error(`Tweet search failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Analyze tweets using LLM
    */
   private async analyzeWithLLM(

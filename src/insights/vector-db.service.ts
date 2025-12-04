@@ -1,8 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ChromaClient } from 'chromadb';
+import { ChromaClient, EmbeddingFunction } from 'chromadb';
 // Server-side embeddings are used - no client-side embedding function needed
-import { env } from '@xenova/transformers';
+import { env, pipeline } from '@xenova/transformers';
+
 export interface VectorDocument {
   id: string;
   content: string;
@@ -25,11 +26,32 @@ export interface VectorSearchResult {
   score: number;
 }
 
+class TransformersEmbeddingFunction implements EmbeddingFunction {
+  private pipeline: any;
+  private modelName = 'Xenova/all-MiniLM-L6-v2';
+
+  constructor() { }
+
+  async generate(texts: string[]): Promise<number[][]> {
+    if (!this.pipeline) {
+      this.pipeline = await pipeline('feature-extraction', this.modelName);
+    }
+
+    const embeddings: number[][] = [];
+    for (const text of texts) {
+      const output = await this.pipeline(text, { pooling: 'mean', normalize: true });
+      embeddings.push(Array.from(output.data));
+    }
+    return embeddings;
+  }
+}
+
 @Injectable()
 export class VectorDbService implements OnModuleInit {
   private readonly logger = new Logger(VectorDbService.name);
   private chromaClient: ChromaClient;
   private readonly collectionName = 'tweets_collection';
+  private embeddingFunction: TransformersEmbeddingFunction;
 
   constructor(private configService: ConfigService) {
     if (process.env.XENOVA_CACHE_DIR) {
@@ -49,6 +71,8 @@ export class VectorDbService implements OnModuleInit {
     process.env.ONNXRUNTIME_DEVICE = 'cpu';
 
     this.logger.log('Configured transformers to use CPU for embeddings');
+
+    this.embeddingFunction = new TransformersEmbeddingFunction();
   }
 
   async onModuleInit() {
@@ -68,21 +92,16 @@ export class VectorDbService implements OnModuleInit {
 
       this.logger.log(`Connecting to ChromaDB at ${chromaHost}:${chromaPort}`);
 
-      // Don't specify embedding function - let ChromaDB server handle it
-      // This avoids ONNX Runtime device issues on the client side
       try {
-        await this.chromaClient.createCollection({
+        await this.chromaClient.getOrCreateCollection({
           name: this.collectionName,
           metadata: { description: 'Social media tweets collection' },
-          // No embeddingFunction - server handles it
+          embeddingFunction: this.embeddingFunction,
         });
-        this.logger.log('ChromaDB collection created (server-side embeddings)');
+        this.logger.log('ChromaDB collection initialized with Transformers embeddings');
       } catch (error) {
-        if (error.message?.includes('already exists')) {
-          this.logger.log('ChromaDB collection already exists');
-        } else {
-          throw error;
-        }
+        this.logger.error(`Failed to get/create collection: ${error.message}`);
+        throw error;
       }
     } catch (error) {
       this.logger.error(`ChromaDB initialization failed: ${error.message}`);
@@ -97,6 +116,7 @@ export class VectorDbService implements OnModuleInit {
     try {
       const collection = await this.chromaClient.getCollection({
         name: this.collectionName,
+        embeddingFunction: this.embeddingFunction,
       });
 
       await collection.upsert({
@@ -119,6 +139,7 @@ export class VectorDbService implements OnModuleInit {
     try {
       const collection = await this.chromaClient.getCollection({
         name: this.collectionName,
+        embeddingFunction: this.embeddingFunction,
       });
 
       const results = await collection.query({
@@ -145,6 +166,7 @@ export class VectorDbService implements OnModuleInit {
     try {
       const collection = await this.chromaClient.getCollection({
         name: this.collectionName,
+        embeddingFunction: this.embeddingFunction,
       });
       await collection.delete({ ids });
       this.logger.log(`Deleted ${ids.length} documents from ChromaDB`);

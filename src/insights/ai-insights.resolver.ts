@@ -12,6 +12,7 @@ import { MonitoringService } from '../monitoring/monitoring.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { Insight } from 'src/entities/insight.entity';
+import { Tweet } from '../entities/tweet.entity';
 import GraphQLJSON from 'graphql-type-json';
 import { JobIdResponse, BatchIndexResponse } from './types/job-response.types';
 import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
@@ -98,6 +99,15 @@ export class AIInsightsResolver {
       timeRange: (timeRange as any) || '7d',
       minEngagement: 100,
     });
+  }
+
+  @Query(() => [Tweet])
+  @RequireScopes(ApiKeyScope.INSIGHTS_READ)
+  async searchTweets(
+    @Args('query') query: string,
+    @Args('limit', { nullable: true, type: () => Int }) limit?: number,
+  ) {
+    return this.aiInsightsService.searchTweets(query, limit || 10);
   }
 
   @Mutation(() => JobIdResponse, {
