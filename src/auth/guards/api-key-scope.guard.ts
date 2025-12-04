@@ -49,6 +49,16 @@ export class ApiKeyScopeGuard implements CanActivate {
             return true;
         }
 
+        // Check if API key has READ_ONLY scope (grants all read permissions)
+        if (apiKey.scopes.includes(ApiKeyScope.READ_ONLY)) {
+            const isReadOperation = requiredScopes.every((scope) =>
+                scope.endsWith(':read'),
+            );
+            if (isReadOperation) {
+                return true;
+            }
+        }
+
         // Check if API key has all required scopes
         const hasAllScopes = requiredScopes.every((scope) =>
             apiKey.scopes.includes(scope),

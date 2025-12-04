@@ -20,6 +20,9 @@ export enum ApiKeyScope {
 
     // Admin (full access)
     ADMIN = 'admin:*',
+
+    // Read Only (all read access)
+    READ_ONLY = 'READ_ONLY',
 }
 
 registerEnumType(ApiKeyScope, {
