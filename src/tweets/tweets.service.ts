@@ -374,8 +374,25 @@ export class TweetsService {
     return this.tweetRepository.find({
       where: { monitoredProfileId },
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Get tweets for multiple monitored profiles (aggregated timeline)
+   */
+  async getTweetsByProfileIds(
+    monitoredProfileIds: string[],
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<Tweet[]> {
+    if (!monitoredProfileIds.length) return [];
+
+    return this.tweetRepository.find({
+      where: { monitoredProfileId: In(monitoredProfileIds) },
+      order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
+      relations: ['monitoredProfile'],
     });
   }
 

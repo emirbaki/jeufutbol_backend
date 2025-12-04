@@ -305,6 +305,7 @@ type Query {
   getMonitoredProfiles: [MonitoredProfile!]!
   getMonitoredProfile(profileId: String!): MonitoredProfile!
   getProfileTweets(profileId: String!, limit: Int, offset: Int): [Tweet!]!
+  getTimelineTweets(limit: Int, offset: Int): [Tweet!]!
   getProfileStats(profileId: String!): JSON!
   analyzeTrends(topic: String, timeRange: String): JSON!
   getInsights(limit: Float): [Insight!]!

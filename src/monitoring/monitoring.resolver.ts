@@ -78,6 +78,21 @@ export class MonitoringResolver {
     return this.tweetsService.getTweetsByProfile(profileId, limit, offset);
   }
 
+  @Query(() => [Tweet])
+  @RequireScopes(ApiKeyScope.MONITORING_READ)
+  async getTimelineTweets(
+    @CurrentUser() user: User,
+    @CurrentApiKey() apiKey: ApiKey,
+    @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+    @Args('offset', { type: () => Int, nullable: true }) offset?: number,
+  ): Promise<Tweet[]> {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    const userId = user?.id || apiKey?.createdByUserId;
+    if (!userId) throw new Error('User context required');
+
+    return this.monitoringService.getTimelineTweets(userId, tenantId, limit, offset);
+  }
+
   @Query(() => GraphQLJSON)
   @RequireScopes(ApiKeyScope.MONITORING_READ)
   async getProfileStats(

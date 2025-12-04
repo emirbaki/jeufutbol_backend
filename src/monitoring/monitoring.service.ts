@@ -399,4 +399,23 @@ export class MonitoringService {
 
     return { profile, stats };
   }
+
+  /**
+   * Get timeline tweets (aggregated from all monitored profiles)
+   */
+  async getTimelineTweets(
+    userId: string,
+    tenantId: string,
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<any[]> {
+    const profiles = await this.getMonitoredProfiles(userId, tenantId);
+
+    if (profiles.length === 0) {
+      return [];
+    }
+
+    const profileIds = profiles.map(p => p.id);
+    return this.tweetsService.getTweetsByProfileIds(profileIds, limit, offset);
+  }
 }
