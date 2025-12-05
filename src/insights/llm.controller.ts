@@ -29,9 +29,11 @@ export class LLMController {
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
     const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
     if (!userId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
-    await this.llmService.saveUserCredentials(userId, body);
+    await this.llmService.saveUserCredentials(userId, tenantId, body);
     return { success: true };
   }
 
@@ -51,9 +53,11 @@ export class LLMController {
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
     const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
     if (!userId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
-    await this.llmService.updateUserCredentials(userId, parseInt(id), body);
+    await this.llmService.updateUserCredentials(userId, tenantId, parseInt(id), body);
     return { success: true };
   }
 
@@ -65,9 +69,11 @@ export class LLMController {
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
     const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
     if (!userId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
-    await this.llmService.deleteCredential(userId, parseInt(id));
+    await this.llmService.deleteCredential(userId, tenantId, parseInt(id));
     return { success: true };
   }
 
@@ -79,10 +85,13 @@ export class LLMController {
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
     const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
     if (!userId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
     const text = await this.llmService.generateCompletion(
       userId,
+      tenantId,
       body.prompt,
       body.provider,
       body.credentialId,
@@ -97,9 +106,11 @@ export class LLMController {
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
     const userId = user?.id || apiKey?.createdByUserId;
+    const tenantId = user?.tenantId || apiKey?.tenantId;
     if (!userId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
-    const text = await this.llmService.GetLLMCredentials(userId);
+    const text = await this.llmService.GetLLMCredentials(userId, tenantId);
     return { result: text };
   }
 }

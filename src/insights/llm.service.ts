@@ -27,10 +27,11 @@ export class LLMService {
     private readonly credentialRepo: Repository<LlmCredential>,
   ) { }
 
-  async GetLLMCredentials(userId: string): Promise<LlmCredential[]> {
+  async GetLLMCredentials(userId: string, tenantId: string): Promise<LlmCredential[]> {
     const credentials = await this.credentialRepo.find({
       where: {
         userId,
+        tenantId,
       },
     });
     return credentials;
@@ -38,6 +39,7 @@ export class LLMService {
 
   async saveUserCredentials(
     userId: string,
+    tenantId: string,
     data: {
       provider: LLMProvider;
       name?: string;
@@ -51,6 +53,7 @@ export class LLMService {
 
     await this.credentialRepo.save({
       userId,
+      tenantId,
       provider: data.provider,
       name: data.name,
       apiKey: encryptedKey,
@@ -64,6 +67,7 @@ export class LLMService {
 
   async updateUserCredentials(
     userId: string,
+    tenantId: string,
     credentialId: number,
     data: {
       name?: string;
@@ -74,7 +78,7 @@ export class LLMService {
     },
   ) {
     const credential = await this.credentialRepo.findOne({
-      where: { id: credentialId, userId },
+      where: { id: credentialId, userId, tenantId },
     });
 
     if (!credential) {
@@ -91,13 +95,14 @@ export class LLMService {
     this.logger.log(`Updated credential ${credentialId} for user ${userId}`);
   }
 
-  async deleteCredential(userId: string, id: number) {
-    await this.credentialRepo.delete({ id, userId });
+  async deleteCredential(userId: string, tenantId: string, id: number) {
+    await this.credentialRepo.delete({ id, userId, tenantId });
     this.logger.log(`Deleted credential ${id} for user ${userId}`);
   }
 
   async getModel(
     userId: string,
+    tenantId: string,
     provider: LLMProvider,
     credentialId?: number,
   ): Promise<BaseChatModel> {
@@ -108,11 +113,11 @@ export class LLMService {
 
     if (credentialId) {
       cred = await this.credentialRepo.findOne({
-        where: { id: credentialId, userId },
+        where: { id: credentialId, userId, tenantId },
       });
     } else {
       cred = await this.credentialRepo.findOne({
-        where: { userId, provider },
+        where: { userId, provider, tenantId },
         order: { id: 'DESC' },
       });
     }
@@ -161,11 +166,12 @@ export class LLMService {
 
   async generateCompletion(
     userId: string,
+    tenantId: string,
     prompt: string,
     provider: LLMProvider,
     credentialId?: number,
   ): Promise<string> {
-    const model = await this.getModel(userId, provider, credentialId);
+    const model = await this.getModel(userId, tenantId, provider, credentialId);
     const response = await model.invoke([new HumanMessage(prompt)]);
     return response.content.toString();
   }
