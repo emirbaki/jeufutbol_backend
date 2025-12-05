@@ -41,6 +41,7 @@ export interface PostTemplateDto {
   includeHashtags?: boolean;
   includeEmojis?: boolean;
   userId?: string;
+  tenantId: string;
   llmProvider?: LLMProvider;
   credentialId?: number;
 }
@@ -432,6 +433,7 @@ Content should be in Turkish.
     try {
       const response = await this.llmService.generateCompletion(
         userId,
+        tenantId,
         prompt,
         llmProvider || LLMTypes.OPENAI,
         credentialId,
@@ -502,13 +504,15 @@ Content should be in Turkish.
       includeHashtags = true,
       includeEmojis = true,
       userId = 'system',
+      tenantId, // Add this
       llmProvider = LLMTypes.OPENAI,
       credentialId,
     } = dto;
 
     try {
       // Get the LLM model
-      const model = await this.llmService.getModel(userId, llmProvider, credentialId);
+      // Get the LLM model
+      const model = await this.llmService.getModel(userId, tenantId!, llmProvider, credentialId);
 
       // Create tools with all three tools including PostGeneratorTool
       const tools = [
@@ -602,11 +606,12 @@ Return as JSON with: content, hashtags (array), estimatedReach
       includeHashtags = true,
       includeEmojis = true,
       userId = 'system',
+      tenantId,
       llmProvider = LLMTypes.OPENAI,
       credentialId,
     } = dto;
 
-    const model = await this.llmService.getModel(userId, llmProvider, credentialId);
+    const model = await this.llmService.getModel(userId, tenantId!, llmProvider, credentialId);
 
     const prompt = `Generate a compelling social media post for ${platform} using these insights:
 
@@ -719,12 +724,14 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
     count: number;
     userId?: string;
     llmProvider?: LLMProvider;
+    tenantId?: string;
   }): Promise<string[]> {
     const {
       category,
       count,
       userId = 'system',
       llmProvider = LLMTypes.OPENAI,
+      tenantId = 'default-tenant-id',
     } = options;
 
     const prompt = `Generate ${count} creative content ideas${category ? ` for the ${category} category` : ''}.
@@ -738,8 +745,9 @@ Each idea should be:
 Return as a JSON array of strings, no additional formatting.`;
 
     const response = await this.llmService.generateCompletion(
-      prompt,
       userId,
+      tenantId,
+      prompt,
       llmProvider,
     );
     const jsonMatch = response.match(/\[[\s\S]*\]/);

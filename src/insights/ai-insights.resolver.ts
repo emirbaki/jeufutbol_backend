@@ -83,6 +83,7 @@ export class AIInsightsResolver {
       includeHashtags: true,
       includeEmojis: true,
       userId: userId,
+      tenantId: user?.tenantId || apiKey?.tenantId,
       llmProvider: llmProvider as any,
       credentialId,
     });

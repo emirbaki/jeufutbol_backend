@@ -17,6 +17,7 @@ export interface GeneratePostJobData {
   includeHashtags?: boolean;
   includeEmojis?: boolean;
   userId?: string;
+  tenantId: string;
   llmProvider?: LLMProvider;
   credentialId?: number;
 }
