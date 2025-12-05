@@ -11,7 +11,6 @@ import {
 import { Tenant } from './tenant.entity';
 
 @Entity('llm_credentials')
-@Unique(['userId', 'provider'])
 export class LlmCredential {
   @PrimaryGeneratedColumn()
   id: number;

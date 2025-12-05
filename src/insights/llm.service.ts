@@ -49,18 +49,15 @@ export class LLMService {
   ) {
     const encryptedKey = EncryptionUtil.encrypt(data.apiKey);
 
-    await this.credentialRepo.upsert(
-      {
-        userId,
-        provider: data.provider,
-        name: data.name,
-        apiKey: encryptedKey,
-        baseUrl: data.baseUrl,
-        modelName: data.modelName,
-        temperature: data.temperature ?? 0.7,
-      },
-      ['userId', 'provider'],
-    );
+    await this.credentialRepo.save({
+      userId,
+      provider: data.provider,
+      name: data.name,
+      apiKey: encryptedKey,
+      baseUrl: data.baseUrl,
+      modelName: data.modelName,
+      temperature: data.temperature ?? 0.7,
+    });
 
     this.logger.log(`Saved credentials for user ${userId}`);
   }
@@ -116,6 +113,7 @@ export class LLMService {
     } else {
       cred = await this.credentialRepo.findOne({
         where: { userId, provider },
+        order: { id: 'DESC' },
       });
     }
 
