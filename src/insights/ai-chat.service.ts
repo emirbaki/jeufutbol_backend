@@ -143,11 +143,11 @@ export class AiChatService {
     });
 
     // 4. Initialize Agent
-    const model = await this.llmService.getModel(userId, llmProvider, credentialId);
+    const model = await this.llmService.getModel(userId, tenantId, llmProvider, credentialId);
     const tools = [
-      PostGeneratorTool.createTool(this.aiInsightsService),
-      TrendAnalysisTool.createTool(this.aiInsightsService),
-      ContentSuggestionTool.createTool(this.aiInsightsService),
+      PostGeneratorTool.createTool(this.aiInsightsService, userId, tenantId),
+      TrendAnalysisTool.createTool(this.aiInsightsService, userId, tenantId),
+      ContentSuggestionTool.createTool(this.aiInsightsService, userId, tenantId),
       CreatePostTool.createTool(this.postsService, userId, tenantId),
       ListPostsTool.createTool(this.postsService, userId, tenantId),
       PublishPostTool.createTool(this.postsService, userId, tenantId),

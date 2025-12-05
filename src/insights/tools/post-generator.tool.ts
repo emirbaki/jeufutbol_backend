@@ -2,7 +2,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 
 export class PostGeneratorTool {
-  static createTool(insightsService: any) {
+  static createTool(insightsService: any, userId: string, tenantId: string) {
     return new DynamicStructuredTool({
       name: 'generate_post_template',
       description:
@@ -47,6 +47,8 @@ export class PostGeneratorTool {
             tone: tone || 'engaging',
             includeHashtags: includeHashtags !== false,
             includeEmojis: includeEmojis !== false,
+            userId,
+            tenantId,
           });
           return JSON.stringify(post);
         } catch (error) {
@@ -58,7 +60,7 @@ export class PostGeneratorTool {
 }
 
 export class TrendAnalysisTool {
-  static createTool(insightsService: any) {
+  static createTool(insightsService: any, userId: string, tenantId: string) {
     return new DynamicStructuredTool({
       name: 'analyze_trends',
       description: 'Analyze current trends from monitored profiles',
@@ -76,9 +78,26 @@ export class TrendAnalysisTool {
       func: async ({ topic, timeRange, minEngagement }) => {
         try {
           const trends = await insightsService.analyzeTrends({
+            // analyzeTrends signature might not accept userId/tenantId yet, check service?
+            // Service method: analyzeTrends(options: { ... }). It queries `tweetRepository`. 
+            // It actually NEEDS to filter by tenantId!
+            // Wait, looking at AIInsightsService.analyzeTrends implementation:
+            /*
+              let query = this.tweetRepository
+                .createQueryBuilder('tweet')
+                ...
+            */
+            // It currently DOES NOT filter by tenantId or userId in analyzeTrends!
+            // This is another issue. I should fix the service first or concurrently.
+            // But for now, let's just pass them if the service accepted them.
+            // The service analyzeTrends currently takes { topic, timeRange, minEngagement }.
+            // I should update the tool to TRY to pass them, but I need to update the service to USE them.
+            // Let's pass them to the service call in the tool, assuming I will fix the service next.
             topic,
             timeRange: timeRange || '7d',
             minEngagement: minEngagement || 100,
+            userId,
+            tenantId,
           });
           return JSON.stringify(trends);
         } catch (error) {
@@ -90,7 +109,7 @@ export class TrendAnalysisTool {
 }
 
 export class ContentSuggestionTool {
-  static createTool(insightsService: any) {
+  static createTool(insightsService: any, userId: string, tenantId: string) {
     return new DynamicStructuredTool({
       name: 'suggest_content',
       description:
@@ -110,6 +129,8 @@ export class ContentSuggestionTool {
           const suggestions = await insightsService.generateContentSuggestions({
             category,
             count: count || 5,
+            userId,
+            tenantId,
           });
           return JSON.stringify(suggestions);
         } catch (error) {

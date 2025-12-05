@@ -516,9 +516,9 @@ Content should be in Turkish.
 
       // Create tools with all three tools including PostGeneratorTool
       const tools = [
-        PostGeneratorTool.createTool(this),
-        TrendAnalysisTool.createTool(this),
-        ContentSuggestionTool.createTool(this),
+        PostGeneratorTool.createTool(this, userId, tenantId!),
+        TrendAnalysisTool.createTool(this, userId, tenantId!),
+        ContentSuggestionTool.createTool(this, userId, tenantId!),
       ];
 
       // Create the React agent with LangGraph
@@ -663,8 +663,10 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
     topic?: string;
     timeRange: '24h' | '7d' | '30d';
     minEngagement: number;
+    userId?: string;
+    tenantId?: string;
   }): Promise<any> {
-    const { topic, timeRange, minEngagement } = options;
+    const { topic, timeRange, minEngagement, tenantId } = options;
 
     const hoursMap = { '24h': 24, '7d': 168, '30d': 720 };
     const since = new Date();
@@ -672,11 +674,16 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
 
     let query = this.tweetRepository
       .createQueryBuilder('tweet')
+      .leftJoin('tweet.monitoredProfile', 'profile')
       .where('tweet.createdAt >= :since', { since })
       .andWhere(
         '(tweet.likes + tweet.retweets + tweet.replies) >= :minEngagement',
         { minEngagement },
       );
+
+    if (tenantId) {
+      query = query.andWhere('profile.tenantId = :tenantId', { tenantId });
+    }
 
     if (topic) {
       query = query.andWhere('tweet.content ILIKE :topic', {
