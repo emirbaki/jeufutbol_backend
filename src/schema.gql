@@ -139,7 +139,7 @@ type Post {
   userId: String!
   content: String!
   mediaUrls: [String!]
-  platformSpecificContent: String
+  platformSpecificContent: JSON
   status: PostStatus!
   targetPlatforms: [String!]!
   scheduledFor: DateTime

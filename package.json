@@ -53,6 +53,7 @@
     "bullmq": "^5.26.1",
     "cache-manager": "^6.0.0",
     "cache-manager-ioredis-yet": "^2.1.1",
+    "cheerio": "^1.1.2",
     "chromadb": "^3.1.0",
     "chromadb-default-embed": "^2.14.0",
     "class-transformer": "^0.5.1",

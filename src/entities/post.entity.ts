@@ -51,7 +51,7 @@ export class Post {
   @Column({ type: 'jsonb', nullable: true })
   mediaUrls: string[];
 
-  @Field(() => String, { nullable: true })
+  @Field(() => GraphQLJSON, { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
   platformSpecificContent: Record<string, any>;
 

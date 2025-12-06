@@ -31,6 +31,7 @@ import {
 import { SqlTools } from './tools/sql.tool';
 import { AssistantTool, AssistantCommentaryTool } from './tools/assistant.tool';
 import { SearchTool } from './tools/search.tool';
+import { VisitPageTool } from './tools/visit-page.tool';
 
 @Injectable()
 export class AiChatService {
@@ -156,6 +157,7 @@ export class AiChatService {
       AssistantTool.createTool(),
       AssistantCommentaryTool.createTool(),
       SearchTool.createTool(),
+      VisitPageTool.createTool(),
     ] as StructuredTool[];
 
     const memory = new MemorySaver();
