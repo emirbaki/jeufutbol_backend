@@ -239,6 +239,7 @@ export class AiChatService {
     // 5. Invoke Agent
     try {
       const systemMessage = new SystemMessage(`You are a helpful AI assistant.
+Current date: ${new Date().toISOString()}
 You have access to a SQL database with tables: post, tweets, insights, monitored_profiles.
 ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
 Do not access data from other tenants.
