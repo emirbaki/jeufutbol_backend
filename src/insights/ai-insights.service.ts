@@ -539,6 +539,7 @@ Requirements:
 - Include hashtags: ${includeHashtags}
 - Include emojis: ${includeEmojis}
 - Character limit: ${this.getPlatformLimit(platform)}
+- Content MUST be in Turkish language
 
 You have access to tools to analyze trends and get content suggestions. Use them if helpful.
 
@@ -623,6 +624,7 @@ Requirements:
 - Include hashtags: ${includeHashtags}
 - Include emojis: ${includeEmojis}
 - Character limit: ${this.getPlatformLimit(platform)}
+- Content MUST be in Turkish language
 
 Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
 

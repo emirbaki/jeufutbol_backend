@@ -106,14 +106,19 @@ export class LLMService {
     provider: LLMProvider,
     credentialId?: number,
   ): Promise<BaseChatModel> {
-    const cacheKey = `${userId}_${provider}_${credentialId || 'default'}`;
+    // Use credentialId in cache key when provided for more accurate caching
+    const cacheKey = credentialId
+      ? `${tenantId}_cred_${credentialId}`
+      : `${userId}_${provider}_default`;
     if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
 
     let cred: LlmCredential | null = null;
 
     if (credentialId) {
+      // When credentialId is provided, find by id and tenantId only
+      // (credentials are shared within a tenant, not per-user)
       cred = await this.credentialRepo.findOne({
-        where: { id: credentialId, userId, tenantId },
+        where: { id: credentialId, tenantId },
       });
     } else {
       cred = await this.credentialRepo.findOne({
@@ -122,13 +127,16 @@ export class LLMService {
       });
     }
 
-    if (!cred) throw new Error(`No credentials found for ${provider}`);
+    if (!cred) throw new Error(`No credentials found for ${provider} (credentialId: ${credentialId || 'none'})`);
 
     const apiKey = EncryptionUtil.decrypt(cred.apiKey);
 
+    // Use the credential's provider, not the passed-in one (credential takes precedence)
+    const actualProvider = cred.provider as LLMProvider;
+
     let model: BaseChatModel;
 
-    switch (provider) {
+    switch (actualProvider) {
       case 'openai':
         model = new ChatOpenAI({
           openAIApiKey: apiKey,
