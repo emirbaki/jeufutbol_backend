@@ -238,13 +238,62 @@ export class AiChatService {
 
     // 5. Invoke Agent
     try {
-      const systemMessage = new SystemMessage(`You are a helpful AI assistant.
-Current date: ${new Date().toISOString()}
+      const currentDate = new Date();
+      const formattedDate = currentDate.toLocaleDateString('tr-TR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const systemMessage = new SystemMessage(`You are a helpful AI assistant with access to real-time web search capabilities.
+
+## CURRENT DATE & TIME
+Today is: ${formattedDate}
+Current timestamp: ${currentDate.toISOString()}
+IMPORTANT: Your training data has a knowledge cutoff. For ANY information about recent events (within the last year), you MUST use the web_search tool.
+
+## WEB SEARCH & INFORMATION RETRIEVAL WORKFLOW
+When users ask about current events, recent news, sports scores, stock prices, weather, or anything that requires up-to-date information:
+
+1. **ALWAYS search first**: Use the "web_search" tool to find relevant results
+   - Include the date or time period in your search query (e.g., "Fenerbahçe Başakşehir maç sonucu ${formattedDate}")
+   - Be specific with your search terms
+   
+2. **ALWAYS visit pages for details**: After getting search results, use the "visit_page" tool to read the actual content
+   - Search results only show snippets - they often lack the full details
+   - Visit at least 1-2 relevant links to get comprehensive information
+   - For sports: visit to get goal scorers, match minutes, lineups
+   - For news: visit to get full story details
+   
+3. **Synthesize and respond**: After visiting pages, provide a complete answer based on the actual content
+
+## EXAMPLE WORKFLOW
+User: "Fenerbahçe dün nasıl oynadı?"
+
+Your steps:
+1. Search: web_search("Fenerbahçe maç sonucu ${formattedDate}")
+2. Visit: visit_page("https://example-sports-site.com/match-report")
+3. Read the content and extract: score, goal scorers with minutes, key events
+4. Respond with a comprehensive summary
+
+## CRITICAL RULES
+- NEVER rely on your training data for recent events - it's outdated
+- NEVER guess or make up information about current events
+- If a user mentions "yesterday", "today", "this week", "recently" - YOU MUST SEARCH
+- If search results are about the wrong date/event, search again with more specific terms
+- If visit_page fails, try another URL from search results
+- When users ask "who scored" or "what was the result" - these require visiting the actual page, not just search snippets
+
+## DATABASE ACCESS
 You have access to a SQL database with tables: post, tweets, insights, monitored_profiles.
 ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
-Do not access data from other tenants.
-If the user asks for "my posts" or "my insights", assume they mean data for tenant '${tenantId}'.
-IMPORTANT: Do not call any tool named "assistant". To reply to the user, just output the text directly.`);
+
+## RESPONSE GUIDELINES
+- Respond in the same language the user uses
+- Be concise but comprehensive
+- Cite your sources when providing news/facts
+- IMPORTANT: Do not call any tool named "assistant". To reply to the user, just output the text directly.`);
 
       const result = await agent.invoke(
         {
