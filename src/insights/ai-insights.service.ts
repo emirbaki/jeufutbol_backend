@@ -785,9 +785,10 @@ Return as a JSON array of strings, no additional formatting.`;
     limit = 20,
   ): Promise<Insight[]> {
     // Get ALL insights from the organization (not just the user's insights)
+    // Order by createdAt first (newest) then by relevance as secondary
     return this.insightRepository.find({
       where: { tenantId },
-      order: { relevanceScore: 'DESC', createdAt: 'DESC' },
+      order: { createdAt: 'DESC', relevanceScore: 'DESC' },
       take: limit,
       relations: ['user'], // Include user relation to show who created each insight
     });
