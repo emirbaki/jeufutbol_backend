@@ -1,5 +1,7 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Job } from 'bullmq';
 import { QUEUE_NAMES, AI_INSIGHTS_JOBS } from '../../queue/queue.config';
 import { AIInsightsService } from '../ai-insights.service';
@@ -16,7 +18,10 @@ import {
 export class AIInsightsProcessor extends WorkerHost {
   private readonly logger = new Logger(AIInsightsProcessor.name);
 
-  constructor(private readonly aiInsightsService: AIInsightsService) {
+  constructor(
+    private readonly aiInsightsService: AIInsightsService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {
     super();
   }
 
@@ -74,6 +79,16 @@ export class AIInsightsProcessor extends WorkerHost {
       useVectorSearch,
       tenantId,
     });
+
+    // Invalidate the getInsights cache so fresh data is returned
+    // The cache key pattern used by GraphqlCacheInterceptor
+    try {
+      await this.cacheManager.del(`${userId}:getInsights:{}`);
+      await this.cacheManager.del(`${tenantId}:getInsights:{}`);
+      this.logger.log('Invalidated getInsights cache');
+    } catch (e) {
+      this.logger.warn(`Failed to invalidate cache: ${e.message}`);
+    }
 
     // Update progress: Complete
     await job.updateProgress(100);
