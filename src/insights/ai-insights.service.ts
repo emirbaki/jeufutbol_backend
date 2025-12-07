@@ -796,9 +796,9 @@ Return as a JSON array of strings, no additional formatting.`;
   /**
    * Mark an insight as read
    */
-  async markInsightAsRead(insightId: string, userId: string): Promise<Insight> {
+  async markInsightAsRead(insightId: string, tenantId: string): Promise<Insight> {
     const insight = await this.insightRepository.findOne({
-      where: { id: insightId, userId },
+      where: { id: insightId, tenantId },
     });
 
     if (!insight) {

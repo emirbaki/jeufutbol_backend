@@ -81,11 +81,10 @@ export class AIInsightsProcessor extends WorkerHost {
     });
 
     // Invalidate the getInsights cache so fresh data is returned
-    // The cache key pattern used by GraphqlCacheInterceptor
+    // The cache key pattern used by GraphqlCacheInterceptor (uses tenantId)
     try {
-      await this.cacheManager.del(`${userId}:getInsights:{}`);
       await this.cacheManager.del(`${tenantId}:getInsights:{}`);
-      this.logger.log('Invalidated getInsights cache');
+      this.logger.log('Invalidated getInsights cache for tenant');
     } catch (e) {
       this.logger.warn(`Failed to invalidate cache: ${e.message}`);
     }

@@ -129,7 +129,7 @@ export class MonitoringResolver {
     );
 
     // Invalidate getMonitoredProfiles cache
-    await this.cacheManager.del(`${userId}:getMonitoredProfiles:{}`);
+    await this.cacheManager.del(`${tenantId}:getMonitoredProfiles:{}`);
 
     return profile;
   }
@@ -152,9 +152,9 @@ export class MonitoringResolver {
     );
 
     // Invalidate caches
-    await this.cacheManager.del(`${userId}:getMonitoredProfiles:{}`);
+    await this.cacheManager.del(`${tenantId}:getMonitoredProfiles:{}`);
     await this.cacheManager.del(
-      `${userId}:getMonitoredProfile:{"profileId":"${profileId}"}`,
+      `${tenantId}:getMonitoredProfile:{"profileId":"${profileId}"}`,
     );
 
     return result;

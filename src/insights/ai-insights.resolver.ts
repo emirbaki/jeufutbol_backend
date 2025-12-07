@@ -166,22 +166,22 @@ export class AIInsightsResolver {
   }
 
   @Mutation(() => Insight)
-  @RequireScopes(ApiKeyScope.INSIGHTS_READ) // Read scope is enough to mark as read? Or maybe write? Let's use READ for now as it's minor state change
+  @RequireScopes(ApiKeyScope.INSIGHTS_READ)
   async markInsightAsRead(
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
     @Args('insightId') insightId: string,
   ) {
-    const userId = user?.id || apiKey?.createdByUserId;
-    if (!userId) throw new Error('User context required');
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    if (!tenantId) throw new Error('Tenant context required');
 
     const result = await this.aiInsightsService.markInsightAsRead(
       insightId,
-      userId,
+      tenantId,
     );
 
-    // Invalidate getInsights cache
-    await this.cacheManager.del(`${userId}:getInsights:{}`);
+    // Invalidate getInsights cache for the tenant
+    await this.cacheManager.del(`${tenantId}:getInsights:{}`);
 
     return result;
   }

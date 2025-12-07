@@ -18,11 +18,12 @@ export class GraphqlCacheInterceptor extends CacheInterceptor {
     // We sort keys to ensure consistent cache keys regardless of arg order
     const sortedArgs = this.sortObject(args);
 
-    // Include user ID in the cache key to prevent data leakage between users
+    // Use tenantId for cache key to ensure tenant-scoped queries
+    // are consistent across all users in the same tenant
     const req = gqlContext.getContext().req;
-    const userId = req?.user?.id;
+    const tenantId = req?.user?.tenantId;
 
-    const key = `${userId ? userId + ':' : ''}${info.fieldName}:${JSON.stringify(sortedArgs)}`;
+    const key = `${tenantId ? tenantId + ':' : ''}${info.fieldName}:${JSON.stringify(sortedArgs)}`;
 
     return key;
   }
