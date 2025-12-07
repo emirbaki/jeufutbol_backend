@@ -146,7 +146,7 @@ export class AIInsightsResolver {
     return this.aiInsightsService.queueIndexAllTweets(tenantId);
   }
 
-  @CacheTTL(300000) // 5 minutes (reduced from 3 days to ensure fresh data)
+  @CacheTTL(259200000) // 3 days
   @Query(() => [Insight])
   @RequireScopes(ApiKeyScope.INSIGHTS_READ)
   async getInsights(
@@ -158,14 +158,11 @@ export class AIInsightsResolver {
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
-    const insights = await this.aiInsightsService.getInsightsForUser(
+    return this.aiInsightsService.getInsightsForUser(
       userId,
       tenantId,
       limit,
     );
-
-    console.log(`[getInsights] Returning ${insights.length} insights for tenant ${tenantId}`);
-    return insights;
   }
 
   @Mutation(() => Insight)
