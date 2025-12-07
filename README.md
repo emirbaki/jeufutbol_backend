@@ -1,39 +1,60 @@
 # JeuHub Backend - Social Media Management API
 
-Welcome to the engine room of **JeuHub**. This is the robust, **NestJS 11**-powered GraphQL API that drives our social media management platform. It handles everything from multi-platform publishing and OAuth authentication to the AI agents that power our insights engine.
+Welcome to the engine room of **JeuHub**. This is the robust, **NestJS 11**-powered GraphQL API that drives our social media management platform. It handles everything from multi-platform publishing and OAuth authentication to the AI agents that power our insights engine, all built on a secure multi-tenant architecture.
 
 ## 🚀 Overview
 
-The JeuHub backend is designed to be the heavy lifter. It connects securely to X (Twitter), Instagram, Facebook, TikTok, and YouTube, managing the complexities of each platform's API so the frontend doesn't have to. Beyond just posting, it features a sophisticated AI layer that analyzes trends, generates content, and provides actionable insights to users.
+The JeuHub backend is designed to be the heavy lifter. It connects securely to X (Twitter), Instagram, Facebook, TikTok, and YouTube, managing the complexities of each platform's API. It features a sophisticated AI layer for content generation and insights, and a robust multi-tenancy system to support organizations and teams.
 
 ## ✨ Key Features
 
-### 🔐 Secure Core
+### 🔐 Secure & Scalable Core
 
-- **Robust Authentication**: We use Passport.js with JWTs for secure, stateless authentication.
-- **OAuth2 Management**: Seamlessly handles the complex OAuth flows for all supported social platforms.
-- **Bank-Grade Encryption**: Sensitive credentials (like access tokens) are encrypted with AES-256-GCM before they ever touch the database.
-- **Role-Based Access**: Strict data isolation ensures users only see what they own.
+- **Multi-Tenancy**: Built-in support for multiple organizations (tenants) with strict data isolation.
+- **Robust Authentication**: Passport.js with JWTs, supporting both User sessions and API Key access.
+- **Role-Based Access Control (RBAC)**: Manage permissions with ADMIN, MANAGER, and USER roles.
+- **OAuth2 Management**: Seamlessly handles OAuth flows for all supported social platforms.
+- **Bank-Grade Encryption**: Sensitive credentials are encrypted with AES-256-GCM.
+
+### 👥 Team & Integration
+
+- **User Invitations**: Admins can invite team members via email with role assignment.
+- **API Keys**: Generate scoped API keys for third-party integrations (Client Credentials flow).
+- **Documentation**: Dedicated guides for [API Integration](../API_INTEGRATION_GUIDE.md) and [User Invitations](../USER_INVITATION_AND_API_KEY_GUIDE.md).
 
 ### 📝 Content Command Center
 
-- **Universal Publishing**: One API to rule them all. Post to X, Instagram, Facebook, TikTok, and YouTube simultaneously.
-- **Smart Workflows**: Draft now, schedule for later, or publish instantly. We handle the lifecycle.
-- **Media Management**: Robust handling of images and videos, optimized for each platform's requirements.
-- **Bulk Operations**: Need to blast an update everywhere? We've got you covered.
+- **Universal Publishing**: Post to X, Instagram, Facebook, TikTok, and YouTube simultaneously.
+- **Smart Workflows**: Draft, schedule, and publish with automated lifecycle management.
+- **Media Management**: Optimized handling of images and videos for each platform.
 
 ### 🤖 AI & Intelligence
 
-- **LangChain Powered**: We've integrated LangChain to build autonomous agents that can analyze and create.
-- **Multi-Model Support**: Whether it's OpenAI, Google Gemini, or Ollama, we support multiple LLM providers.
-- **Deep Insights**: Our agents analyze trends and engagement to tell you _what_ to post and _when_.
-- **Vector Search**: Integrated ChromaDB for semantic search capabilities, allowing for context-aware insights.
+- **LangChain Powered**: Autonomous agents for trend analysis and content creation.
+- **Multi-Model Support**: OpenAI, Google Gemini, and Ollama integration.
+- **Vector Search**: ChromaDB integration for semantic search and context-aware insights. Used Xenova/multilingual-e5-small for embedding documents and queries for better Turkish results.
+
+#### 🛠️ Agent Tools & Capabilities
+
+The AI agent is equipped with a suite of custom tools to perform complex tasks:
+
+- **🌐 Web Search (`web_search`)**: Uses SearXNG to fetch real-time information (news, events, weather) from Google, Bing, and DuckDuckGo.
+- **📄 Page Visitor (`visit_page`)**: Scrapes and extracts full text content from URLs to read articles and reports in depth.
+- **📝 Post Generation**:
+  - `generate_post_template`: Creates platform-specific post drafts with tone, emojis, and hashtags.
+  - `analyze_trends`: Analyzes current trends to suggest relevant content.
+  - `suggest_content`: Proposes content ideas based on user categories.
+- **📲 Social Media Management**:
+  - `create_post`: Drafts new posts for multiple platforms.
+  - `list_posts`: Retrieves recent posts and their statuses.
+  - `publish_post`: Triggers immediate publication of approved posts.
+- **💾 Data Access**: Safe SQL access to query system data, insights, and performance metrics.
 
 ### 📊 Monitoring & Analytics
 
-- **X Profile Watch**: Keep a close eye on specific X (Twitter) profiles. We automatically fetch and index their tweets.
-- **Engagement Tracking**: We track likes, retweets, and views to give you a clear picture of performance.
-- **Automated Analysis**: Background jobs crunch the numbers hourly to keep your insights fresh.
+- **X Profile Watch**: Automated tracking and indexing of specific X (Twitter) profiles.
+- **Engagement Tracking**: Track likes, retweets, and views.
+- **Automated Analysis**: Background jobs (BullMQ) for periodic data crunching.
 
 ## 🏗️ Architecture & Tech Stack
 
@@ -41,11 +62,12 @@ We've built this on a foundation of industry-standard, enterprise-ready technolo
 
 ### Core Stack
 
-- **Framework**: **NestJS 11** (TypeScript) - The progressive Node.js framework.
-- **API Layer**: GraphQL (Apollo Server) for flexible data fetching, plus REST for specific utility routes.
-- **Database**: PostgreSQL with TypeORM for reliable, relational data storage.
-- **Vector DB**: ChromaDB for our AI's long-term memory and semantic search.
-- **Task Queue**: @nestjs/schedule for handling background jobs and cron tasks.
+- **Framework**: **NestJS 11** (TypeScript)
+- **API Layer**: GraphQL (Apollo Server) + REST
+- **Database**: PostgreSQL with TypeORM
+- **Vector DB**: ChromaDB
+- **Caching & Queues**: **Redis** + **BullMQ**
+- **Task Scheduling**: @nestjs/schedule
 
 ### Project Structure
 
@@ -54,30 +76,36 @@ The codebase is modular and domain-driven:
 ```
 src/
 ├── auth/               # Authentication & JWT strategies
-├── post/               # Post lifecycle & platform gateways
+├── cache/              # Redis cache configuration
+├── credentials/        # Encrypted credential management
+├── email/              # Email sending service (Resend)
+├── entities/           # TypeORM database definitions
+├── graphql/            # GraphQL configuration & scalars
 ├── insights/           # AI agents, LLM integration, & Vector DB
 ├── monitoring/         # X profile tracking & analysis
+├── post/               # Post lifecycle & platform gateways
+├── pubsub/             # Real-time subscriptions (Redis-based)
+├── queue/              # BullMQ background job queues
 ├── social-accounts/    # OAuth account management
+├── tenancy/            # Multi-tenancy & tenant isolation
+├── tweets/             # Tweet management
 ├── upload/             # File upload & storage handling
-└── entities/           # TypeORM database definitions
+└── user/               # User management
 ```
 
 ## ☁️ Deployment & Infrastructure
 
-Reliability is our priority.
-
-- **Deployment**: We use **Dokploy** for streamlined, automated deployments.
-- **Network**: **Cloudflare** sits in front of our API, providing DNS management, DDoS protection, and global caching.
+- **Deployment**: **Dokploy** for automated deployments.
+- **Network**: **Cloudflare** for DNS, DDoS protection, and caching.
 
 ## 🚀 Getting Started
-
-Want to run the API locally? Here's the playbook.
 
 ### Prerequisites
 
 - Node.js 18+
 - PostgreSQL 14+
-- ChromaDB (optional, for full AI features)
+- **Redis 6+** (Required for Queues and Caching)
+- ChromaDB (Optional, for full AI features)
 
 ### Installation
 
@@ -88,7 +116,7 @@ Want to run the API locally? Here's the playbook.
     ```
 
 2.  **Configure Environment:**
-    Copy `.env.example` to `.env` and fill in your database and API keys.
+    Copy `.env.example` to `.env` and configure your database, Redis, and API keys.
 
     ```bash
     cp .env.example .env
@@ -110,8 +138,6 @@ Want to run the API locally? Here's the playbook.
 
 ## 🧪 Testing
 
-We believe in shipping with confidence.
-
 ```bash
 # Unit Tests
 npm run test
@@ -122,7 +148,7 @@ npm run test:e2e
 
 ## 🤝 Contributing & Support
 
-Got ideas? Found a bug? We're all ears. Reach out to the development team for support or check the issues tab.
+Refer to the [API Integration Guide](./API_INTEGRATION_GUIDE.md) for external access details.
 
 ---
 
