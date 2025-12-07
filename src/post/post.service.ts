@@ -226,9 +226,12 @@ export class PostsService {
           );
 
           // 2️⃣ Let the gateway handle posting logic
+          const contentToPublish =
+            post.platformSpecificContent?.[platform] || post.content;
+
           const result = await gateway.createNewPost(
             userId,
-            post.content,
+            contentToPublish,
             access_token,
             post.mediaUrls,
             { username: credential.accountName },
