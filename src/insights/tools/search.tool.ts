@@ -12,9 +12,10 @@ export class SearchTool {
             params: {
                 format: 'json',
                 engines: 'google', //bing,brave,qwant,duckduckgo
-                categories: 'general,news',
-                // language: 'tr-TR',
-                // time_range: 'month',
+                categories: 'general,news,images,sports',
+                language: 'tr-TR',
+                numResults: 20,
+                // timeRange: 'year',  // TODO: Test what number values work (type expects number, SearXNG API uses strings)
                 safesearch: 0,
             },
             headers: {
@@ -27,16 +28,33 @@ export class SearchTool {
         // Wrap in DynamicStructuredTool for better control
         return new DynamicStructuredTool({
             name: 'web_search',
-            description: `Search the web for current information. YOU MUST USE THIS TOOL when the user asks about:
+            description: `Search the web for current information using SearXNG metasearch engine.
+
+WHEN TO USE THIS TOOL:
 - Recent events, news, or current affairs
-- Sports scores, match results, or game details
+- Sports scores, match results, or celebrity/magazine news
 - Stock prices, cryptocurrency, or financial data
 - Weather forecasts
-- Any information from the past year that requires up-to-date data
+- Any information requiring up-to-date data
 - When user mentions "today", "yesterday", "this week", "recently", "latest"
 
-IMPORTANT: Always include relevant dates in your search query to get accurate results.
-After searching, you MUST use the visit_page tool to read full content from the result URLs.`,
+SEARCH SYNTAX - Use these prefixes to improve results:
+- "!" prefix selects category/engine: !news, !images, !map, !wp (Wikipedia), !videos
+- ":" prefix selects language: :tr, :en, :fr, :de, etc.
+- Chain modifiers: "!news :tr [query]" = news in Turkish
+- Multiple engines: "!google !bing [query]" = searches both
+
+SYNTAX PATTERNS:
+- News search: "!news [topic] [year]"
+- Image search: "!images [subject]"
+- Language-specific: ":tr [query]" or ":en [query]"
+- Combined: "!news :tr [topic] 2024"
+
+BEST PRACTICES:
+1. Include year (2024/2025) for time-sensitive queries
+2. Use appropriate language code for non-English queries
+3. Match category to content type (news/images/videos)
+4. After searching, use visit_page tool to read full content from URLs`,
             schema: z.object({
                 query: z.string().describe('The search query - include dates for time-sensitive topics'),
             }),
