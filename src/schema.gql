@@ -263,6 +263,27 @@ type ChatSession {
   updatedAt: DateTime!
 }
 
+type ChatStreamEvent {
+  sessionId: String!
+  type: ChatStreamEventType!
+  content: String
+  node: String
+}
+
+"""Type of chat stream event"""
+enum ChatStreamEventType {
+  TOKEN
+  THINKING
+  UPDATE
+  DONE
+  ERROR
+}
+
+type ChatStreamStart {
+  sessionId: String!
+  status: String!
+}
+
 type ChatResponse {
   response: String!
   sessionId: String!
@@ -373,6 +394,7 @@ type Mutation {
   reindexAllTweets: Boolean!
   createChatSession(title: String): ChatSession!
   chatWithAI(message: String!, sessionId: String, llmProvider: String, credentialId: Int): ChatResponse!
+  startChatStream(message: String!, sessionId: String, llmProvider: String, credentialId: Int): ChatStreamStart!
   deleteChatSession(sessionId: String!): Boolean!
 
   """Retry a failed job"""
@@ -410,4 +432,5 @@ input InviteUserInput {
 
 type Subscription {
   postUpdated: Post!
+  chatStream(sessionId: String!): ChatStreamEvent!
 }

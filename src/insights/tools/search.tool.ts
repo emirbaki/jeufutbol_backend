@@ -1,11 +1,30 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
+import { SearxngSearch } from '@langchain/community/tools/searxng_search';
 import { z } from 'zod';
-import axios from 'axios';
 
 export class SearchTool {
     static createTool() {
         const searxngUrl = process.env.SEARXNG_URL || 'http://localhost:8080';
 
+        // Create the official SearxngSearch instance
+        const searxngTool = new SearxngSearch({
+            apiBase: searxngUrl,
+            params: {
+                format: 'json',
+                engines: 'google', //bing,brave,qwant,duckduckgo
+                categories: 'general,news',
+                // language: 'tr-TR',
+                // time_range: 'month',
+                safesearch: 0,
+            },
+            headers: {
+                'Accept': 'application/json',
+                'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+
+        // Wrap in DynamicStructuredTool for better control
         return new DynamicStructuredTool({
             name: 'web_search',
             description: `Search the web for current information. YOU MUST USE THIS TOOL when the user asks about:
@@ -25,64 +44,22 @@ After searching, you MUST use the visit_page tool to read full content from the 
                 try {
                     console.log(`[SearchTool] Searching for: "${query}" via SearXNG at ${searxngUrl}`);
 
-                    // SearXNG JSON API endpoint
-                    const response = await axios.get(`${searxngUrl}/search`, {
-                        params: {
-                            q: query,
-                            format: 'json',
-                            engines: 'google,bing,duckduckgo', // Use multiple engines for better results
-                            language: 'tr-TR',
-                        },
-                        headers: {
-                            'Accept': 'application/json, text/javascript, */*; q=0.01',
-                            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-Forwarded-For': '127.0.0.1',
-                            'X-Real-IP': '127.0.0.1',
-                            'Referer': searxngUrl,
-                        },
-                        timeout: 15000, // 15 second timeout
-                        validateStatus: () => true,
-                    });
+                    const result = await searxngTool.invoke(query);
 
-                    console.log(`[SearchTool] Response status: ${response.status}`);
+                    console.log(`[SearchTool] Got result (${typeof result}):`,
+                        typeof result === 'string' ? result.substring(0, 200) + '...' : result);
 
-                    if (response.status !== 200) {
-                        console.error(`[SearchTool] Error response:`, response.data);
-                        return `Search failed with status ${response.status}: ${response.statusText}`;
-                    }
+                    return result;
+                } catch (error: any) {
+                    console.error(`[SearchTool] Error:`, error.message);
 
-                    const data = response.data;
-
-                    if (!data.results || data.results.length === 0) {
-                        console.log(`[SearchTool] No results found`);
-                        return 'No results found.';
-                    }
-
-                    console.log(`[SearchTool] Found ${data.results.length} results`);
-
-                    // Extract and format the top 10 results
-                    const results = data.results.slice(0, 10).map((result: any) => ({
-                        title: result.title || '',
-                        link: result.url || '',
-                        snippet: result.content || '',
-                        engine: result.engine || '',
-                    }));
-
-                    return JSON.stringify(results, null, 2);
-
-                } catch (error) {
-                    console.error(`[SearchTool] Error:`, error.message, error.code);
                     if (error.code === 'ECONNREFUSED') {
                         return `Error: Could not connect to SearXNG at ${searxngUrl}. Please check if the service is running.`;
                     }
-                    if (error.code === 'ENOTFOUND') {
-                        return `Error: Could not resolve SearXNG hostname. Please check the SEARXNG_URL environment variable.`;
-                    }
-                    if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+                    if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
                         return `Error: Connection to SearXNG timed out. The server might be slow or unreachable.`;
                     }
+
                     return `Error performing search: ${error.message}`;
                 }
             },
