@@ -48,6 +48,11 @@ export class AiChatService {
     private dataSource: DataSource,
   ) { }
 
+  private cleanResponseContent(content: string): string {
+    // Remove <think>...</think> blocks, including newlines
+    return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  }
+
   async createChatSession(
     userId: string,
     tenantId: string,
@@ -178,6 +183,10 @@ export class AiChatService {
           const content = response.content;
           // Regex to find { "function": "name", "arguments": { ... } }
           // We use a loose regex to capture the JSON block
+          // First clean the content to ensure we don't match anything inside think blocks if possible,
+          // though usually JSON is outside. But definitely we want the TEXT part to be clean.
+          const cleanedContent = this.cleanResponseContent(content);
+
           const jsonMatch = content.match(
             /\{[\s\n]*"function":[\s\n]*"(.*?)",[\s\n]*"arguments":[\s\n]*(\{[\s\S]*?\})[\s\n]*\}/,
           );
@@ -211,6 +220,14 @@ export class AiChatService {
               // Failed to parse, ignore
               console.warn('Failed to parse fallback tool call', e);
             }
+          }
+
+          // Update the content to be the cleaned version for the final response if no tool was found
+          // or if we just want to ensure clean output.
+          // If we found a tool, we might have adjusted response.content already.
+          // If we didn't find a tool, we definitely want clean content.
+          if (!jsonMatch) {
+            response.content = this.cleanResponseContent(content);
           }
         }
 
@@ -311,7 +328,7 @@ ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isol
       let responseContent = '';
 
       if (typeof lastMessage.content === 'string') {
-        responseContent = lastMessage.content;
+        responseContent = this.cleanResponseContent(lastMessage.content);
       } else {
         responseContent = JSON.stringify(lastMessage.content);
       }

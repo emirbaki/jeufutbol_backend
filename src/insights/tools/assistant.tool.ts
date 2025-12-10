@@ -18,7 +18,7 @@ export class AssistantTool {
 export class AssistantCommentaryTool {
   static createTool() {
     return new DynamicStructuredTool({
-      name: 'assistant<|channel|>commentary',
+      name: 'assistant_commentary',
       description:
         'Do not use this tool. If you want to reply to the user, just output the text directly without calling any tool.',
       schema: z.object({}).passthrough(),
