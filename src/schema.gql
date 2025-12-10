@@ -149,6 +149,7 @@ type Post {
   publishedPosts: [PublishedPost!]
   tenant: Tenant
   failureReasons: JSON
+  tiktokSettings: JSON
 }
 
 """PostStatus enum representing the status of a post"""
@@ -178,6 +179,16 @@ type Credential {
   createdAt: DateTime!
   updatedAt: DateTime!
   tenantId: String
+}
+
+type TikTokCreatorInfo {
+  creator_nickname: String!
+  creator_avatar_url: String!
+  privacy_level_options: [String!]!
+  max_video_post_duration_sec: Int!
+  comment_disabled: Boolean!
+  duet_disabled: Boolean!
+  stitch_disabled: Boolean!
 }
 
 type ApiKey {
@@ -320,6 +331,7 @@ type Query {
   listApiKeys: [ApiKey!]!
   getUserPosts(limit: Int): [Post!]!
   getPost(postId: String!): Post!
+  getTikTokCreatorInfo: TikTokCreatorInfo!
   getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [Credential!]!
   currentTenant: Tenant!
@@ -415,6 +427,16 @@ input CreatePostInput {
   targetPlatforms: [String!]!
   platformSpecificContent: JSON
   scheduledFor: String
+  tiktokSettings: TikTokPostSettingsInput
+}
+
+input TikTokPostSettingsInput {
+  privacy_level: String!
+  allow_comment: Boolean!
+  allow_duet: Boolean!
+  allow_stitch: Boolean!
+  is_brand_organic: Boolean! = false
+  is_branded_content: Boolean! = false
 }
 
 input UpdatePostInput {
@@ -423,6 +445,7 @@ input UpdatePostInput {
   targetPlatforms: [String!]
   platformSpecificContent: JSON
   scheduledFor: String
+  tiktokSettings: TikTokPostSettingsInput
 }
 
 input InviteUserInput {

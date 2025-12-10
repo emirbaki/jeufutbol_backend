@@ -3,8 +3,17 @@ import axios from 'axios';
 import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile, getMediaType } from '../utils/media-utils';
+import { TikTokCreatorInfo, TikTokPostSettingsInput } from 'src/graphql/types/tiktok.type';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com';
+
+/**
+ * Extended options for TikTok posting with user-selected settings
+ */
+export interface TikTokPostOptions {
+  username?: string;
+  tiktokSettings?: TikTokPostSettingsInput;
+}
 
 @Injectable()
 export class TiktokPostGateway extends AsyncPostGateway {
@@ -30,19 +39,60 @@ export class TiktokPostGateway extends AsyncPostGateway {
   }
 
   /**
+   * Get creator info from TikTok API
+   * Required by TikTok Content Sharing Guidelines to fetch posting restrictions
+   * @param access_token OAuth access token
+   */
+  async getCreatorInfo(access_token: string): Promise<TikTokCreatorInfo> {
+    try {
+      this.logger.log('[TikTok] Fetching creator info...');
+
+      const response = await axios.post(
+        `${TIKTOK_API_BASE}/v2/post/publish/creator_info/query/`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const data = response.data.data;
+      this.logger.log(`[TikTok] Creator info: ${JSON.stringify(data, null, 2)}`);
+
+      return {
+        creator_nickname: data.creator_nickname || '',
+        creator_avatar_url: data.creator_avatar_url || '',
+        privacy_level_options: data.privacy_level_options || [],
+        max_video_post_duration_sec: data.max_video_post_duration_sec || 600,
+        comment_disabled: data.comment_disabled || false,
+        duet_disabled: data.duet_disabled || false,
+        stitch_disabled: data.stitch_disabled || false,
+      };
+    } catch (err: any) {
+      this.logger.error(
+        `[TikTok] Failed to fetch creator info: ${JSON.stringify(err.response?.data, null, 2) || err.message}`,
+      );
+      throw err;
+    }
+  }
+
+
+  /**
    * Create TikTok post (video or photo)
    * @param userId TikTok user open_id (not used directly, obtained from token)
    * @param content Video/Photo caption
    * @param access_token OAuth access token
    * @param media Array of media URLs (videos or images)
-   * @param options Optional parameters (e.g. username)
+   * @param options TikTok-specific options including user-selected settings
    */
   async createNewPost(
     userId: string,
     content: string,
     access_token: string,
     media?: string[],
-    options?: { username?: string },
+    options?: TikTokPostOptions,
   ): Promise<any> {
     try {
       if (!media || media.length === 0) {
@@ -79,17 +129,31 @@ export class TiktokPostGateway extends AsyncPostGateway {
     }
   }
 
+
   /**
    * Publish video to TikTok
+   * Uses user-selected settings when available, falls back to SELF_ONLY for unaudited apps
    */
   private async publishVideo(
     caption: string,
     access_token: string,
     videoUrl: string,
-    options?: { username?: string },
+    options?: TikTokPostOptions,
   ): Promise<any> {
     try {
       this.logger.log('[TikTok] Starting video upload...');
+
+      const settings = options?.tiktokSettings;
+
+      // Use user settings or fallback to SELF_ONLY (works for unaudited apps)
+      const privacyLevel = settings?.privacy_level || 'SELF_ONLY';
+      const disableComment = settings ? !settings.allow_comment : false;
+      const disableDuet = settings ? !settings.allow_duet : false;
+      const disableStitch = settings ? !settings.allow_stitch : false;
+      const brandOrganic = settings?.is_brand_organic ?? false;
+      const brandContent = settings?.is_branded_content ?? false;
+
+      this.logger.log(`[TikTok] Post settings: privacy=${privacyLevel}, comment=${!disableComment}, duet=${!disableDuet}, stitch=${!disableStitch}`);
 
       // Step 1: Initialize video upload
       const initRes = await axios.post(
@@ -97,12 +161,13 @@ export class TiktokPostGateway extends AsyncPostGateway {
         {
           post_info: {
             title: caption,
-            privacy_level: 'SELF_ONLY', // Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, SELF_ONLY
-            disable_duet: false,
-            disable_comment: false,
-            disable_stitch: false,
+            privacy_level: privacyLevel,
+            disable_duet: disableDuet,
+            disable_comment: disableComment,
+            disable_stitch: disableStitch,
             video_cover_timestamp_ms: 1000,
-            brand_organic_toggle: true,
+            brand_organic_toggle: brandOrganic,
+            brand_content_toggle: brandContent,
           },
           source_info: {
             source: 'PULL_FROM_URL',
@@ -136,12 +201,13 @@ export class TiktokPostGateway extends AsyncPostGateway {
 
   /**
    * Publish photos to TikTok (photo posts)
+   * Uses user-selected settings when available, falls back to SELF_ONLY for unaudited apps
    */
   private async publishPhotos(
     caption: string,
     access_token: string,
     imageUrls: string[],
-    options?: { username?: string },
+    options?: TikTokPostOptions,
   ): Promise<any> {
     try {
       this.logger.log(
@@ -149,28 +215,40 @@ export class TiktokPostGateway extends AsyncPostGateway {
       );
       this.logger.log(`[TikTok] Image URLs: ${JSON.stringify(imageUrls)}`);
 
+      const settings = options?.tiktokSettings;
+
+      // Use user settings or fallback to SELF_ONLY (works for unaudited apps)
+      const privacyLevel = settings?.privacy_level || 'SELF_ONLY';
+      const disableComment = settings ? !settings.allow_comment : false;
+      const brandOrganic = settings?.is_brand_organic ?? false;
+      const brandContent = settings?.is_branded_content ?? false;
+
+      this.logger.log(`[TikTok] Photo post settings: privacy=${privacyLevel}, comment=${!disableComment}`);
+
       // Step 1: Initialize photo post
       const payload = {
         post_info: {
           title: caption,
           description: caption,
-          privacy_level: 'SELF_ONLY',
-          disable_comment: false,
+          privacy_level: privacyLevel,
+          disable_comment: disableComment,
           auto_add_music: true,
+          brand_organic_toggle: brandOrganic,
+          brand_content_toggle: brandContent,
         },
         source_info: {
           source: 'PULL_FROM_URL',
           photo_cover_index: 0,
           photo_images: imageUrls,
         },
-        post_mode: 'DIRECT_POST', // Add this
-        media_type: 'PHOTO', // Add this
+        post_mode: 'DIRECT_POST',
+        media_type: 'PHOTO',
       };
 
       this.logger.log(`[TikTok] Payload: ${JSON.stringify(payload, null, 2)}`);
 
       const initRes = await axios.post(
-        `${TIKTOK_API_BASE}/v2/post/publish/content/init/`, // Changed endpoint
+        `${TIKTOK_API_BASE}/v2/post/publish/content/init/`,
         payload,
         {
           headers: {

@@ -15,6 +15,9 @@ import { CreatePostInput } from 'src/graphql/inputs/post.input';
 import { QUEUE_NAMES, ASYNC_POLLING_JOBS, SCHEDULED_POST_JOBS } from 'src/queue/queue.config';
 import { AsyncPostGateway } from './gateways/async-post.gateway';
 import { ScheduledPostJobData } from './processors/scheduled-post.processor';
+import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
+import { TiktokPostGateway } from './gateways/tiktok.gateway';
+
 
 @Injectable()
 export class PostsService {
@@ -33,7 +36,9 @@ export class PostsService {
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
+    private readonly tiktokGateway: TiktokPostGateway,
   ) { }
+
 
   async createPost(
     userId: string,
@@ -49,7 +54,16 @@ export class PostsService {
       platformSpecificContent: dto.platformSpecificContent || {},
       scheduledFor: dto.scheduledFor,
       status: dto.scheduledFor ? PostStatus.SCHEDULED : PostStatus.DRAFT,
+      tiktokSettings: dto.tiktokSettings ? {
+        privacy_level: dto.tiktokSettings.privacy_level,
+        allow_comment: dto.tiktokSettings.allow_comment,
+        allow_duet: dto.tiktokSettings.allow_duet,
+        allow_stitch: dto.tiktokSettings.allow_stitch,
+        is_brand_organic: dto.tiktokSettings.is_brand_organic,
+        is_branded_content: dto.tiktokSettings.is_branded_content,
+      } : undefined,
     });
+
 
     const savedPost = await this.postRepository.save(post);
 
@@ -229,13 +243,20 @@ export class PostsService {
           const contentToPublish =
             post.platformSpecificContent?.[platform] || post.content;
 
+          // Build gateway options - include TikTok settings for TikTok platform
+          const gatewayOptions: any = { username: credential.accountName };
+          if (platform === PlatformType.TIKTOK && post.tiktokSettings) {
+            gatewayOptions.tiktokSettings = post.tiktokSettings;
+          }
+
           const result = await gateway.createNewPost(
             userId,
             contentToPublish,
             access_token,
             post.mediaUrls,
-            { username: credential.accountName },
+            gatewayOptions,
           );
+
 
           // 3️⃣ Notify gateway & persist
           await gateway.notifyPostPublished(post.id, platform, result);
@@ -392,4 +413,36 @@ export class PostsService {
 
     return result;
   }
+
+  /**
+   * Get TikTok creator info for posting compliance
+   * Returns privacy options, posting limits, and interaction settings
+   * Required by TikTok Content Sharing Guidelines
+   */
+  async getTikTokCreatorInfo(
+    userId: string,
+    tenantId: string,
+  ): Promise<TikTokCreatorInfo> {
+    // Get TikTok credentials for the user
+    const credentials = await this.credentialsService.getUserCredentials(
+      userId,
+      tenantId,
+      PlatformName.TIKTOK,
+    );
+
+    if (credentials.length === 0) {
+      throw new Error('No TikTok credentials found. Please connect your TikTok account first.');
+    }
+
+    // Get access token from first available credential
+    const access_token = await this.credentialsService.getAccessToken(
+      credentials[0].id,
+      userId,
+      tenantId,
+    );
+
+    // Fetch creator info from TikTok API via gateway
+    return this.tiktokGateway.getCreatorInfo(access_token);
+  }
 }
+
