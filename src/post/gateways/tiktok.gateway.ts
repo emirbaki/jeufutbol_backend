@@ -128,7 +128,7 @@ export class TiktokPostGateway extends AsyncPostGateway {
       };
     } catch (err: any) {
       this.logger.error(
-        `[TikTok] Video upload error: ${err.response?.data || err.message}`,
+        `[TikTok] Video upload error: ${JSON.stringify(err.response?.data, null, 2) || err.message}`,
       );
       throw err;
     }
