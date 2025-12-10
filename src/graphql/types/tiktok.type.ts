@@ -65,5 +65,11 @@ export class TikTokPostSettingsInput {
     @IsBoolean()
     @IsOptional()
     is_branded_content?: boolean; // "Branded content" - Paid partnership label
+
+    @Field({ defaultValue: false })
+    @IsBoolean()
+    @IsOptional()
+    auto_add_music?: boolean; // Auto add music for photo posts
 }
+
 

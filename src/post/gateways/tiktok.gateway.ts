@@ -222,8 +222,9 @@ export class TiktokPostGateway extends AsyncPostGateway {
       const disableComment = settings ? !settings.allow_comment : false;
       const brandOrganic = settings?.is_brand_organic ?? false;
       const brandContent = settings?.is_branded_content ?? false;
+      const autoAddMusic = settings?.auto_add_music ?? true; // Default true for photos
 
-      this.logger.log(`[TikTok] Photo post settings: privacy=${privacyLevel}, comment=${!disableComment}`);
+      this.logger.log(`[TikTok] Photo post settings: privacy=${privacyLevel}, comment=${!disableComment}, autoAddMusic=${autoAddMusic}`);
 
       // Step 1: Initialize photo post
       const payload = {
@@ -232,10 +233,11 @@ export class TiktokPostGateway extends AsyncPostGateway {
           description: caption,
           privacy_level: privacyLevel,
           disable_comment: disableComment,
-          auto_add_music: true,
+          auto_add_music: autoAddMusic,
           brand_organic_toggle: brandOrganic,
           brand_content_toggle: brandContent,
         },
+
         source_info: {
           source: 'PULL_FROM_URL',
           photo_cover_index: 0,

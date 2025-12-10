@@ -438,6 +438,7 @@ input TikTokPostSettingsInput {
   allow_stitch: Boolean!
   is_brand_organic: Boolean! = false
   is_branded_content: Boolean! = false
+  auto_add_music: Boolean! = false
 }
 
 input UpdatePostInput {
