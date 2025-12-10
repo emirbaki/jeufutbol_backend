@@ -97,11 +97,12 @@ export class TiktokPostGateway extends AsyncPostGateway {
         {
           post_info: {
             title: caption,
-            privacy_level: 'SELF_ONLY', // Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, SELF_ONLY
+            privacy_level: 'PUBLIC_TO_EVERYONE', // Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, SELF_ONLY
             disable_duet: false,
             disable_comment: false,
             disable_stitch: false,
             video_cover_timestamp_ms: 1000,
+            brand_organic_toggle: true,
           },
           source_info: {
             source: 'PULL_FROM_URL',
@@ -153,7 +154,7 @@ export class TiktokPostGateway extends AsyncPostGateway {
         post_info: {
           title: caption,
           description: caption,
-          privacy_level: 'SELF_ONLY',
+          privacy_level: 'PUBLIC_TO_EVERYONE',
           disable_comment: false,
           auto_add_music: true,
         },
