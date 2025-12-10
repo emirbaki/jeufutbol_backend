@@ -35,6 +35,11 @@ export class TikTokCreatorInfo {
  */
 @InputType()
 export class TikTokPostSettingsInput {
+    @Field({ nullable: true })
+    @IsString()
+    @IsOptional()
+    title?: string; // TikTok post title (caption)
+
     @Field()
     @IsString()
     privacy_level: string; // Must be one of: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, SELF_ONLY, FOLLOWER_OF_CREATOR
@@ -61,3 +66,4 @@ export class TikTokPostSettingsInput {
     @IsOptional()
     is_branded_content?: boolean; // "Branded content" - Paid partnership label
 }
+

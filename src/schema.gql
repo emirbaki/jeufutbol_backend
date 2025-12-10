@@ -431,6 +431,7 @@ input CreatePostInput {
 }
 
 input TikTokPostSettingsInput {
+  title: String
   privacy_level: String!
   allow_comment: Boolean!
   allow_duet: Boolean!
