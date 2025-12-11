@@ -11,6 +11,7 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
+import { IsString, IsNumber, IsOptional } from 'class-validator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
 import { UploadService } from './upload.service';
 
@@ -36,17 +37,27 @@ const multerChunkConfig = {
   limits: { fileSize: 60 * 1024 * 1024 }, // 60MB per chunk (under Cloudflare limit)
 };
 
-// DTOs for chunked upload
+// DTOs for chunked upload with class-validator decorators
 class InitChunkUploadDto {
+  @IsString()
   filename: string;
+
+  @IsNumber()
   totalSize: number;
+
+  @IsNumber()
   totalChunks: number;
-  mimeType: string;
+
+  @IsString()
+  @IsOptional()
+  mimeType?: string;
 }
 
 class CompleteChunkUploadDto {
+  @IsString()
   uploadId: string;
 }
+
 
 @Controller('upload')
 export class UploadController {
