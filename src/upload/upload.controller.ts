@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Body,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
@@ -8,12 +9,12 @@ import {
   UploadedFiles,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { diskStorage, memoryStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
 import { UploadService } from './upload.service';
 
-// Multer disk storage configuration
+// Multer disk storage configuration for regular uploads
 const uploadPath = process.env.UPLOAD_DIR || '/var/www/uploads';
 if (!existsSync(uploadPath)) mkdirSync(uploadPath, { recursive: true });
 
@@ -28,6 +29,24 @@ const multerConfig = {
   }),
   limits: { fileSize: 300 * 1024 * 1024 }, // 300MB
 };
+
+// Memory storage for chunks (they're small, processed immediately)
+const multerChunkConfig = {
+  storage: memoryStorage(),
+  limits: { fileSize: 60 * 1024 * 1024 }, // 60MB per chunk (under Cloudflare limit)
+};
+
+// DTOs for chunked upload
+class InitChunkUploadDto {
+  filename: string;
+  totalSize: number;
+  totalChunks: number;
+  mimeType: string;
+}
+
+class CompleteChunkUploadDto {
+  uploadId: string;
+}
 
 @Controller('upload')
 export class UploadController {
@@ -60,4 +79,70 @@ export class UploadController {
       size: res.sizes,
     };
   }
+
+  // ============================================
+  // CHUNKED UPLOAD ENDPOINTS
+  // ============================================
+
+  /**
+   * Initialize a chunked upload session
+   */
+  @Post('chunk/init')
+  async initChunkUpload(@Body() dto: InitChunkUploadDto) {
+    if (!dto.filename || !dto.totalSize || !dto.totalChunks) {
+      throw new BadRequestException('Missing required fields: filename, totalSize, totalChunks');
+    }
+
+    const uploadId = await this.uploadService.initChunkUpload(
+      dto.filename,
+      dto.totalSize,
+      dto.totalChunks,
+      dto.mimeType || 'application/octet-stream',
+    );
+
+    return { uploadId };
+  }
+
+  /**
+   * Upload a single chunk
+   */
+  @Post('chunk')
+  @UseInterceptors(FileInterceptor('chunk', multerChunkConfig))
+  async uploadChunk(
+    @UploadedFile() chunk: Express.Multer.File,
+    @Body() body: { uploadId: string; chunkIndex: string },
+  ) {
+    if (!chunk) throw new BadRequestException('Chunk file is required');
+    if (!body.uploadId) throw new BadRequestException('uploadId is required');
+    if (body.chunkIndex === undefined) throw new BadRequestException('chunkIndex is required');
+
+    const chunkIndex = parseInt(body.chunkIndex, 10);
+    if (isNaN(chunkIndex)) throw new BadRequestException('chunkIndex must be a number');
+
+    const result = await this.uploadService.saveChunk(
+      body.uploadId,
+      chunkIndex,
+      chunk.buffer,
+    );
+
+    return result;
+  }
+
+  /**
+   * Complete chunked upload - assemble all chunks
+   */
+  @Post('chunk/complete')
+  async completeChunkUpload(@Body() dto: CompleteChunkUploadDto) {
+    if (!dto.uploadId) throw new BadRequestException('uploadId is required');
+
+    const result = await this.uploadService.completeChunkUpload(dto.uploadId);
+
+    return {
+      message: 'File assembled successfully',
+      path: result.publicUrl,
+      filename: result.filename,
+      size: result.size,
+    };
+  }
 }
+
