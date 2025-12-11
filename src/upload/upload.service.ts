@@ -39,12 +39,17 @@ export class UploadService {
     const paths: string[] = [];
     const originalName: string[] = [];
     const size: string[] = [];
+
     for (const f of _files) {
       this.logger.log(
         `Uploading file: ${f.originalname}, Size: ${f.size}, Type: ${f.mimetype}`,
       );
-      const uploadResult = await this.saveFile(f.buffer, f.originalname);
-      paths.push(uploadResult);
+
+      // When using diskStorage, the file is already saved to disk
+      // f.filename is the saved filename, f.path is the full path
+      // We just need to return the public URL
+      const publicUrl = `${this.publicBaseUrl}/${f.filename}`;
+      paths.push(publicUrl);
       originalName.push(f.originalname);
       size.push(f.size.toString());
     }
