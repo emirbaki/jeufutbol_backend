@@ -15,7 +15,7 @@ export class FileValidationPipe implements PipeTransform {
     const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
 
     const maxImageSize = 8 * 1024 * 1024; // 8MB for images
-    const maxVideoSize = 300 * 1024 * 1024; // 100MB for videos
+    const maxVideoSize = 300 * 1024 * 1024; // 300MB for videos
 
     for (const file of files) {
       // Check file type

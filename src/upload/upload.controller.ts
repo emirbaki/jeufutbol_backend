@@ -13,10 +13,10 @@ import { UploadService } from './upload.service';
 
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(private readonly uploadService: UploadService) { }
 
   @Post('single')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 300 * 1024 * 1024 } })) // 300MB
   @UsePipes(new FileValidationPipe())
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('File is required 1');
@@ -30,7 +30,7 @@ export class UploadController {
   }
 
   @Post('multiple')
-  @UseInterceptors(FilesInterceptor('file'))
+  @UseInterceptors(FilesInterceptor('file', 10, { limits: { fileSize: 300 * 1024 * 1024 } })) // 300MB, max 10 files
   @UsePipes(new FileValidationPipe())
   async uploadFiles(@UploadedFiles() files: Express.Multer.File[]) {
     if (!files) throw new BadRequestException('File is required 3');
