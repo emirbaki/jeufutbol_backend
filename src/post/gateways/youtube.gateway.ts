@@ -110,11 +110,8 @@ export class YoutubePostGateway extends AsyncPostGateway {
 
             const settings = options?.youtubeSettings;
 
-            // Build title - auto-add #Shorts if marked as Short
-            let title = settings?.title || 'Untitled Video';
-            if (settings?.is_short && !title.includes('#Shorts')) {
-                title = `#Shorts ${title}`;
-            }
+            // Build title - YouTube detects Shorts automatically based on aspect ratio/duration
+            const title = settings?.title || 'Untitled Video';
 
             // Use post content as video description
             const description = content || '';
@@ -299,11 +296,11 @@ export class YoutubePostGateway extends AsyncPostGateway {
 
             // Map YouTube statuses to our generic statuses
             if (uploadStatus === 'processed' || processingStatus === 'succeeded') {
-                const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                // Return null for postUrl - completePublish will set the correct URL based on isShort metadata
                 return {
                     status: 'PUBLISH_COMPLETE',
                     postId: videoId,
-                    postUrl: videoUrl,
+                    postUrl: undefined, // Let completePublish handle this with proper isShort metadata
                 };
             }
 
