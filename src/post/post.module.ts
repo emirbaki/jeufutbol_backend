@@ -13,6 +13,7 @@ import { FacebookPostGateway } from './gateways/facebook.gateway';
 import { InstagramPostGateway } from './gateways/instagram.gateway';
 import { TiktokPostGateway } from './gateways/tiktok.gateway';
 import { XPostGateway } from './gateways/x.gateway';
+import { YoutubePostGateway } from './gateways/youtube.gateway';
 import { Credential } from 'src/entities/credential.entity';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { CredentialsModule } from 'src/credentials/credential.module';
@@ -60,6 +61,7 @@ import { Tenant } from '../entities/tenant.entity';
     InstagramPostGateway,
     TiktokPostGateway,
     XPostGateway,
+    YoutubePostGateway,
     TiktokPollingProcessor, // Deprecated - keeping for backward compatibility
     AsyncPollingProcessor, // New generic async processor
     ScheduledPostProcessor,

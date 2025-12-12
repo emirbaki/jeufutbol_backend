@@ -108,5 +108,17 @@ export class Post {
     is_brand_organic?: boolean;
     is_branded_content?: boolean;
   };
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
+  youtubeSettings?: {
+    title: string;
+    privacy_status: string;
+    category_id?: string;
+    tags?: string[];
+    is_short?: boolean;
+    made_for_kids?: boolean;
+    notify_subscribers?: boolean;
+  };
 }
 

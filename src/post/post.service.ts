@@ -62,6 +62,15 @@ export class PostsService {
         is_brand_organic: dto.tiktokSettings.is_brand_organic,
         is_branded_content: dto.tiktokSettings.is_branded_content,
       } : undefined,
+      youtubeSettings: dto.youtubeSettings ? {
+        title: dto.youtubeSettings.title,
+        privacy_status: dto.youtubeSettings.privacy_status,
+        category_id: dto.youtubeSettings.category_id,
+        tags: dto.youtubeSettings.tags,
+        is_short: dto.youtubeSettings.is_short,
+        made_for_kids: dto.youtubeSettings.made_for_kids,
+        notify_subscribers: dto.youtubeSettings.notify_subscribers,
+      } : undefined,
     });
 
 
@@ -243,10 +252,13 @@ export class PostsService {
           const contentToPublish =
             post.platformSpecificContent?.[platform] || post.content;
 
-          // Build gateway options - include TikTok settings for TikTok platform
+          // Build gateway options - include platform-specific settings
           const gatewayOptions: any = { username: credential.accountName };
           if (platform === PlatformType.TIKTOK && post.tiktokSettings) {
             gatewayOptions.tiktokSettings = post.tiktokSettings;
+          }
+          if (platform === PlatformType.YOUTUBE && post.youtubeSettings) {
+            gatewayOptions.youtubeSettings = post.youtubeSettings;
           }
 
           const result = await gateway.createNewPost(

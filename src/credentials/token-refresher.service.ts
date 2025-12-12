@@ -186,4 +186,51 @@ export class TokenRefreshService {
       throw new Error('Failed to refresh TikTok token');
     }
   }
+
+  /**
+   * Refresh YouTube/Google token
+   * Uses Google OAuth2 refresh token flow
+   */
+  async refreshYoutubeToken(credential: Credential): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn: number;
+  }> {
+    try {
+      const refreshToken = this.encryptionService.decrypt(
+        credential.refreshToken!,
+      );
+      const clientId = this.configService.get('YOUTUBE_CLIENT_ID');
+      const clientSecret = this.configService.get('YOUTUBE_CLIENT_SECRET');
+
+      const params = new URLSearchParams({
+        client_id: clientId!,
+        client_secret: clientSecret!,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      });
+
+      const response = await firstValueFrom(
+        this.httpService.post(
+          'https://oauth2.googleapis.com/token',
+          params.toString(),
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          },
+        ),
+      );
+
+      return {
+        accessToken: response.data.access_token,
+        // Google doesn't always return a new refresh token
+        refreshToken: response.data.refresh_token || undefined,
+        expiresIn: response.data.expires_in || 3600, // 1 hour default
+      };
+    } catch (error) {
+      this.logger.error('YouTube token refresh failed:', error);
+      throw new Error('Failed to refresh YouTube token');
+    }
+  }
 }

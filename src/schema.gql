@@ -150,6 +150,7 @@ type Post {
   tenant: Tenant
   failureReasons: JSON
   tiktokSettings: JSON
+  youtubeSettings: JSON
 }
 
 """PostStatus enum representing the status of a post"""
@@ -428,6 +429,7 @@ input CreatePostInput {
   platformSpecificContent: JSON
   scheduledFor: String
   tiktokSettings: TikTokPostSettingsInput
+  youtubeSettings: YouTubePostSettingsInput
 }
 
 input TikTokPostSettingsInput {
@@ -441,6 +443,16 @@ input TikTokPostSettingsInput {
   auto_add_music: Boolean! = false
 }
 
+input YouTubePostSettingsInput {
+  title: String!
+  privacy_status: String! = "public"
+  category_id: String
+  tags: [String!]
+  is_short: Boolean! = false
+  made_for_kids: Boolean! = false
+  notify_subscribers: Boolean! = false
+}
+
 input UpdatePostInput {
   content: String
   mediaUrls: [String!]
@@ -448,6 +460,7 @@ input UpdatePostInput {
   platformSpecificContent: JSON
   scheduledFor: String
   tiktokSettings: TikTokPostSettingsInput
+  youtubeSettings: YouTubePostSettingsInput
 }
 
 input InviteUserInput {

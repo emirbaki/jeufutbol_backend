@@ -5,6 +5,7 @@ import { FacebookPostGateway } from './gateways/facebook.gateway';
 import { InstagramPostGateway } from './gateways/instagram.gateway';
 import { TiktokPostGateway } from './gateways/tiktok.gateway';
 import { XPostGateway } from './gateways/x.gateway';
+import { YoutubePostGateway } from './gateways/youtube.gateway';
 
 @Injectable()
 export class PostGatewayFactory {
@@ -13,6 +14,7 @@ export class PostGatewayFactory {
     private readonly instagramGateway: InstagramPostGateway,
     private readonly tiktokGateway: TiktokPostGateway,
     private readonly xGateway: XPostGateway,
+    private readonly youtubeGateway: YoutubePostGateway,
   ) { }
 
   getGateway(platform: PlatformType): PostGateway {
@@ -26,6 +28,8 @@ export class PostGatewayFactory {
         return this.tiktokGateway;
       case PlatformType.X:
         return this.xGateway;
+      case PlatformType.YOUTUBE:
+        return this.youtubeGateway;
       default:
         throw new Error(`Unsupported platform: ${platform}`);
     }
@@ -35,3 +39,4 @@ export class PostGatewayFactory {
     return platforms.map((p) => this.getGateway(p));
   }
 }
+
