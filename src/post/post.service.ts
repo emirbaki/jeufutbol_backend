@@ -138,7 +138,7 @@ export class PostsService {
   ): Promise<Post> {
     const post = await this.postRepository.findOne({
       where: { id: postId, userId, tenantId },
-      relations: ['publishedPosts'],
+      relations: ['publishedPosts', 'tenant'],
     });
 
     if (!post) throw new NotFoundException('Post not found');
@@ -275,6 +275,7 @@ export class PostsService {
 
           const publishedPost = this.publishedPostRepository.create({
             postId: post.id,
+            tenantId: tenantId,
             platform: platform,
             publishedAt: new Date(),
             platformPostId: result.id,

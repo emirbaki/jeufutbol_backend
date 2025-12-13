@@ -19,7 +19,7 @@ export class CredentialsService {
     private credentialRepository: Repository<Credential>,
     private encryptionService: EncryptionService,
     private tokenRefreshService: TokenRefreshService,
-  ) {}
+  ) { }
 
   /**
    * Save OAuth2 credentials
@@ -175,6 +175,8 @@ export class CredentialsService {
         return this.tokenRefreshService.refreshInstagramToken(credential);
       case PlatformName.TIKTOK:
         return this.tokenRefreshService.refreshTiktokToken(credential);
+      case PlatformName.YOUTUBE:
+        return this.tokenRefreshService.refreshYoutubeToken(credential);
       // Add other platforms
       default:
         throw new Error(`Token refresh not implemented for ${platform}`);
