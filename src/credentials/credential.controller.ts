@@ -208,7 +208,7 @@ export class CredentialsController {
   @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
   @RequireScopes('credentials:write')
   async refreshTokenByPlatform(
-    @Param('credential') credendtialId: string,
+    @Param('id') credentialId: string,
     @CurrentUser() user?: User,
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
@@ -218,7 +218,7 @@ export class CredentialsController {
     if (!userId || !tenantId) throw new Error('User context required');
 
     const refreshToken = await this.credentialsService.refreshAccessToken(
-      credendtialId,
+      credentialId,
       userId,
       tenantId,
     );
