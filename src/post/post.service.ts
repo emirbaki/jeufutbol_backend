@@ -296,6 +296,7 @@ export class PostsService {
               {
                 username: credential.accountName,
                 mediaUrls: post.mediaUrls,
+                youtubeSettings: gatewayOptions.youtubeSettings,
               },
             );
 
