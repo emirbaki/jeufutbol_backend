@@ -50,7 +50,6 @@ scalar JSON
 
 type Tweet {
   id: ID!
-  monitoredProfileId: String!
   tweetId: String!
   content: String!
   createdAt: DateTime!
@@ -67,9 +66,7 @@ type Tweet {
   rawData: String
   isIndexedInVector: Boolean!
   fetchedAt: DateTime!
-  monitoredProfile: MonitoredProfile!
   insights: [Insight!]
-  tenantId: String
 }
 
 type MonitoredProfile {

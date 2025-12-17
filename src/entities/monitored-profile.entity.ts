@@ -9,8 +9,8 @@ import {
   OneToMany,
 } from 'typeorm';
 import { User } from './user.entity';
-import { Tweet } from './tweet.entity';
 import { Tenant } from './tenant.entity';
+import { TweetMonitoredProfile } from './tweet-monitored-profile.entity';
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import GraphQLJSON from 'graphql-type-json';
 
@@ -76,8 +76,15 @@ export class MonitoredProfile {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @OneToMany(() => Tweet, (tweet) => tweet.monitoredProfile)
-  tweets: Tweet[];
+  /**
+   * Many-to-many relationship with Tweets via junction table.
+   * A monitored profile can have many tweets linked to it.
+   */
+  @OneToMany(
+    () => TweetMonitoredProfile,
+    (tmp) => tmp.monitoredProfile,
+  )
+  tweetMonitoredProfiles?: TweetMonitoredProfile[];
 
   @Field(() => Tenant, { nullable: true })
   @ManyToOne(() => Tenant, { nullable: true })

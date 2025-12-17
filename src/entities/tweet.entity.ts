@@ -3,14 +3,11 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
   OneToMany,
 } from 'typeorm';
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
-import { MonitoredProfile } from './monitored-profile.entity';
 import { Insight } from './insight.entity';
-import { Tenant } from './tenant.entity';
+import { TweetMonitoredProfile } from './tweet-monitored-profile.entity';
 
 @ObjectType()
 @Entity('tweets')
@@ -18,10 +15,6 @@ export class Tweet {
   @Field(() => ID)
   @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  @Field(() => String)
-  @Column({ type: 'uuid' })
-  monitoredProfileId: string;
 
   @Field()
   @Column({ unique: true })
@@ -84,22 +77,18 @@ export class Tweet {
 
   // --- RELATIONS ---
 
-  @Field(() => MonitoredProfile)
-  @ManyToOne(() => MonitoredProfile, (profile) => profile.tweets, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'monitoredProfileId' })
-  monitoredProfile: MonitoredProfile;
-
   @Field(() => [Insight], { nullable: true })
   @OneToMany(() => Insight, (insight: Insight) => insight.sourceTweet)
-  insights?: Insight;
+  insights?: Insight[];
 
-  @Field(() => String, { nullable: true })
-  @Column({ type: 'uuid', nullable: true })
-  tenantId: string;
-
-  @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'tenantId' })
-  tenant: Tenant;
+  /**
+   * Many-to-many relationship with MonitoredProfiles via junction table.
+   * A tweet can be linked to multiple monitored profiles when different
+   * tenants monitor the same Twitter user.
+   */
+  @OneToMany(
+    () => TweetMonitoredProfile,
+    (tmp) => tmp.tweet,
+  )
+  tweetMonitoredProfiles?: TweetMonitoredProfile[];
 }
