@@ -204,7 +204,7 @@ export class MonitoringService {
 
       // Convert to our Tweet entities
       const tweets = rettiwtTweets.map((rt) =>
-        this.tweetsService.convertRettiwtTweetToEntity(rt, profile.id),
+        this.tweetsService.convertRettiwtTweetToEntity(rt, profile.id, profile.tenantId),
       );
 
       // Save to database

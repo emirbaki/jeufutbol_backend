@@ -205,11 +205,15 @@ export class TweetsService {
   convertRettiwtTweetToEntity(
     rettiwtTweet: RettiwtTweet,
     monitoredProfileId: string,
+    tenantId?: string,
   ): Tweet {
     const tweet = new Tweet();
 
     // Basic fields
     tweet.monitoredProfileId = monitoredProfileId;
+    if (tenantId) {
+      tweet.tenantId = tenantId;
+    }
     tweet.tweetId = rettiwtTweet.id;
     tweet.content = rettiwtTweet.fullText || '';
     tweet.createdAt = rettiwtTweet.createdAt
