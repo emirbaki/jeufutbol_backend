@@ -144,7 +144,6 @@ export class CredentialsController {
    * Get user's credentials
    */
   @Get()
-  @Get()
   @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
   @RequireScopes('credentials:read')
   async getUserCredentials(
@@ -182,7 +181,6 @@ export class CredentialsController {
    * Test credential connection
    */
   @Post(':id/test')
-  @Post(':id/test')
   @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
   @RequireScopes('credentials:read')
   async testCredential(
@@ -204,7 +202,6 @@ export class CredentialsController {
   }
 
   @Post(':id/refresh')
-  @Post(':id/refresh')
   @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
   @RequireScopes('credentials:write')
   async refreshTokenByPlatform(
@@ -217,19 +214,33 @@ export class CredentialsController {
 
     if (!userId || !tenantId) throw new Error('User context required');
 
-    const refreshToken = await this.credentialsService.refreshAccessToken(
-      credentialId,
-      userId,
-      tenantId,
-    );
+    try {
+      await this.credentialsService.refreshAccessToken(
+        credentialId,
+        userId,
+        tenantId,
+      );
 
-    return { refreshToken };
+      // Get updated credential to return new expiry info
+      const credential = await this.credentialsService.getCredential(
+        credentialId,
+        userId,
+        tenantId,
+      );
+
+      return {
+        success: true,
+        tokenExpiresAt: credential?.tokenExpiresAt,
+      };
+    } catch (error: any) {
+      console.error('Token refresh failed:', error);
+      throw new Error(error.message || 'Failed to refresh token');
+    }
   }
 
   /**
    * Delete credential
    */
-  @Delete(':id')
   @Delete(':id')
   @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
   @RequireScopes('credentials:write')
