@@ -75,6 +75,14 @@ export class Tweet {
   @CreateDateColumn()
   fetchedAt: Date;
 
+  /**
+   * Optional field - populated for timeline queries to help frontend
+   * match the tweet with the correct monitored profile.
+   * Not stored in DB, attached dynamically by service.
+   */
+  @Field(() => String, { nullable: true })
+  monitoredProfileId?: string;
+
   // --- RELATIONS ---
 
   @Field(() => [Insight], { nullable: true })

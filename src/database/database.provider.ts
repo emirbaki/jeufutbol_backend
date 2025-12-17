@@ -13,7 +13,7 @@ export const databaseProviders = [
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-        synchronize: true,
+        synchronize: process.env.NODE_ENV !== 'production', // Only enable synchronize in development
       });
 
       return dataSource.initialize();

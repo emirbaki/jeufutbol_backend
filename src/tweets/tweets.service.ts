@@ -374,25 +374,29 @@ export class TweetsService {
 
   /**
    * Get tweets for multiple monitored profiles (aggregated timeline)
+   * Returns tweets with monitoredProfileId attached for frontend matching
    */
   async getTweetsByProfileIds(
     monitoredProfileIds: string[],
     limit: number = 50,
     offset: number = 0,
-  ): Promise<Tweet[]> {
+  ): Promise<any[]> {
     if (!monitoredProfileIds.length) return [];
 
     const links = await this.tweetMonitoredProfileRepository.find({
       where: { monitoredProfileId: In(monitoredProfileIds) },
-      relations: ['tweet', 'monitoredProfile'],
+      relations: ['tweet'],
       order: { linkedAt: 'DESC' },
     });
 
-    // Get unique tweets (same tweet may be linked to multiple profiles)
+    // Build map of tweet to its first associated profileId
+    const tweetProfileMap = new Map<string, string>();
     const tweetMap = new Map<string, Tweet>();
+
     links.forEach((link) => {
       if (link.tweet && !tweetMap.has(link.tweet.id)) {
         tweetMap.set(link.tweet.id, link.tweet);
+        tweetProfileMap.set(link.tweet.id, link.monitoredProfileId);
       }
     });
 
@@ -401,7 +405,11 @@ export class TweetsService {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(offset, offset + limit);
 
-    return tweets;
+    // Attach monitoredProfileId to each tweet for frontend matching
+    return tweets.map((tweet) => ({
+      ...tweet,
+      monitoredProfileId: tweetProfileMap.get(tweet.id),
+    }));
   }
 
   /**
