@@ -306,7 +306,7 @@ Your steps:
 - When users ask "who scored" or "what was the result" - these require visiting the actual page, not just search snippets
 
 ## DATABASE ACCESS
-You have access to a SQL database with tables: post, tweets, insights, monitored_profiles.
+You have access to a SQL database with tables: post, tweets, insights, monitored_profiles, tweet_monitored_profiles.
 ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
 
 ## RESPONSE GUIDELINES
@@ -520,7 +520,7 @@ When users ask about current events, recent news, sports scores, stock prices, w
 3. **Synthesize and respond**: After visiting pages, provide a complete answer based on the actual content
 
 ## DATABASE ACCESS
-You have access to a SQL database with tables: post, tweets, insights, monitored_profiles.
+You have access to a SQL database with tables: post, tweets, insights, monitored_profiles, tweet_monitored_profiles.
 ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
 
 ## RESPONSE GUIDELINES
