@@ -377,7 +377,7 @@ export class AIInsightsService {
   /**
    * Search for tweets using vector similarity
    */
-  async searchTweets(query: string, limit = 10, offset = 0): Promise<Tweet[]> {
+  async searchTweets(query: string, limit = 10, offset = 0): Promise<any[]> {
     try {
       this.logger.log(`Searching tweets for query: "${query}" (limit: ${limit}, offset: ${offset})`);
 
@@ -388,22 +388,25 @@ export class AIInsightsService {
         return [];
       }
 
-      // Fetch full tweet entities
-      // We use find with whereInIds equivalent
+      // Fetch full tweet entities with junction table for profile lookup
       const tweets = await this.tweetRepository.find({
         where: { id: In(tweetIds) },
-        relations: ['monitoredProfile'],
-        order: { createdAt: 'DESC' }, // Optional: sort by date, or we could try to preserve relevance order
+        relations: ['tweetMonitoredProfiles'],
+        order: { createdAt: 'DESC' },
       });
 
-      // If we want to preserve the order from vector search (relevance), we need to sort manually
       // Create a map for O(1) lookup
       const tweetMap = new Map(tweets.map(t => [t.id, t]));
 
-      // Map IDs back to tweets, filtering out any that might have been deleted from DB but exist in Vector DB
+      // Map IDs back to tweets, preserving relevance order
+      // Also attach the first monitoredProfileId for frontend matching
       return tweetIds
         .map(id => tweetMap.get(id))
-        .filter(t => !!t);
+        .filter(t => !!t)
+        .map(t => ({
+          ...t,
+          monitoredProfileId: t.tweetMonitoredProfiles?.[0]?.monitoredProfileId,
+        }));
 
     } catch (error) {
       this.logger.error(`Tweet search failed: ${error.message}`);
