@@ -130,7 +130,10 @@ export class AsyncPollingProcessor extends WorkerHost {
                 }
 
                 // Publish update
-                const updatedPost = await this.postRepository.findOne({ where: { id: publishedPost.postId }, relations: ['publishedPosts'] });
+                const updatedPost = await this.postRepository.findOne({
+                    where: { id: publishedPost.postId },
+                    relations: ['publishedPosts', 'user', 'tenant'],
+                });
                 if (updatedPost) {
                     this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
                 }
@@ -157,7 +160,10 @@ export class AsyncPollingProcessor extends WorkerHost {
                 });
 
                 // Publish update
-                const updatedPost = await this.postRepository.findOne({ where: { id: publishedPost.postId }, relations: ['publishedPosts'] });
+                const updatedPost = await this.postRepository.findOne({
+                    where: { id: publishedPost.postId },
+                    relations: ['publishedPosts', 'user', 'tenant'],
+                });
                 if (updatedPost) {
                     this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
                 }
@@ -173,7 +179,10 @@ export class AsyncPollingProcessor extends WorkerHost {
                 await this.publishedPostRepository.save(publishedPost);
 
                 // Publish update (optional, but good for progress tracking)
-                const updatedPost = await this.postRepository.findOne({ where: { id: publishedPost.postId }, relations: ['publishedPosts'] });
+                const updatedPost = await this.postRepository.findOne({
+                    where: { id: publishedPost.postId },
+                    relations: ['publishedPosts', 'user', 'tenant'],
+                });
                 if (updatedPost) {
                     this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
                 }

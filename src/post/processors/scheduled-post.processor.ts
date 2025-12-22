@@ -28,8 +28,7 @@ export class ScheduledPostProcessor extends WorkerHost {
         this.logger.log(`[Job ${job.id}] Processing scheduled post ${postId}`);
 
         try {
-            const post = await this.postsService.publishPost(postId, userId, tenantId);
-            this.pubSub.publish('postUpdated', { postUpdated: post });
+            await this.postsService.publishPost(postId, userId, tenantId);
             this.logger.log(`[Job ${job.id}] Successfully published post ${postId}`);
         } catch (error) {
             this.logger.error(
