@@ -21,4 +21,4 @@ RUN npm run build
 EXPOSE 3001
 
 # Command to run the application
-CMD ["node", "dist/main"]
+CMD ["sh", "-c", "npm run migration:run && node dist/main"]

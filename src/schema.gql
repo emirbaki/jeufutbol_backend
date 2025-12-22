@@ -66,6 +66,7 @@ type Tweet {
   rawData: String
   isIndexedInVector: Boolean!
   fetchedAt: DateTime!
+  monitoredProfileId: String
   insights: [Insight!]
 }
 
@@ -100,6 +101,10 @@ type User {
   monitoredProfiles: [MonitoredProfile!]
   tenant: Tenant
   role: UserRole!
+  notifyOnPublish: Boolean!
+  notifyOnFail: Boolean!
+  notifyWeeklyReport: Boolean!
+  notifyNewInsights: Boolean!
 }
 
 enum UserRole {
@@ -411,6 +416,9 @@ type Mutation {
   retryJob(jobId: String!): JobStatusObject!
   inviteUser(input: InviteUserInput!): UserInvitation!
   revokeInvitation(invitationId: ID!): Boolean!
+  updateProfile(input: UpdateProfileInput!): User!
+  changePassword(input: ChangePasswordInput!): Boolean!
+  updateNotificationSettings(input: UpdateNotificationSettingsInput!): User!
 }
 
 input CreateApiKeyInput {
@@ -463,6 +471,23 @@ input UpdatePostInput {
 input InviteUserInput {
   email: String!
   role: UserRole!
+}
+
+input UpdateProfileInput {
+  firstName: String
+  lastName: String
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+input UpdateNotificationSettingsInput {
+  notifyOnPublish: Boolean
+  notifyOnFail: Boolean
+  notifyWeeklyReport: Boolean
+  notifyNewInsights: Boolean
 }
 
 type Subscription {
