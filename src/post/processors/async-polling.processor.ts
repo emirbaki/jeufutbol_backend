@@ -110,7 +110,9 @@ export class AsyncPollingProcessor extends WorkerHost {
                 }
 
                 // Also use any postId/postUrl from the status check
-                if (statusData.postId && !publishedPost.platformPostId) {
+                // For TikTok: statusData.postId is the real video ID (from publicaly_available_post_id)
+                // which replaces the initial publish_id stored during upload
+                if (statusData.postId) {
                     publishedPost.platformPostId = statusData.postId;
                 }
                 if (statusData.postUrl && !publishedPost.platformPostUrl) {

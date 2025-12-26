@@ -439,13 +439,16 @@ export class TiktokPostGateway extends AsyncPostGateway {
     try {
       this.logger.log(`[TikTok] Fetching analytics for video: ${platformPostId}`);
 
+      // Fields must be passed as query parameter, not in body
+      // See: https://developers.tiktok.com/doc/tiktok-api-v2-video-query
+      const fields = 'id,like_count,comment_count,share_count,view_count';
+
       const response = await axios.post(
-        `${TIKTOK_API_BASE}/v2/video/query/`,
+        `${TIKTOK_API_BASE}/v2/video/query/?fields=${fields}`,
         {
           filters: {
             video_ids: [platformPostId],
           },
-          fields: ['like_count', 'comment_count', 'share_count', 'view_count'],
         },
         {
           headers: {

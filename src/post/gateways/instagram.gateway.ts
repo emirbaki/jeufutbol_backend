@@ -478,50 +478,70 @@ export class InstagramPostGateway extends AsyncPostGateway {
   /**
    * Get analytics for a published Instagram post
    * @param platformPostId The Instagram media ID
-   * @param access_token OAuth access token with instagram_manage_insights scope
+   * @param access_token OAuth access token with instagram_business_manage_insights scope
    */
   async getPostAnalytics(platformPostId: string, access_token: string): Promise<PlatformAnalyticsResponse> {
     try {
       this.logger.log(`[Instagram] Fetching analytics for post: ${platformPostId}`);
 
-      // Get post insights
-      const insightsResponse = await axios.get(
-        `${GRAPH_API_BASE}/${platformPostId}/insights`,
-        {
-          params: {
-            metric: 'engagement,impressions,reach,saved',
-            access_token: access_token,
-          },
-        },
-      );
-
-      // Get basic post metrics (likes, comments)
-      const postResponse = await axios.get(
+      // First, get media type to determine which metrics to request
+      const mediaResponse = await axios.get(
         `${GRAPH_API_BASE}/${platformPostId}`,
         {
           params: {
-            fields: 'like_count,comments_count,shares',
+            fields: 'media_type,like_count,comments_count',
             access_token: access_token,
           },
         },
       );
 
-      // Parse insights data
-      const insights = insightsResponse.data.data || [];
+      const mediaType = mediaResponse.data.media_type; // IMAGE, VIDEO, CAROUSEL_ALBUM, REELS
+      const isReel = mediaType === 'REELS' || mediaType === 'VIDEO';
+
+      // Different metrics for different media types
+      // Reels: plays, reach, saved, shares, total_interactions
+      // Images/Carousels: impressions, reach, saved (no engagement metric in newer API)
+      const insightMetrics = isReel
+        ? 'plays,reach,saved,shares,total_interactions'
+        : 'impressions,reach,saved';
+
+      let insights: any[] = [];
+      try {
+        const insightsResponse = await axios.get(
+          `${GRAPH_API_BASE}/${platformPostId}/insights`,
+          {
+            params: {
+              metric: insightMetrics,
+              access_token: access_token,
+            },
+          },
+        );
+        insights = insightsResponse.data.data || [];
+      } catch (insightError: any) {
+        // Insights might not be available for all posts (e.g., < 100 followers)
+        this.logger.warn(`[Instagram] Could not fetch insights: ${insightError.message}`);
+      }
+
       const getMetric = (name: string) => {
         const metric = insights.find((m: any) => m.name === name);
         return metric?.values?.[0]?.value || 0;
       };
 
+      // For reels, 'plays' is the view count; for images, 'impressions'
+      const views = isReel ? getMetric('plays') : getMetric('impressions');
+      const shares = isReel ? getMetric('shares') : 0;
+      const engagement = isReel ? getMetric('total_interactions') : 0;
+
       return {
-        views: getMetric('impressions'),
-        likes: postResponse.data.like_count || 0,
-        comments: postResponse.data.comments_count || 0,
-        shares: postResponse.data.shares || 0,
+        views: views,
+        likes: mediaResponse.data.like_count || 0,
+        comments: mediaResponse.data.comments_count || 0,
+        shares: shares,
         reach: getMetric('reach'),
         saves: getMetric('saved'),
         rawMetrics: {
-          engagement: getMetric('engagement'),
+          mediaType: mediaType,
+          engagement: engagement,
           insights: insights,
         },
       };
