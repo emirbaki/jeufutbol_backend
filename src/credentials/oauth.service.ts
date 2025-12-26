@@ -99,7 +99,7 @@ export class OAuthService {
           scope: [
             'instagram_business_basic',
             'instagram_business_content_publish',
-            'instagram_manage_insights',
+            'instagram_business_manage_insights',
           ],
         },
       ],
