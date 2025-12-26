@@ -499,11 +499,14 @@ export class InstagramPostGateway extends AsyncPostGateway {
       const isReel = mediaType === 'REELS' || mediaType === 'VIDEO';
 
       // Different metrics for different media types
-      // Reels: plays, reach, saved, shares, total_interactions
-      // Images/Carousels: impressions, reach, saved (no engagement metric in newer API)
+      // See: https://developers.facebook.com/docs/instagram-api/reference/ig-media/insights
+      // For REELS/VIDEO: plays, reach, saved, shares, total_interactions, ig_reels_video_view_total_time
+      // For IMAGE: impressions, reach, saved, engagement (might not work for all account types)
+      // For CAROUSEL_ALBUM: impressions, reach, saved, carousel_album_engagement
+      // Note: 'saved' metrics might require additional permissions or account age
       const insightMetrics = isReel
-        ? 'plays,reach,saved,shares,total_interactions'
-        : 'impressions,reach,saved';
+        ? 'plays,reach,total_interactions'  // Removed 'saved' and 'shares' - may cause issues
+        : 'impressions,reach';  // Simplified - 'saved' often causes 400 errors
 
       let insights: any[] = [];
       try {
@@ -518,8 +521,13 @@ export class InstagramPostGateway extends AsyncPostGateway {
         );
         insights = insightsResponse.data.data || [];
       } catch (insightError: any) {
-        // Insights might not be available for all posts (e.g., < 100 followers)
-        this.logger.warn(`[Instagram] Could not fetch insights: ${insightError.message}`);
+        // Log detailed error for debugging
+        const errorDetails = insightError.response?.data?.error || {};
+        this.logger.warn(
+          `[Instagram] Could not fetch insights for ${mediaType}: ${insightError.message}` +
+          ` | Code: ${errorDetails.code} | Subcode: ${errorDetails.error_subcode}` +
+          ` | Message: ${errorDetails.message}`,
+        );
       }
 
       const getMetric = (name: string) => {
