@@ -103,6 +103,27 @@ export class RawAnalyticsDataType {
     settings: AnalyticsSettingsType;
 }
 
+/**
+ * Follower count data for a platform
+ */
+@ObjectType()
+export class PlatformFollowerType {
+    @Field()
+    platform: string;
+
+    @Field()
+    displayName: string;
+
+    @Field(() => Int)
+    followerCount: number;
+
+    @Field({ nullable: true })
+    profilePictureUrl?: string;
+
+    @Field({ nullable: true })
+    username?: string;
+}
+
 // Interface for platform gateway analytics response (internal use)
 export interface PlatformAnalyticsResponse {
     views: number;
@@ -113,3 +134,4 @@ export interface PlatformAnalyticsResponse {
     saves?: number;
     rawMetrics?: Record<string, any>;
 }
+

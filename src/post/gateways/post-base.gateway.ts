@@ -1,6 +1,18 @@
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 
+/**
+ * Account info response for follower counts
+ */
+export interface PlatformAccountInfo {
+  displayName: string;
+  username?: string;
+  followerCount: number;
+  followingCount?: number;
+  profilePictureUrl?: string;
+  mediaCount?: number;
+}
+
 export abstract class PostGateway {
   abstract notifyPostPublished(
     postId: string,
@@ -31,5 +43,14 @@ export abstract class PostGateway {
     platformPostId: string,
     accessToken?: string,
   ): Promise<PlatformAnalyticsResponse>;
+
+  /**
+   * Get account info including follower count
+   * Override in subclasses that support account info retrieval
+   */
+  getAccountInfo?(
+    accountIdOrToken: string,
+    accessToken?: string,
+  ): Promise<PlatformAccountInfo>;
 }
 

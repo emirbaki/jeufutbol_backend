@@ -5,6 +5,7 @@ import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile, getMediaType } from '../utils/media-utils';
 import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 import { TikTokCreatorInfo, TikTokPostSettingsInput } from 'src/graphql/types/tiktok.type';
+import { PlatformAccountInfo } from './post-base.gateway';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com';
 
@@ -473,6 +474,44 @@ export class TiktokPostGateway extends AsyncPostGateway {
       };
     } catch (error: any) {
       this.logger.error(`[TikTok] Analytics fetch error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get TikTok user info including follower count
+   * @param access_token OAuth access token with user.info.basic scope
+   */
+  async getAccountInfo(access_token: string): Promise<PlatformAccountInfo> {
+    try {
+      this.logger.log('[TikTok] Fetching user info...');
+
+      // TikTok user.info endpoint requires fields as query param
+      const fields = 'display_name,avatar_url,follower_count,following_count,likes_count,video_count';
+
+      const response = await axios.get(
+        `${TIKTOK_API_BASE}/v2/user/info/?fields=${fields}`,
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+          },
+        },
+      );
+
+      const user = response.data.data?.user;
+      if (!user) {
+        throw new Error('No TikTok user info returned');
+      }
+
+      return {
+        displayName: user.display_name || '',
+        followerCount: user.follower_count || 0,
+        followingCount: user.following_count || 0,
+        profilePictureUrl: user.avatar_url,
+        mediaCount: user.video_count || 0,
+      };
+    } catch (error: any) {
+      this.logger.error(`[TikTok] User info fetch error: ${error.message}`);
       throw error;
     }
   }

@@ -152,20 +152,38 @@ export class AnalyticsService {
             ? (totalEngagements / analyticsData.views) * 100
             : 0;
 
-        // Save analytics record
-        const analytics = this.postAnalyticsRepo.create({
-            publishedPostId: publishedPost.id,
-            platform: publishedPost.platform,
-            views: analyticsData.views,
-            likes: analyticsData.likes,
-            comments: analyticsData.comments,
-            shares: analyticsData.shares,
-            reach: analyticsData.reach,
-            saves: analyticsData.saves,
-            engagementRate: Math.round(engagementRate * 100) / 100,
-            rawMetrics: analyticsData.rawMetrics,
-            fetchedAt: new Date(),
+        // Check for existing analytics record for this post
+        let analytics = await this.postAnalyticsRepo.findOne({
+            where: { publishedPostId: publishedPost.id },
         });
+
+        if (analytics) {
+            // Update existing record
+            analytics.views = analyticsData.views;
+            analytics.likes = analyticsData.likes;
+            analytics.comments = analyticsData.comments;
+            analytics.shares = analyticsData.shares;
+            analytics.reach = analyticsData.reach;
+            analytics.saves = analyticsData.saves;
+            analytics.engagementRate = Math.round(engagementRate * 100) / 100;
+            analytics.rawMetrics = analyticsData.rawMetrics;
+            analytics.fetchedAt = new Date();
+        } else {
+            // Create new record
+            analytics = this.postAnalyticsRepo.create({
+                publishedPostId: publishedPost.id,
+                platform: publishedPost.platform,
+                views: analyticsData.views,
+                likes: analyticsData.likes,
+                comments: analyticsData.comments,
+                shares: analyticsData.shares,
+                reach: analyticsData.reach,
+                saves: analyticsData.saves,
+                engagementRate: Math.round(engagementRate * 100) / 100,
+                rawMetrics: analyticsData.rawMetrics,
+                fetchedAt: new Date(),
+            });
+        }
 
         return this.postAnalyticsRepo.save(analytics);
     }
@@ -201,5 +219,107 @@ export class AnalyticsService {
 
     private delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Get follower counts for all connected platforms for a tenant
+     */
+    async getFollowerCounts(tenantId: string): Promise<{
+        platform: string;
+        displayName: string;
+        followerCount: number;
+        profilePictureUrl?: string;
+        username?: string;
+    }[]> {
+        const results: {
+            platform: string;
+            displayName: string;
+            followerCount: number;
+            profilePictureUrl?: string;
+            username?: string;
+        }[] = [];
+
+        // Get all platforms that have credentials for this tenant
+        const platforms = [
+            PlatformName.INSTAGRAM,
+            PlatformName.TIKTOK,
+            PlatformName.YOUTUBE,
+            PlatformName.X,
+        ];
+
+        for (const platformName of platforms) {
+            try {
+                const credentials = await this.credentialsService.getTenantCredentials(tenantId, platformName);
+                if (credentials.length === 0) continue;
+
+                const credential = credentials[0];
+                const accessToken = await this.credentialsService.getDecryptedAccessToken(credential.id);
+                if (!accessToken) continue;
+
+                const gateway = this.postGatewayFactory.getGateway(
+                    this.platformNameToPlatformType(platformName)!,
+                );
+
+                let followerData: typeof results[0] | null = null;
+
+                if (platformName === PlatformName.INSTAGRAM && 'getAccountInfo' in gateway) {
+                    const info = await (gateway as any).getAccountInfo(credential.accountId, accessToken);
+                    followerData = {
+                        platform: 'INSTAGRAM',
+                        displayName: info.displayName,
+                        followerCount: info.followerCount,
+                        profilePictureUrl: info.profilePictureUrl,
+                        username: info.username,
+                    };
+                } else if (platformName === PlatformName.TIKTOK && 'getAccountInfo' in gateway) {
+                    const info = await (gateway as any).getAccountInfo(accessToken);
+                    followerData = {
+                        platform: 'TIKTOK',
+                        displayName: info.displayName,
+                        followerCount: info.followerCount,
+                        profilePictureUrl: info.profilePictureUrl,
+                    };
+                } else if (platformName === PlatformName.YOUTUBE && 'getAccountInfo' in gateway) {
+                    const info = await (gateway as any).getAccountInfo(accessToken);
+                    followerData = {
+                        platform: 'YOUTUBE',
+                        displayName: info.displayName,
+                        followerCount: info.followerCount,
+                        profilePictureUrl: info.profilePictureUrl,
+                    };
+                } else if (platformName === PlatformName.X && 'getAccountInfo' in gateway) {
+                    // X uses accountName (username) for lookups
+                    const username = credential.accountName?.replace('@', '');
+                    if (username) {
+                        const info = await (gateway as any).getAccountInfo(username);
+                        followerData = {
+                            platform: 'X',
+                            displayName: info.displayName,
+                            followerCount: info.followerCount,
+                            profilePictureUrl: info.profilePictureUrl,
+                            username: info.username,
+                        };
+                    }
+                }
+
+                if (followerData) {
+                    results.push(followerData);
+                }
+            } catch (error: any) {
+                this.logger.warn(`[Analytics] Failed to get follower count for ${platformName}: ${error.message}`);
+            }
+        }
+
+        return results;
+    }
+
+    private platformNameToPlatformType(name: PlatformName): PlatformType | null {
+        const map: Partial<Record<PlatformName, PlatformType>> = {
+            [PlatformName.X]: PlatformType.X,
+            [PlatformName.INSTAGRAM]: PlatformType.INSTAGRAM,
+            [PlatformName.TIKTOK]: PlatformType.TIKTOK,
+            [PlatformName.YOUTUBE]: PlatformType.YOUTUBE,
+        };
+        return map[name] || null;
     }
 }

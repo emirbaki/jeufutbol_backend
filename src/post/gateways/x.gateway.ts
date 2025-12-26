@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PostGateway } from './post-base.gateway';
+import { PostGateway, PlatformAccountInfo } from './post-base.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
@@ -179,4 +179,33 @@ export class XPostGateway implements PostGateway {
       throw error;
     }
   }
+
+  /**
+   * Get X/Twitter user info including follower count
+   * Uses rettiwt to fetch user profile
+   * @param username Twitter username (without @)
+   */
+  async getAccountInfo(username: string): Promise<PlatformAccountInfo> {
+    try {
+      this.logger.log(`[X] Fetching user info for: ${username}`);
+
+      const user = await this.rettiwt.user.details(username);
+
+      if (!user) {
+        throw new Error(`Twitter user ${username} not found`);
+      }
+
+      return {
+        displayName: user.fullName || user.userName,
+        username: user.userName,
+        followerCount: user.followersCount || 0,
+        followingCount: user.followingsCount || 0,
+        profilePictureUrl: user.profileImage,
+      };
+    } catch (error: any) {
+      this.logger.error(`[X] User info fetch error: ${error.message}`);
+      throw error;
+    }
+  }
 }
+

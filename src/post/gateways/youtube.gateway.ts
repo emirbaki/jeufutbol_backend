@@ -5,6 +5,7 @@ import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile } from '../utils/media-utils';
 import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 import { YouTubeChannelInfo, YouTubePostSettingsInput } from 'src/graphql/types/youtube.type';
+import { PlatformAccountInfo } from './post-base.gateway';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const YOUTUBE_UPLOAD_BASE = 'https://www.googleapis.com/upload/youtube/v3';
@@ -424,6 +425,19 @@ export class YoutubePostGateway extends AsyncPostGateway {
             this.logger.error(`[YouTube] Analytics fetch error: ${error.message}`);
             throw error;
         }
+    }
+
+    /**
+     * Get YouTube channel info including subscriber count
+     * Wrapper around getChannelInfo to match the base gateway interface
+     */
+    async getAccountInfo(access_token: string): Promise<PlatformAccountInfo> {
+        const channelInfo = await this.getChannelInfo(access_token);
+        return {
+            displayName: channelInfo.channel_title,
+            followerCount: channelInfo.subscriber_count || 0,
+            profilePictureUrl: channelInfo.channel_thumbnail,
+        };
     }
 }
 

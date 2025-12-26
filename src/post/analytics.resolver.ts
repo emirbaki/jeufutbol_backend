@@ -5,7 +5,7 @@ import { ApiKeyScopeGuard } from '../auth/guards/api-key-scope.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { AnalyticsService } from './analytics.service';
-import { RawAnalyticsDataType, AnalyticsSettingsType } from '../graphql/types/analytics.type';
+import { RawAnalyticsDataType, AnalyticsSettingsType, PlatformFollowerType } from '../graphql/types/analytics.type';
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
@@ -70,5 +70,10 @@ export class AnalyticsResolver {
             refreshIntervalHours: settings.refreshIntervalHours,
             lastRefreshAt: settings.lastRefreshAt,
         };
+    }
+
+    @Query(() => [PlatformFollowerType])
+    async getFollowerCounts(@CurrentUser() user: User): Promise<PlatformFollowerType[]> {
+        return this.analyticsService.getFollowerCounts(user.tenantId);
     }
 }

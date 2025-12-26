@@ -4,6 +4,7 @@ import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './asy
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile, getMediaType } from '../utils/media-utils';
 import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
+import { PlatformAccountInfo } from './post-base.gateway';
 
 const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0';
 
@@ -500,13 +501,16 @@ export class InstagramPostGateway extends AsyncPostGateway {
 
       // Different metrics for different media types
       // See: https://developers.facebook.com/docs/instagram-api/reference/ig-media/insights
-      // For REELS/VIDEO: plays, reach, saved, shares, total_interactions, ig_reels_video_view_total_time
-      // For IMAGE: impressions, reach, saved, engagement (might not work for all account types)
-      // For CAROUSEL_ALBUM: impressions, reach, saved, carousel_album_engagement
-      // Note: 'saved' metrics might require additional permissions or account age
+      // FEED (posts): comments, likes, saved, shares, reach, total_interactions, views
+      // REELS: comments, likes, saved, shares, reach, total_interactions, views
+      // STORY: reaches, shares, total_interactions, views
+      // Note: 'impressions' is deprecated for media created after July 2, 2024
+      // Note: 'plays' is deprecated for v22.0 and all versions on April 21, 2025
+
+      // Use 'views' (available for all types) instead of deprecated metrics
       const insightMetrics = isReel
-        ? 'plays,reach,total_interactions'  // Removed 'saved' and 'shares' - may cause issues
-        : 'impressions,reach';  // Simplified - 'saved' often causes 400 errors
+        ? 'reach,saved,shares,total_interactions,views'
+        : 'reach,saved,shares,total_interactions,views';  // Same metrics work for FEED too
 
       let insights: any[] = [];
       try {
@@ -535,26 +539,54 @@ export class InstagramPostGateway extends AsyncPostGateway {
         return metric?.values?.[0]?.value || 0;
       };
 
-      // For reels, 'plays' is the view count; for images, 'impressions'
-      const views = isReel ? getMetric('plays') : getMetric('impressions');
-      const shares = isReel ? getMetric('shares') : 0;
-      const engagement = isReel ? getMetric('total_interactions') : 0;
-
       return {
-        views: views,
+        views: getMetric('views'),
         likes: mediaResponse.data.like_count || 0,
         comments: mediaResponse.data.comments_count || 0,
-        shares: shares,
+        shares: getMetric('shares'),
         reach: getMetric('reach'),
         saves: getMetric('saved'),
         rawMetrics: {
           mediaType: mediaType,
-          engagement: engagement,
+          totalInteractions: getMetric('total_interactions'),
           insights: insights,
         },
       };
     } catch (error: any) {
       this.logger.error(`[Instagram] Analytics fetch error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Instagram account info including follower count
+   * @param accountId Instagram Business Account ID
+   * @param access_token OAuth access token with instagram_business_basic scope
+   */
+  async getAccountInfo(accountId: string, access_token: string): Promise<PlatformAccountInfo> {
+    try {
+      this.logger.log(`[Instagram] Fetching account info for: ${accountId}`);
+
+      const response = await axios.get(
+        `${GRAPH_API_BASE}/${accountId}`,
+        {
+          params: {
+            fields: 'username,name,followers_count,follows_count,media_count,profile_picture_url',
+            access_token: access_token,
+          },
+        },
+      );
+
+      return {
+        displayName: response.data.name || response.data.username || '',
+        username: response.data.username,
+        followerCount: response.data.followers_count || 0,
+        followingCount: response.data.follows_count || 0,
+        mediaCount: response.data.media_count || 0,
+        profilePictureUrl: response.data.profile_picture_url,
+      };
+    } catch (error: any) {
+      this.logger.error(`[Instagram] Account info fetch error: ${error.message}`);
       throw error;
     }
   }
