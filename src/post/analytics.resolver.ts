@@ -1,13 +1,14 @@
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
+import { ApiKeyScopeGuard } from '../auth/guards/api-key-scope.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { AnalyticsService } from './analytics.service';
 import { RawAnalyticsDataType, AnalyticsSettingsType } from '../graphql/types/analytics.type';
 
 @Resolver()
-@UseGuards(JwtAuthGuard)
+@UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
 export class AnalyticsResolver {
     constructor(private analyticsService: AnalyticsService) { }
 
