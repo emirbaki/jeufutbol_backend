@@ -209,6 +209,44 @@ type ApiKey {
   updatedAt: DateTime!
 }
 
+type PostAnalyticsType {
+  id: String!
+  publishedPostId: String!
+  platform: String!
+  views: Int!
+  likes: Int!
+  comments: Int!
+  shares: Int!
+  reach: Int
+  saves: Int
+  engagementRate: Float
+  rawMetrics: JSON
+  fetchedAt: DateTime!
+}
+
+type PublishedPostType {
+  id: String!
+  postId: String!
+  platform: String!
+  platformPostId: String!
+  platformPostUrl: String!
+  publishedAt: DateTime!
+  content: String
+}
+
+type AnalyticsSettingsType {
+  id: String!
+  tenantId: String!
+  refreshIntervalHours: Int!
+  lastRefreshAt: DateTime
+}
+
+type RawAnalyticsDataType {
+  analytics: [PostAnalyticsType!]!
+  publishedPosts: [PublishedPostType!]!
+  settings: AnalyticsSettingsType!
+}
+
 type UserInvitation {
   id: ID!
   email: String!
@@ -335,6 +373,7 @@ type Query {
   getUserPosts(limit: Int): [Post!]!
   getPost(postId: String!): Post!
   getTikTokCreatorInfo: TikTokCreatorInfo!
+  getAnalyticsData(period: String! = "7days"): RawAnalyticsDataType!
   getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [Credential!]!
   currentTenant: Tenant!
@@ -380,6 +419,8 @@ type Mutation {
   publishPost(postId: String!): Post!
   retryPublishPost(postId: String!): Post!
   testPublish: Boolean!
+  refreshAnalytics: Boolean!
+  updateAnalyticsRefreshInterval(hours: Float!): AnalyticsSettingsType!
   deleteCredential(credentialId: String!): Boolean!
   testCredential(credentialId: String!): Boolean!
   updateTenant(name: String!): Tenant!

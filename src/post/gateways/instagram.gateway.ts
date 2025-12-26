@@ -3,6 +3,7 @@ import axios from 'axios';
 import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile, getMediaType } from '../utils/media-utils';
+import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 
 const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0';
 
@@ -474,4 +475,59 @@ export class InstagramPostGateway extends AsyncPostGateway {
     };
   }
 
+  /**
+   * Get analytics for a published Instagram post
+   * @param platformPostId The Instagram media ID
+   * @param access_token OAuth access token with instagram_manage_insights scope
+   */
+  async getPostAnalytics(platformPostId: string, access_token: string): Promise<PlatformAnalyticsResponse> {
+    try {
+      this.logger.log(`[Instagram] Fetching analytics for post: ${platformPostId}`);
+
+      // Get post insights
+      const insightsResponse = await axios.get(
+        `${GRAPH_API_BASE}/${platformPostId}/insights`,
+        {
+          params: {
+            metric: 'engagement,impressions,reach,saved',
+            access_token: access_token,
+          },
+        },
+      );
+
+      // Get basic post metrics (likes, comments)
+      const postResponse = await axios.get(
+        `${GRAPH_API_BASE}/${platformPostId}`,
+        {
+          params: {
+            fields: 'like_count,comments_count,shares',
+            access_token: access_token,
+          },
+        },
+      );
+
+      // Parse insights data
+      const insights = insightsResponse.data.data || [];
+      const getMetric = (name: string) => {
+        const metric = insights.find((m: any) => m.name === name);
+        return metric?.values?.[0]?.value || 0;
+      };
+
+      return {
+        views: getMetric('impressions'),
+        likes: postResponse.data.like_count || 0,
+        comments: postResponse.data.comments_count || 0,
+        shares: postResponse.data.shares || 0,
+        reach: getMetric('reach'),
+        saves: getMetric('saved'),
+        rawMetrics: {
+          engagement: getMetric('engagement'),
+          insights: insights,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`[Instagram] Analytics fetch error: ${error.message}`);
+      throw error;
+    }
+  }
 }

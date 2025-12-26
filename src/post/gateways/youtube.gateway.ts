@@ -3,6 +3,7 @@ import axios from 'axios';
 import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile } from '../utils/media-utils';
+import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 import { YouTubeChannelInfo, YouTubePostSettingsInput } from 'src/graphql/types/youtube.type';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
@@ -383,4 +384,46 @@ export class YoutubePostGateway extends AsyncPostGateway {
             },
         };
     }
+
+    /**
+     * Get analytics for a published YouTube video
+     * @param platformPostId The YouTube video ID
+     * @param access_token OAuth access token with youtube.readonly scope
+     */
+    async getPostAnalytics(platformPostId: string, access_token: string): Promise<PlatformAnalyticsResponse> {
+        try {
+            this.logger.log(`[YouTube] Fetching analytics for video: ${platformPostId}`);
+
+            const response = await axios.get(`${YOUTUBE_API_BASE}/videos`, {
+                params: {
+                    part: 'statistics',
+                    id: platformPostId,
+                },
+                headers: {
+                    Authorization: `Bearer ${access_token}`,
+                },
+            });
+
+            const video = response.data.items?.[0];
+
+            if (!video) {
+                throw new Error(`YouTube video ${platformPostId} not found`);
+            }
+
+            const stats = video.statistics;
+
+            return {
+                views: parseInt(stats.viewCount) || 0,
+                likes: parseInt(stats.likeCount) || 0,
+                comments: parseInt(stats.commentCount) || 0,
+                shares: 0, // YouTube doesn't provide share count via API
+                saves: parseInt(stats.favoriteCount) || 0,
+                rawMetrics: stats,
+            };
+        } catch (error: any) {
+            this.logger.error(`[YouTube] Analytics fetch error: ${error.message}`);
+            throw error;
+        }
+    }
 }
+

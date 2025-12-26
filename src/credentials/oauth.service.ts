@@ -99,6 +99,7 @@ export class OAuthService {
           scope: [
             'instagram_business_basic',
             'instagram_business_content_publish',
+            'instagram_manage_insights',
           ],
         },
       ],
@@ -131,6 +132,9 @@ export class OAuthService {
           scope: [
             'https://www.googleapis.com/auth/youtube.upload',
             'https://www.googleapis.com/auth/youtube.readonly',
+            'https://www.googleapis.com/auth/yt-analytics.readonly',
+            'https://www.googleapis.com/auth/youtube',
+            'https://www.googleapis.com/auth/yt-analytics-monetary.readonly'
           ],
         },
       ],

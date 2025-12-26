@@ -6,6 +6,7 @@ import { Rettiwt } from 'rettiwt-api';
 import { TwitterApi } from 'twitter-api-v2';
 import axios from 'axios';
 import { isVideoFile, getMimeType } from '../utils/media-utils';
+import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 @Injectable()
 export class XPostGateway implements PostGateway {
   private readonly logger = new Logger(XPostGateway.name);
@@ -145,6 +146,36 @@ export class XPostGateway implements PostGateway {
       return mediaId;
     } catch (error: any) {
       this.logger.error(`[X] Media upload error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get analytics for a published tweet using rettiwt
+   * @param platformPostId The tweet ID
+   */
+  async getPostAnalytics(platformPostId: string): Promise<PlatformAnalyticsResponse> {
+    try {
+      this.logger.log(`[X] Fetching analytics for tweet: ${platformPostId}`);
+
+      const details = await this.rettiwt.tweet.details(platformPostId);
+
+      if (!details) {
+        throw new Error(`Tweet ${platformPostId} not found`);
+      }
+
+      return {
+        views: details.viewCount || 0,
+        likes: details.likeCount || 0,
+        comments: details.replyCount || 0,
+        shares: details.retweetCount || 0,
+        rawMetrics: {
+          bookmarkCount: details.bookmarkCount,
+          quoteCount: details.quoteCount,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`[X] Analytics fetch error: ${error.message}`);
       throw error;
     }
   }

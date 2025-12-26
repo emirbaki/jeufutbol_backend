@@ -3,6 +3,7 @@ import axios from 'axios';
 import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile, getMediaType } from '../utils/media-utils';
+import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 import { TikTokCreatorInfo, TikTokPostSettingsInput } from 'src/graphql/types/tiktok.type';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com';
@@ -428,4 +429,49 @@ export class TiktokPostGateway extends AsyncPostGateway {
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  /**
+   * Get analytics for a published TikTok video
+   * @param platformPostId The TikTok video ID
+   * @param access_token OAuth access token with video.list scope
+   */
+  async getPostAnalytics(platformPostId: string, access_token: string): Promise<PlatformAnalyticsResponse> {
+    try {
+      this.logger.log(`[TikTok] Fetching analytics for video: ${platformPostId}`);
+
+      const response = await axios.post(
+        `${TIKTOK_API_BASE}/v2/video/query/`,
+        {
+          filters: {
+            video_ids: [platformPostId],
+          },
+          fields: ['like_count', 'comment_count', 'share_count', 'view_count'],
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const video = response.data.data?.videos?.[0];
+
+      if (!video) {
+        throw new Error(`TikTok video ${platformPostId} not found`);
+      }
+
+      return {
+        views: video.view_count || 0,
+        likes: video.like_count || 0,
+        comments: video.comment_count || 0,
+        shares: video.share_count || 0,
+        rawMetrics: video,
+      };
+    } catch (error: any) {
+      this.logger.error(`[TikTok] Analytics fetch error: ${error.message}`);
+      throw error;
+    }
+  }
 }
+

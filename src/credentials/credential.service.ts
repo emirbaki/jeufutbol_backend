@@ -203,6 +203,30 @@ export class CredentialsService {
   }
 
   /**
+   * Get credentials for a tenant by platform (for tenant-scoped operations like analytics)
+   */
+  async getTenantCredentials(
+    tenantId: string,
+    platform: PlatformName,
+  ): Promise<Credential[]> {
+    return this.credentialRepository.find({
+      where: { tenantId, platform, isActive: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Get decrypted access token by credential ID (tenant-scoped - no userId check)
+   */
+  async getDecryptedAccessToken(credentialId: string): Promise<string | null> {
+    const credential = await this.credentialRepository.findOne({
+      where: { id: credentialId, isActive: true },
+    });
+    if (!credential?.accessToken) return null;
+    return this.encryptionService.decrypt(credential.accessToken);
+  }
+
+  /**
    * Delete credential
    */
   async deleteCredential(
