@@ -325,23 +325,40 @@ export class TiktokPostGateway extends AsyncPostGateway {
 
       // TikTok API has a typo: "publicaly_available_post_id" (one 'L')
       // Check both spellings to be safe
-      const postIds =
+      // The response can be a single string, an array, or undefined
+      const rawPostIds =
         statusData.publicaly_available_post_id || // TikTok's typo (one L)
-        statusData.publicly_available_post_id ||  // Correct spelling (two L's)
-        [];
+        statusData.publicly_available_post_id;    // Correct spelling (two L's)
 
-      // If complete, construct the final URL
-      let postUrl: string | undefined = undefined;
-      if (statusData.status === 'PUBLISH_COMPLETE' && postIds.length > 0) {
-        // Note: We'll get username and mediaType from job metadata
-        // For now, just return the postId
-        postUrl = undefined; // Will be constructed by processor using metadata
+      // Normalize to array - handle string, array, or undefined
+      let postIdArray: string[] = [];
+      if (rawPostIds) {
+        postIdArray = Array.isArray(rawPostIds) ? rawPostIds : [rawPostIds];
+      }
+
+      this.logger.log(
+        `[TikTok] Extracted post IDs: ${JSON.stringify(postIdArray)}`,
+      );
+
+      // If status is PUBLISH_COMPLETE but no public ID yet, TikTok is still moderating
+      // This can happen - moderation takes minutes to hours
+      if (statusData.status === 'PUBLISH_COMPLETE' && postIdArray.length === 0) {
+        this.logger.warn(
+          `[TikTok] PUBLISH_COMPLETE but no publicly_available_post_id yet - content may be under moderation`,
+        );
+        // Return a special status to indicate we should keep polling
+        return {
+          status: 'AWAITING_MODERATION',
+          postId: undefined,
+          postUrl: undefined,
+          failReason: undefined,
+        };
       }
 
       return {
         status: statusData.status,
-        postId: postIds.length > 0 ? postIds[0] : undefined,
-        postUrl: postUrl,
+        postId: postIdArray.length > 0 ? postIdArray[0] : undefined,
+        postUrl: undefined, // Will be constructed by processor using metadata
         failReason: statusData.fail_reason,
       };
     } catch (error: any) {

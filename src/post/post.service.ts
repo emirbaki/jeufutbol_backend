@@ -332,17 +332,22 @@ export class PostsService {
           // Update with actual saved ID
           jobData.publishedPostId = savedPost.id;
 
+          // Platform-specific polling settings
+          // TikTok needs more attempts due to content moderation delays
+          const isTikTok = jobData.platform === PlatformType.TIKTOK;
+          const pollingOptions = {
+            delay: 5000, // Start polling after 5 seconds
+            attempts: isTikTok ? 30 : 15, // TikTok: 30 attempts for moderation delays
+            backoff: {
+              type: 'exponential' as const,
+              delay: isTikTok ? 10000 : 5000, // TikTok: 10s base, others: 5s
+            },
+          };
+
           await this.asyncPollingQueue.add(
             ASYNC_POLLING_JOBS.POLL_STATUS,
             jobData,
-            {
-              delay: 5000, // Start polling after 5 seconds
-              attempts: 15, // Poll up to 15 times
-              backoff: {
-                type: 'exponential',
-                delay: 5000, // 5s, 10s, 20s, 40s... up to ~5 minutes total
-              },
-            },
+            pollingOptions,
           );
 
           this.logger.log(

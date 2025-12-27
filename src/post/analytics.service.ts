@@ -152,38 +152,20 @@ export class AnalyticsService {
             ? (totalEngagements / analyticsData.views) * 100
             : 0;
 
-        // Check for existing analytics record for this post
-        let analytics = await this.postAnalyticsRepo.findOne({
-            where: { publishedPostId: publishedPost.id },
+        // Always create new record for historical tracking
+        const analytics = this.postAnalyticsRepo.create({
+            publishedPostId: publishedPost.id,
+            platform: publishedPost.platform,
+            views: analyticsData.views,
+            likes: analyticsData.likes,
+            comments: analyticsData.comments,
+            shares: analyticsData.shares,
+            reach: analyticsData.reach,
+            saves: analyticsData.saves,
+            engagementRate: Math.round(engagementRate * 100) / 100,
+            rawMetrics: analyticsData.rawMetrics,
+            fetchedAt: new Date(),
         });
-
-        if (analytics) {
-            // Update existing record
-            analytics.views = analyticsData.views;
-            analytics.likes = analyticsData.likes;
-            analytics.comments = analyticsData.comments;
-            analytics.shares = analyticsData.shares;
-            analytics.reach = analyticsData.reach;
-            analytics.saves = analyticsData.saves;
-            analytics.engagementRate = Math.round(engagementRate * 100) / 100;
-            analytics.rawMetrics = analyticsData.rawMetrics;
-            analytics.fetchedAt = new Date();
-        } else {
-            // Create new record
-            analytics = this.postAnalyticsRepo.create({
-                publishedPostId: publishedPost.id,
-                platform: publishedPost.platform,
-                views: analyticsData.views,
-                likes: analyticsData.likes,
-                comments: analyticsData.comments,
-                shares: analyticsData.shares,
-                reach: analyticsData.reach,
-                saves: analyticsData.saves,
-                engagementRate: Math.round(engagementRate * 100) / 100,
-                rawMetrics: analyticsData.rawMetrics,
-                fetchedAt: new Date(),
-            });
-        }
 
         return this.postAnalyticsRepo.save(analytics);
     }

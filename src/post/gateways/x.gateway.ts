@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PostGateway, PlatformAccountInfo } from './post-base.gateway';
+import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
+import { PlatformAccountInfo } from './post-base.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { TweetsService } from 'src/tweets/tweets.service';
 import { Rettiwt } from 'rettiwt-api';
@@ -7,13 +8,15 @@ import { TwitterApi } from 'twitter-api-v2';
 import axios from 'axios';
 import { isVideoFile, getMimeType } from '../utils/media-utils';
 import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
+
 @Injectable()
-export class XPostGateway implements PostGateway {
+export class XPostGateway extends AsyncPostGateway {
   private readonly logger = new Logger(XPostGateway.name);
 
   private twitterClient = new TwitterApi();
   private rettiwt: Rettiwt;
   constructor(private tweetsService: TweetsService) {
+    super();
     this.rettiwt = tweetsService.rettiwt;
   }
 
@@ -206,6 +209,51 @@ export class XPostGateway implements PostGateway {
       this.logger.error(`[X] User info fetch error: ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Check publish status for X posts
+   * X posts are instant, so this always returns PUBLISHED
+   */
+  async checkPublishStatus(
+    postId: string,
+    access_token: string,
+  ): Promise<AsyncPublishStatus> {
+    // X posts are published instantly - no processing delay
+    return {
+      status: 'PUBLISHED',
+      postId: postId,
+      postUrl: `https://twitter.com/i/status/${postId}`,
+    };
+  }
+
+  /**
+   * Get polling job data for X posts
+   * Returns null since X posts complete instantly and don't need async polling
+   */
+  getPollingJobData(
+    publishedPost: any,
+    result: any,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): AsyncPollingJobData | null {
+    // X posts are instant - no polling needed
+    return null;
+  }
+
+  /**
+   * Complete publish for X posts
+   * X posts are already complete after createNewPost, just return the URL
+   */
+  async completePublish(
+    postId: string,
+    access_token: string,
+    metadata: Record<string, any>,
+  ): Promise<{ postId?: string; postUrl?: string }> {
+    return {
+      postId: postId,
+      postUrl: `https://twitter.com/i/status/${postId}`,
+    };
   }
 }
 
