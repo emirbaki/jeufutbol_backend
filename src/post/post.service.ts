@@ -273,6 +273,12 @@ export class PostsService {
           // 3️⃣ Notify gateway & persist
           await gateway.notifyPostPublished(post.id, platform, result);
 
+          // Determine publish status:
+          // - Async platforms with publish_id: PROCESSING_UPLOAD (will be updated by polling)
+          // - Instant platforms (like X): PUBLISH_COMPLETE immediately
+          const isAsyncWithPolling = result.publish_id !== undefined;
+          const initialStatus = isAsyncWithPolling ? 'PROCESSING_UPLOAD' : 'PUBLISH_COMPLETE';
+
           const publishedPost = this.publishedPostRepository.create({
             postId: post.id,
             tenantId: tenantId,
@@ -282,7 +288,7 @@ export class PostsService {
             platformPostUrl: result.url || 'pending',
             publishMetadata: result,
             publishId: result.publish_id || undefined,
-            publishStatus: result.publish_id ? 'PROCESSING_UPLOAD' : undefined,
+            publishStatus: initialStatus,
           });
 
           publishResults.push(publishedPost);
