@@ -6,6 +6,7 @@ import { PostsService } from './post.service';
 import { PostsResolver } from './post.resolver';
 import { AnalyticsService } from './analytics.service';
 import { AnalyticsResolver } from './analytics.resolver';
+import { AnalyticsSchedulerService } from './analytics-scheduler.service';
 import { Post } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
 import { PostAnalytics } from '../entities/post-analytics.entity';
@@ -80,6 +81,7 @@ import { Tenant } from '../entities/tenant.entity';
     TiktokPollingProcessor, // Deprecated - keeping for backward compatibility
     AsyncPollingProcessor, // New generic async processor
     ScheduledPostProcessor,
+    AnalyticsSchedulerService,
   ],
   exports: [PostsService, AnalyticsService],
 })
