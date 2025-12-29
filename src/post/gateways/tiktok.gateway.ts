@@ -295,12 +295,16 @@ export class TiktokPostGateway extends AsyncPostGateway {
   /**
    * Check publish status once (called by background job processor)
    * Returns status data for the polling processor to handle
+   * 
+   * IMPORTANT: TikTok post IDs are 19-digit integers which exceed JavaScript's
+   * MAX_SAFE_INTEGER (~16 digits). We need to extract them as strings to preserve precision.
    */
   async checkPublishStatus(
     publish_id: string,
     access_token: string,
   ): Promise<AsyncPublishStatus> {
     try {
+      // Use responseType: 'text' to get raw response before JSON parsing loses precision
       const statusRes = await axios.post(
         `${TIKTOK_API_BASE}/v2/post/publish/status/fetch/`,
         { publish_id },
@@ -309,44 +313,51 @@ export class TiktokPostGateway extends AsyncPostGateway {
             Authorization: `Bearer ${access_token}`,
             'Content-Type': 'application/json',
           },
+          responseType: 'text', // Get raw text to preserve large integer precision
         },
       );
 
-      const statusData = statusRes.data.data;
+      // Extract the post ID as a string BEFORE JSON parsing loses precision
+      // The response contains: "publicaly_available_post_id": [7589279397371235596]
+      // We need to capture this as a string to preserve all 19 digits
+      const rawResponse = statusRes.data as string;
 
-      // Log full response for debugging
-      this.logger.log(
-        `[TikTok] Full status response: ${JSON.stringify(statusRes.data, null, 2)}`,
+      // Log raw response for debugging
+      this.logger.log(`[TikTok] Raw status response: ${rawResponse}`);
+
+      // Extract post IDs using regex before JSON parsing mangles them
+      // Match the array contents after publicaly_available_post_id or publicly_available_post_id
+      const postIdMatch = rawResponse.match(
+        /public(?:al)?y_available_post_id["\s:]+\[([^\]]+)\]/i
       );
+
+      let extractedPostIds: string[] = [];
+      if (postIdMatch && postIdMatch[1]) {
+        // Split by comma and trim each ID, keeping as strings
+        extractedPostIds = postIdMatch[1]
+          .split(',')
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+      }
+
+      this.logger.log(
+        `[TikTok] Extracted post IDs (as strings): ${JSON.stringify(extractedPostIds)}`,
+      );
+
+      // Now parse the full JSON for other fields (status, fail_reason)
+      // These are safe since they're not large integers
+      const parsedData = JSON.parse(rawResponse);
+      const statusData = parsedData.data;
 
       this.logger.log(
         `[TikTok] Status check for ${publish_id}: ${statusData.status}`,
       );
 
-      // TikTok API has a typo: "publicaly_available_post_id" (one 'L')
-      // Check both spellings to be safe
-      // The response can be a single string, an array, or undefined
-      const rawPostIds =
-        statusData.publicaly_available_post_id || // TikTok's typo (one L)
-        statusData.publicly_available_post_id;    // Correct spelling (two L's)
-
-      // Normalize to array - handle string, array, or undefined
-      let postIdArray: string[] = [];
-      if (rawPostIds) {
-        postIdArray = Array.isArray(rawPostIds) ? rawPostIds : [rawPostIds];
-      }
-
-      this.logger.log(
-        `[TikTok] Extracted post IDs: ${JSON.stringify(postIdArray)}`,
-      );
-
       // If status is PUBLISH_COMPLETE but no public ID yet, TikTok is still moderating
-      // This can happen - moderation takes minutes to hours
-      if (statusData.status === 'PUBLISH_COMPLETE' && postIdArray.length === 0) {
+      if (statusData.status === 'PUBLISH_COMPLETE' && extractedPostIds.length === 0) {
         this.logger.warn(
           `[TikTok] PUBLISH_COMPLETE but no publicly_available_post_id yet - content may be under moderation`,
         );
-        // Return a special status to indicate we should keep polling
         return {
           status: 'AWAITING_MODERATION',
           postId: undefined,
@@ -357,7 +368,7 @@ export class TiktokPostGateway extends AsyncPostGateway {
 
       return {
         status: statusData.status,
-        postId: postIdArray.length > 0 ? postIdArray[0] : undefined,
+        postId: extractedPostIds.length > 0 ? extractedPostIds[0] : undefined,
         postUrl: undefined, // Will be constructed by processor using metadata
         failReason: statusData.fail_reason,
       };
@@ -398,9 +409,9 @@ export class TiktokPostGateway extends AsyncPostGateway {
       };
     }
 
-    // Construct the final URL with post ID
-    const urlPath = mediaType === 'video' ? 'video' : 'photo';
-    const postUrl = `https://www.tiktok.com/@${username}/${urlPath}/${postId}`;
+    // TikTok uses /video/ in URL for ALL content types (including photo carousels)
+    // The postId from publicly_available_post_id is the actual video/post ID
+    const postUrl = `https://www.tiktok.com/@${username}/video/${postId}`;
 
     this.logger.log(`[TikTok] Constructed post URL: ${postUrl}`);
 
