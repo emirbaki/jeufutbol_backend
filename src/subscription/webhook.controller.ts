@@ -31,9 +31,13 @@ export class WebhookController {
     ): Promise<{ received: boolean }> {
         const rawBody = req.rawBody?.toString() || '';
 
+        // Debug logging
+        this.logger.debug(`Received webhook - rawBody length: ${rawBody.length}, signature: ${signature?.substring(0, 20)}...`);
+        this.logger.debug(`rawBody exists: ${!!req.rawBody}, headers: ${JSON.stringify(Object.keys(req.headers))}`);
+
         // Verify webhook signature
         if (!this.lemonSqueezyService.verifyWebhookSignature(rawBody, signature || '')) {
-            this.logger.warn('Invalid webhook signature received');
+            this.logger.warn(`Invalid webhook signature received. Signature: ${signature}, Body length: ${rawBody.length}`);
             throw new UnauthorizedException('Invalid signature');
         }
 
