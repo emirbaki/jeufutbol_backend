@@ -32,6 +32,7 @@ import { QueueDashboardModule } from './queue/queue-dashboard.module';
 import { TenancyModule } from './tenancy/tenancy.module';
 import { UserModule } from './user/user.module';
 import { PubSubModule } from './pubsub/pubsub.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 
 
 @Module({
@@ -129,6 +130,7 @@ import { PubSubModule } from './pubsub/pubsub.module';
     TenancyModule,
     UserModule,
     PubSubModule,
+    SubscriptionModule,
   ],
   controllers: [AppController, UploadController],
   providers: [

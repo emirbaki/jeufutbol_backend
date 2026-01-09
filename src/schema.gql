@@ -2,12 +2,19 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-type Tenant {
+type BillingSubscription {
   id: ID!
-  name: String!
-  subdomain: String!
-  clientId: String
-  users: [User!]
+  tenant: Tenant!
+  lemonSqueezySubscriptionId: String
+  lemonSqueezyCustomerId: String
+  status: String!
+  plan: String!
+  billingCycle: String!
+  currentPeriodStart: DateTime
+  currentPeriodEnd: DateTime
+  cancelAtPeriodEnd: Boolean!
+  isGrandfathered: Boolean!
+  trialEndsAt: DateTime
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -16,6 +23,17 @@ type Tenant {
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
 scalar DateTime
+
+type Tenant {
+  id: ID!
+  name: String!
+  subdomain: String!
+  clientId: String
+  users: [User!]
+  subscription: BillingSubscription
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
 
 type Insight {
   id: ID!
@@ -247,6 +265,14 @@ type RawAnalyticsDataType {
   settings: AnalyticsSettingsType!
 }
 
+type PlatformFollowerType {
+  platform: String!
+  displayName: String!
+  followerCount: Int!
+  profilePictureUrl: String
+  username: String
+}
+
 type UserInvitation {
   id: ID!
   email: String!
@@ -365,6 +391,10 @@ type JobResultObject {
   result: JSON!
 }
 
+type CheckoutSession {
+  checkoutUrl: String!
+}
+
 type Query {
   hello: String!
   verifyEmail(token: String!): MessageResponse!
@@ -374,6 +404,7 @@ type Query {
   getPost(postId: String!): Post!
   getTikTokCreatorInfo: TikTokCreatorInfo!
   getAnalyticsData(period: String! = "7days"): RawAnalyticsDataType!
+  getFollowerCounts: [PlatformFollowerType!]!
   getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [Credential!]!
   currentTenant: Tenant!
@@ -401,6 +432,8 @@ type Query {
   queueJobs(queueName: String!): [JobStatusObject!]!
   getOrganizationUsers: [User!]!
   listPendingInvitations: [UserInvitation!]!
+  mySubscription: BillingSubscription
+  ensureSubscription: BillingSubscription!
 }
 
 type Mutation {
@@ -460,6 +493,8 @@ type Mutation {
   updateProfile(input: UpdateProfileInput!): User!
   changePassword(input: ChangePasswordInput!): Boolean!
   updateNotificationSettings(input: UpdateNotificationSettingsInput!): User!
+  createCheckout(plan: String!): CheckoutSession!
+  cancelSubscription: BillingSubscription!
 }
 
 input CreateApiKeyInput {
