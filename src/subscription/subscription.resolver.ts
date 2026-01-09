@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -36,6 +36,7 @@ export class SubscriptionResolver {
     async createCheckout(
         @Args('plan') plan: string,
         @CurrentUser() user: User,
+        @Context() ctx: any,
     ): Promise<CheckoutSession> {
         if (!user?.tenantId || !user?.id || !user?.email) {
             throw new Error('User context not found');
@@ -46,9 +47,21 @@ export class SubscriptionResolver {
             throw new Error('Invalid plan. Must be pro_monthly or pro_yearly');
         }
 
-        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
-        const successUrl = `${frontendUrl}/settings/subscription?success=true`;
-        const cancelUrl = `${frontendUrl}/settings/subscription?cancelled=true`;
+        // Get origin from request to support wildcard subdomains
+        const req = ctx.req;
+        const origin = req?.get?.('origin') || req?.headers?.origin;
+        const referer = req?.get?.('referer') || req?.headers?.referer;
+        const refererOrigin = referer ? referer.split('/').slice(0, 3).join('/') : null;
+
+        // Use origin from request, fallback to env vars
+        const frontendUrl = origin
+            || refererOrigin
+            || this.configService.get<string>('FRONTEND_URL')
+            || this.configService.get<string>('FRONTEND_URL_PROD')
+            || 'http://localhost:4200';
+
+        const successUrl = `${frontendUrl}/settings?tab=billing&success=true`;
+        const cancelUrl = `${frontendUrl}/settings?tab=billing&cancelled=true`;
 
         const checkoutUrl = await this.subscriptionService.createCheckoutUrl(
             user.tenantId,
@@ -82,4 +95,5 @@ export class SubscriptionResolver {
         return this.subscriptionService.ensureSubscription(user.tenantId);
     }
 }
+
 
