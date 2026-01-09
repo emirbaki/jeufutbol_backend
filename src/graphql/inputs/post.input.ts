@@ -5,8 +5,12 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import GraphQLJSON from 'graphql-type-json';
+import { TikTokPostSettingsInput } from '../types/tiktok.type';
+import { YouTubePostSettingsInput } from '../types/youtube.type';
 
 @InputType()
 export class CreatePostInput {
@@ -31,4 +35,17 @@ export class CreatePostInput {
   @IsDateString()
   @Field(() => String, { nullable: true })
   scheduledFor: Date | null;
+
+  @Field(() => TikTokPostSettingsInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TikTokPostSettingsInput)
+  tiktokSettings?: TikTokPostSettingsInput;
+
+  @Field(() => YouTubePostSettingsInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => YouTubePostSettingsInput)
+  youtubeSettings?: YouTubePostSettingsInput;
 }
+

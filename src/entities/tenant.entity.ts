@@ -5,9 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  OneToOne,
 } from 'typeorm';
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { User } from './user.entity';
+import { Subscription } from './subscription.entity';
 
 @ObjectType()
 @Entity('app_tenants')
@@ -35,6 +37,10 @@ export class Tenant {
   @OneToMany(() => User, (user) => user.tenant)
   users: User[];
 
+  @Field(() => Subscription, { nullable: true })
+  @OneToOne(() => Subscription, (subscription) => subscription.tenant)
+  subscription: Subscription;
+
   @Field()
   @CreateDateColumn()
   createdAt: Date;
@@ -43,3 +49,4 @@ export class Tenant {
   @UpdateDateColumn()
   updatedAt: Date;
 }
+

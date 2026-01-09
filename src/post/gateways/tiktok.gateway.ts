@@ -3,8 +3,19 @@ import axios from 'axios';
 import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile, getMediaType } from '../utils/media-utils';
+import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
+import { TikTokCreatorInfo, TikTokPostSettingsInput } from 'src/graphql/types/tiktok.type';
+import { PlatformAccountInfo } from './post-base.gateway';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com';
+
+/**
+ * Extended options for TikTok posting with user-selected settings
+ */
+export interface TikTokPostOptions {
+  username?: string;
+  tiktokSettings?: TikTokPostSettingsInput;
+}
 
 @Injectable()
 export class TiktokPostGateway extends AsyncPostGateway {
@@ -30,19 +41,60 @@ export class TiktokPostGateway extends AsyncPostGateway {
   }
 
   /**
+   * Get creator info from TikTok API
+   * Required by TikTok Content Sharing Guidelines to fetch posting restrictions
+   * @param access_token OAuth access token
+   */
+  async getCreatorInfo(access_token: string): Promise<TikTokCreatorInfo> {
+    try {
+      this.logger.log('[TikTok] Fetching creator info...');
+
+      const response = await axios.post(
+        `${TIKTOK_API_BASE}/v2/post/publish/creator_info/query/`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const data = response.data.data;
+      this.logger.log(`[TikTok] Creator info: ${JSON.stringify(data, null, 2)}`);
+
+      return {
+        creator_nickname: data.creator_nickname || '',
+        creator_avatar_url: data.creator_avatar_url || '',
+        privacy_level_options: data.privacy_level_options || [],
+        max_video_post_duration_sec: data.max_video_post_duration_sec || 600,
+        comment_disabled: data.comment_disabled || false,
+        duet_disabled: data.duet_disabled || false,
+        stitch_disabled: data.stitch_disabled || false,
+      };
+    } catch (err: any) {
+      this.logger.error(
+        `[TikTok] Failed to fetch creator info: ${JSON.stringify(err.response?.data, null, 2) || err.message}`,
+      );
+      throw err;
+    }
+  }
+
+
+  /**
    * Create TikTok post (video or photo)
    * @param userId TikTok user open_id (not used directly, obtained from token)
    * @param content Video/Photo caption
    * @param access_token OAuth access token
    * @param media Array of media URLs (videos or images)
-   * @param options Optional parameters (e.g. username)
+   * @param options TikTok-specific options including user-selected settings
    */
   async createNewPost(
     userId: string,
     content: string,
     access_token: string,
     media?: string[],
-    options?: { username?: string },
+    options?: TikTokPostOptions,
   ): Promise<any> {
     try {
       if (!media || media.length === 0) {
@@ -79,17 +131,31 @@ export class TiktokPostGateway extends AsyncPostGateway {
     }
   }
 
+
   /**
    * Publish video to TikTok
+   * Uses user-selected settings when available, falls back to SELF_ONLY for unaudited apps
    */
   private async publishVideo(
     caption: string,
     access_token: string,
     videoUrl: string,
-    options?: { username?: string },
+    options?: TikTokPostOptions,
   ): Promise<any> {
     try {
       this.logger.log('[TikTok] Starting video upload...');
+
+      const settings = options?.tiktokSettings;
+
+      // Use user settings or fallback to SELF_ONLY (works for unaudited apps)
+      const privacyLevel = settings?.privacy_level || 'SELF_ONLY';
+      const disableComment = settings ? !settings.allow_comment : false;
+      const disableDuet = settings ? !settings.allow_duet : false;
+      const disableStitch = settings ? !settings.allow_stitch : false;
+      const brandOrganic = settings?.is_brand_organic ?? false;
+      const brandContent = settings?.is_branded_content ?? false;
+
+      this.logger.log(`[TikTok] Post settings: privacy=${privacyLevel}, comment=${!disableComment}, duet=${!disableDuet}, stitch=${!disableStitch}`);
 
       // Step 1: Initialize video upload
       const initRes = await axios.post(
@@ -97,12 +163,13 @@ export class TiktokPostGateway extends AsyncPostGateway {
         {
           post_info: {
             title: caption,
-            privacy_level: 'SELF_ONLY', // Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, SELF_ONLY
-            disable_duet: false,
-            disable_comment: false,
-            disable_stitch: false,
+            privacy_level: privacyLevel,
+            disable_duet: disableDuet,
+            disable_comment: disableComment,
+            disable_stitch: disableStitch,
             video_cover_timestamp_ms: 1000,
-            brand_organic_toggle: true,
+            brand_organic_toggle: brandOrganic,
+            brand_content_toggle: brandContent,
           },
           source_info: {
             source: 'PULL_FROM_URL',
@@ -136,12 +203,13 @@ export class TiktokPostGateway extends AsyncPostGateway {
 
   /**
    * Publish photos to TikTok (photo posts)
+   * Uses user-selected settings when available, falls back to SELF_ONLY for unaudited apps
    */
   private async publishPhotos(
     caption: string,
     access_token: string,
     imageUrls: string[],
-    options?: { username?: string },
+    options?: TikTokPostOptions,
   ): Promise<any> {
     try {
       this.logger.log(
@@ -149,28 +217,42 @@ export class TiktokPostGateway extends AsyncPostGateway {
       );
       this.logger.log(`[TikTok] Image URLs: ${JSON.stringify(imageUrls)}`);
 
+      const settings = options?.tiktokSettings;
+
+      // Use user settings or fallback to SELF_ONLY (works for unaudited apps)
+      const privacyLevel = settings?.privacy_level || 'SELF_ONLY';
+      const disableComment = settings ? !settings.allow_comment : false;
+      const brandOrganic = settings?.is_brand_organic ?? false;
+      const brandContent = settings?.is_branded_content ?? false;
+      const autoAddMusic = settings?.auto_add_music ?? true; // Default true for photos
+
+      this.logger.log(`[TikTok] Photo post settings: privacy=${privacyLevel}, comment=${!disableComment}, autoAddMusic=${autoAddMusic}`);
+
       // Step 1: Initialize photo post
       const payload = {
         post_info: {
           title: caption,
           description: caption,
-          privacy_level: 'SELF_ONLY',
-          disable_comment: false,
-          auto_add_music: true,
+          privacy_level: privacyLevel,
+          disable_comment: disableComment,
+          auto_add_music: autoAddMusic,
+          brand_organic_toggle: brandOrganic,
+          brand_content_toggle: brandContent,
         },
+
         source_info: {
           source: 'PULL_FROM_URL',
           photo_cover_index: 0,
           photo_images: imageUrls,
         },
-        post_mode: 'DIRECT_POST', // Add this
-        media_type: 'PHOTO', // Add this
+        post_mode: 'DIRECT_POST',
+        media_type: 'PHOTO',
       };
 
       this.logger.log(`[TikTok] Payload: ${JSON.stringify(payload, null, 2)}`);
 
       const initRes = await axios.post(
-        `${TIKTOK_API_BASE}/v2/post/publish/content/init/`, // Changed endpoint
+        `${TIKTOK_API_BASE}/v2/post/publish/content/init/`,
         payload,
         {
           headers: {
@@ -213,12 +295,16 @@ export class TiktokPostGateway extends AsyncPostGateway {
   /**
    * Check publish status once (called by background job processor)
    * Returns status data for the polling processor to handle
+   * 
+   * IMPORTANT: TikTok post IDs are 19-digit integers which exceed JavaScript's
+   * MAX_SAFE_INTEGER (~16 digits). We need to extract them as strings to preserve precision.
    */
   async checkPublishStatus(
     publish_id: string,
     access_token: string,
   ): Promise<AsyncPublishStatus> {
     try {
+      // Use responseType: 'text' to get raw response before JSON parsing loses precision
       const statusRes = await axios.post(
         `${TIKTOK_API_BASE}/v2/post/publish/status/fetch/`,
         { publish_id },
@@ -227,39 +313,63 @@ export class TiktokPostGateway extends AsyncPostGateway {
             Authorization: `Bearer ${access_token}`,
             'Content-Type': 'application/json',
           },
+          responseType: 'text', // Get raw text to preserve large integer precision
         },
       );
 
-      const statusData = statusRes.data.data;
+      // Extract the post ID as a string BEFORE JSON parsing loses precision
+      // The response contains: "publicaly_available_post_id": [7589279397371235596]
+      // We need to capture this as a string to preserve all 19 digits
+      const rawResponse = statusRes.data as string;
 
-      // Log full response for debugging
-      this.logger.log(
-        `[TikTok] Full status response: ${JSON.stringify(statusRes.data, null, 2)}`,
+      // Log raw response for debugging
+      this.logger.log(`[TikTok] Raw status response: ${rawResponse}`);
+
+      // Extract post IDs using regex before JSON parsing mangles them
+      // Match the array contents after publicaly_available_post_id or publicly_available_post_id
+      const postIdMatch = rawResponse.match(
+        /public(?:al)?y_available_post_id["\s:]+\[([^\]]+)\]/i
       );
+
+      let extractedPostIds: string[] = [];
+      if (postIdMatch && postIdMatch[1]) {
+        // Split by comma and trim each ID, keeping as strings
+        extractedPostIds = postIdMatch[1]
+          .split(',')
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+      }
+
+      this.logger.log(
+        `[TikTok] Extracted post IDs (as strings): ${JSON.stringify(extractedPostIds)}`,
+      );
+
+      // Now parse the full JSON for other fields (status, fail_reason)
+      // These are safe since they're not large integers
+      const parsedData = JSON.parse(rawResponse);
+      const statusData = parsedData.data;
 
       this.logger.log(
         `[TikTok] Status check for ${publish_id}: ${statusData.status}`,
       );
 
-      // TikTok API has a typo: "publicaly_available_post_id" (one 'L')
-      // Check both spellings to be safe
-      const postIds =
-        statusData.publicaly_available_post_id || // TikTok's typo (one L)
-        statusData.publicly_available_post_id ||  // Correct spelling (two L's)
-        [];
-
-      // If complete, construct the final URL
-      let postUrl: string | undefined = undefined;
-      if (statusData.status === 'PUBLISH_COMPLETE' && postIds.length > 0) {
-        // Note: We'll get username and mediaType from job metadata
-        // For now, just return the postId
-        postUrl = undefined; // Will be constructed by processor using metadata
+      // If status is PUBLISH_COMPLETE but no public ID yet, TikTok is still moderating
+      if (statusData.status === 'PUBLISH_COMPLETE' && extractedPostIds.length === 0) {
+        this.logger.warn(
+          `[TikTok] PUBLISH_COMPLETE but no publicly_available_post_id yet - content may be under moderation`,
+        );
+        return {
+          status: 'AWAITING_MODERATION',
+          postId: undefined,
+          postUrl: undefined,
+          failReason: undefined,
+        };
       }
 
       return {
         status: statusData.status,
-        postId: postIds.length > 0 ? postIds[0] : undefined,
-        postUrl: postUrl,
+        postId: extractedPostIds.length > 0 ? extractedPostIds[0] : undefined,
+        postUrl: undefined, // Will be constructed by processor using metadata
         failReason: statusData.fail_reason,
       };
     } catch (error: any) {
@@ -299,9 +409,9 @@ export class TiktokPostGateway extends AsyncPostGateway {
       };
     }
 
-    // Construct the final URL with post ID
-    const urlPath = mediaType === 'video' ? 'video' : 'photo';
-    const postUrl = `https://www.tiktok.com/@${username}/${urlPath}/${postId}`;
+    // TikTok uses /video/ in URL for ALL content types (including photo carousels)
+    // The postId from publicly_available_post_id is the actual video/post ID
+    const postUrl = `https://www.tiktok.com/@${username}/video/${postId}`;
 
     this.logger.log(`[TikTok] Constructed post URL: ${postUrl}`);
 
@@ -348,4 +458,90 @@ export class TiktokPostGateway extends AsyncPostGateway {
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  /**
+   * Get analytics for a published TikTok video
+   * @param platformPostId The TikTok video ID
+   * @param access_token OAuth access token with video.list scope
+   */
+  async getPostAnalytics(platformPostId: string, access_token: string): Promise<PlatformAnalyticsResponse> {
+    try {
+      this.logger.log(`[TikTok] Fetching analytics for video: ${platformPostId}`);
+
+      // Fields must be passed as query parameter, not in body
+      // See: https://developers.tiktok.com/doc/tiktok-api-v2-video-query
+      const fields = 'id,like_count,comment_count,share_count,view_count';
+
+      const response = await axios.post(
+        `${TIKTOK_API_BASE}/v2/video/query/?fields=${fields}`,
+        {
+          filters: {
+            video_ids: [platformPostId],
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const video = response.data.data?.videos?.[0];
+
+      if (!video) {
+        throw new Error(`TikTok video ${platformPostId} not found`);
+      }
+
+      return {
+        views: video.view_count || 0,
+        likes: video.like_count || 0,
+        comments: video.comment_count || 0,
+        shares: video.share_count || 0,
+        rawMetrics: video,
+      };
+    } catch (error: any) {
+      this.logger.error(`[TikTok] Analytics fetch error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get TikTok user info including follower count
+   * @param access_token OAuth access token with user.info.basic scope
+   */
+  async getAccountInfo(access_token: string): Promise<PlatformAccountInfo> {
+    try {
+      this.logger.log('[TikTok] Fetching user info...');
+
+      // TikTok user.info endpoint requires fields as query param
+      const fields = 'display_name,avatar_url,follower_count,following_count,likes_count,video_count';
+
+      const response = await axios.get(
+        `${TIKTOK_API_BASE}/v2/user/info/?fields=${fields}`,
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+          },
+        },
+      );
+
+      const user = response.data.data?.user;
+      if (!user) {
+        throw new Error('No TikTok user info returned');
+      }
+
+      return {
+        displayName: user.display_name || '',
+        followerCount: user.follower_count || 0,
+        followingCount: user.following_count || 0,
+        profilePictureUrl: user.avatar_url,
+        mediaCount: user.video_count || 0,
+      };
+    } catch (error: any) {
+      this.logger.error(`[TikTok] User info fetch error: ${error.message}`);
+      throw error;
+    }
+  }
 }
+

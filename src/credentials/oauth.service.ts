@@ -99,6 +99,7 @@ export class OAuthService {
           scope: [
             'instagram_business_basic',
             'instagram_business_content_publish',
+            'instagram_business_manage_insights',
           ],
         },
       ],
@@ -117,6 +118,23 @@ export class OAuthService {
             'user.info.stats',
             'video.list',
             'video.publish',
+          ],
+        },
+      ],
+      [
+        PlatformName.YOUTUBE,
+        {
+          clientId: this.configService.get('YOUTUBE_CLIENT_ID') || '',
+          clientSecret: this.configService.get('YOUTUBE_CLIENT_SECRET') || '',
+          authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+          tokenUrl: 'https://oauth2.googleapis.com/token',
+          redirectUri: `${baseUrl}/api/credentials/oauth/callback`,
+          scope: [
+            'https://www.googleapis.com/auth/youtube.upload',
+            'https://www.googleapis.com/auth/youtube.readonly',
+            'https://www.googleapis.com/auth/yt-analytics.readonly',
+            'https://www.googleapis.com/auth/youtube',
+            'https://www.googleapis.com/auth/yt-analytics-monetary.readonly'
           ],
         },
       ],
@@ -164,6 +182,17 @@ export class OAuthService {
         response_type: 'code',
         scope: config.scope.join(','),
         state,
+      });
+    } else if (platform === PlatformName.YOUTUBE) {
+      // Google OAuth2 requires space-separated scopes and access_type for refresh token
+      params = new URLSearchParams({
+        client_id: config.clientId,
+        redirect_uri: config.redirectUri,
+        response_type: 'code',
+        scope: config.scope.join(' '),
+        state,
+        access_type: 'offline', // Required for refresh token
+        prompt: 'consent', // Force consent to get refresh token
       });
     }
     console.log(`${config.authUrl}?${params.toString()}`);
@@ -316,7 +345,8 @@ export class OAuthService {
         return this.getInstagramAccountInfo(accessToken);
       case PlatformName.TIKTOK:
         return this.getTiktokAccountInfo(accessToken);
-      // Add other platforms
+      case PlatformName.YOUTUBE:
+        return this.getYoutubeAccountInfo(accessToken);
       default:
         throw new Error(`Account info not implemented for ${platform}`);
     }
@@ -387,6 +417,31 @@ export class OAuthService {
       id: response.data.data.user.open_id,
       name: response.data.data.user.username,
       image: response.data.data.user.avatar_url,
+    };
+  }
+
+  private async getYoutubeAccountInfo(accessToken: string) {
+    const response = await firstValueFrom(
+      this.httpService.get('https://www.googleapis.com/youtube/v3/channels', {
+        params: {
+          part: 'snippet',
+          mine: true,
+        },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }),
+    );
+
+    const channel = response.data.items?.[0];
+    if (!channel) {
+      throw new Error('No YouTube channel found for this account');
+    }
+
+    return {
+      id: channel.id,
+      name: channel.snippet.title,
+      image: channel.snippet.thumbnails?.default?.url,
     };
   }
 }

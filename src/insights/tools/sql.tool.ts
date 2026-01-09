@@ -6,7 +6,7 @@ export class SqlTools {
   static async createTools(dataSource: DataSource, llm: any) {
     const db = await SqlDatabase.fromDataSourceParams({
       appDataSource: dataSource,
-      includesTables: ['post', 'tweets', 'insights', 'monitored_profiles'],
+      includesTables: ['post', 'tweets', 'insights', 'monitored_profiles', 'tweet_monitored_profiles'],
     });
 
     const toolkit = new SqlToolkit(db, llm);

@@ -1,5 +1,6 @@
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { PostGateway } from './post-base.gateway';
+import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 
 /**
  * Job data interface for async post polling
@@ -83,4 +84,9 @@ export abstract class AsyncPostGateway extends PostGateway {
         // Default: no additional publishing step needed
         return {};
     }
+
+    abstract getPostAnalytics(
+        publishId: string,
+        access_token: string,
+    ): Promise<PlatformAnalyticsResponse>;
 }

@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
@@ -23,6 +24,11 @@ import { Tenant } from '../entities/tenant.entity';
 import { UserRole } from '../auth/user-role.enum';
 import { InvitationStatus } from '../entities/user-invitation.entity';
 import { InviteUserInput } from '../graphql/types/invite-user.input';
+import {
+  UpdateProfileInput,
+  ChangePasswordInput,
+  UpdateNotificationSettingsInput,
+} from '../graphql/types/user-settings.input';
 import { EmailService } from '../email/email.service';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -177,5 +183,74 @@ export class UserResolver {
     await this.invitationRepository.save(invitation);
 
     return true;
+  }
+
+  // =====================
+  // Profile & Settings Mutations
+  // =====================
+
+  @Mutation(() => User)
+  async updateProfile(
+    @CurrentUser() user: User,
+    @Args('input') input: UpdateProfileInput,
+  ): Promise<User> {
+    const currentUser = await this.userRepository.findOneByOrFail({ id: user.id });
+
+    if (input.firstName !== undefined) {
+      currentUser.firstName = input.firstName;
+    }
+    if (input.lastName !== undefined) {
+      currentUser.lastName = input.lastName;
+    }
+
+    return this.userRepository.save(currentUser);
+  }
+
+  @Mutation(() => Boolean)
+  async changePassword(
+    @CurrentUser() user: User,
+    @Args('input') input: ChangePasswordInput,
+  ): Promise<boolean> {
+    const currentUser = await this.userRepository.findOneByOrFail({ id: user.id });
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(
+      input.currentPassword,
+      currentUser.passwordHash,
+    );
+
+    if (!isPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // Hash and save new password
+    const saltRounds = 10;
+    currentUser.passwordHash = await bcrypt.hash(input.newPassword, saltRounds);
+    await this.userRepository.save(currentUser);
+
+    return true;
+  }
+
+  @Mutation(() => User)
+  async updateNotificationSettings(
+    @CurrentUser() user: User,
+    @Args('input') input: UpdateNotificationSettingsInput,
+  ): Promise<User> {
+    const currentUser = await this.userRepository.findOneByOrFail({ id: user.id });
+
+    if (input.notifyOnPublish !== undefined) {
+      currentUser.notifyOnPublish = input.notifyOnPublish;
+    }
+    if (input.notifyOnFail !== undefined) {
+      currentUser.notifyOnFail = input.notifyOnFail;
+    }
+    if (input.notifyWeeklyReport !== undefined) {
+      currentUser.notifyWeeklyReport = input.notifyWeeklyReport;
+    }
+    if (input.notifyNewInsights !== undefined) {
+      currentUser.notifyNewInsights = input.notifyNewInsights;
+    }
+
+    return this.userRepository.save(currentUser);
   }
 }

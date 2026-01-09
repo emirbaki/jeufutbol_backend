@@ -2,16 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Tweet } from '../entities/tweet.entity';
+import { TweetMonitoredProfile } from '../entities/tweet-monitored-profile.entity';
 
 import { Rettiwt } from 'rettiwt-api';
 import { Tweet as RettiwtTweet } from 'rettiwt-api';
-
-// interface RettiwtUser {
-//   id: string;
-//   userName: string;
-//   fullName: string;
-//   profileImage?: string;
-// }
 
 const API_KEY: string = process.env.RETTIWT_API_KEY || '';
 
@@ -27,6 +21,8 @@ export class TweetsService {
   constructor(
     @InjectRepository(Tweet)
     private tweetRepository: Repository<Tweet>,
+    @InjectRepository(TweetMonitoredProfile)
+    private tweetMonitoredProfileRepository: Repository<TweetMonitoredProfile>,
   ) {
     // Initialize proxies from env
     const proxyList = process.env.TWITTER_PROXY_LIST || '';
@@ -80,7 +76,7 @@ export class TweetsService {
     username: string,
     count: number = 20,
   ): Promise<RettiwtTweet[]> {
-    const MAX_RETRIES = 10; // Increased for unreliable free proxies
+    const MAX_RETRIES = 10;
     let attempt = 0;
     let currentRettiwt = this.rettiwt;
 
@@ -98,7 +94,6 @@ export class TweetsService {
           `Fetching ${count} tweets for @${username} (Attempt ${attempt + 1}/${MAX_RETRIES})`,
         );
 
-        // Fetch user's tweets
         const response = await currentRettiwt.tweet.search(
           {
             fromUsers: [username],
@@ -111,19 +106,11 @@ export class TweetsService {
 
         return tweets;
       } catch (error) {
-        // Log the full error for debugging
         this.logger.error(
           `Error fetching tweets for @${username} (Attempt ${attempt + 1}): ${error.message}`,
         );
         if (error.stack) this.logger.debug(error.stack);
 
-        // Check for rate limit (429) or other proxy/network errors
-        // We should rotate proxy on almost any error to be safe, as free proxies are unreliable
-        // 400: Bad Request (often proxy related)
-        // 403: Forbidden (often proxy/geo related)
-        // 407: Proxy Auth Required
-        // 5xx: Server errors
-        // TypeError: Often happens when rettiwt fails to parse a non-JSON error response from a bad proxy
         const isProxyError =
           error instanceof TypeError &&
           error.message?.includes("reading 'errors'");
@@ -151,40 +138,22 @@ export class TweetsService {
             );
           }
 
-          if (isProxyError) {
-            this.logger.warn(
-              `Proxy returned invalid response for @${username}. Rotating proxy.`,
-            );
-          } else if (isAuthError) {
-            this.logger.warn(
-              `Proxy authentication failed (407) for @${username}. Rotating proxy.`,
-            );
-          } else {
-            this.logger.warn(
-              `Encountered error for @${username}. Rotating proxy if available.`,
-            );
-          }
-
-          // If we have proxies, switch to the next one immediately
           if (this.proxies.length > 0) {
             const nextProxy = this.getNextProxy();
             if (nextProxy) {
               this.logger.log(`Switching to next proxy: ${nextProxy}`);
               currentRettiwt = this.createRettiwtInstance(nextProxy);
-              // Don't wait long if we switched proxy
               await this.sleep(1000);
               continue;
             }
           }
 
-          // Fallback: Exponential backoff if no proxies or proxy failed
           const delaySeconds = 60 * attempt;
           this.logger.warn(`Waiting ${delaySeconds} seconds before retry...`);
           await this.sleep(delaySeconds * 1000);
           continue;
         }
 
-        // For other non-retryable errors (if any), throw immediately
         throw new Error(`Failed to fetch tweets: ${error.message}`);
       }
     }
@@ -192,24 +161,16 @@ export class TweetsService {
     return [];
   }
 
-  /**
-   * Sleep helper
-   */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
-   * Convert Rettiwt Tweet to our Tweet entity
+   * Convert Rettiwt Tweet to our Tweet entity (without profile association)
    */
-  convertRettiwtTweetToEntity(
-    rettiwtTweet: RettiwtTweet,
-    monitoredProfileId: string,
-  ): Tweet {
+  convertRettiwtTweetToEntity(rettiwtTweet: RettiwtTweet): Tweet {
     const tweet = new Tweet();
 
-    // Basic fields
-    tweet.monitoredProfileId = monitoredProfileId;
     tweet.tweetId = rettiwtTweet.id;
     tweet.content = rettiwtTweet.fullText || '';
     tweet.createdAt = rettiwtTweet.createdAt
@@ -240,9 +201,6 @@ export class TweetsService {
     return tweet;
   }
 
-  /**
-   * Extract media URLs from Rettiwt tweet
-   */
   private extractMediaUrls(tweet: RettiwtTweet): string[] {
     const mediaUrls: string[] = [];
 
@@ -251,7 +209,6 @@ export class TweetsService {
         if (media.type === 'photo' && media.url) {
           mediaUrls.push(media.url);
         } else if (media.type === 'video' && media.variants) {
-          // Get highest quality video
           const highestQuality = media.variants
             .filter((v: any) => v.bitrate)
             .sort((a: any, b: any) => b.bitrate - a.bitrate)[0];
@@ -266,9 +223,6 @@ export class TweetsService {
     return mediaUrls;
   }
 
-  /**
-   * Extract hashtags from tweet text
-   */
   private extractHashtags(tweet: RettiwtTweet): string[] {
     const text = tweet.fullText || '';
     const hashtagRegex = /#(\w+)/g;
@@ -276,9 +230,6 @@ export class TweetsService {
     return matches ? matches.map((tag) => tag.substring(1)) : [];
   }
 
-  /**
-   * Extract mentions from tweet
-   */
   private extractMentions(tweet: RettiwtTweet): string[] {
     const mentions: string[] = [];
 
@@ -296,9 +247,6 @@ export class TweetsService {
     return mentions;
   }
 
-  /**
-   * Extract URLs from tweet
-   */
   private extractUrls(tweet: RettiwtTweet): string[] {
     const urls: string[] = [];
 
@@ -315,9 +263,6 @@ export class TweetsService {
     return urls;
   }
 
-  /**
-   * Sanitize raw data to prevent circular references
-   */
   private sanitizeRawData(tweet: RettiwtTweet): any {
     try {
       return JSON.parse(JSON.stringify(tweet));
@@ -332,68 +277,139 @@ export class TweetsService {
   }
 
   /**
-   * Save tweets to database
+   * Save tweets for a monitored profile.
+   * - If tweet already exists, just create the link to this profile
+   * - If tweet is new, save it and create the link
    */
-  async saveTweets(tweets: Tweet[]): Promise<Tweet[]> {
+  async saveTweetsForProfile(
+    tweets: Tweet[],
+    monitoredProfileId: string,
+  ): Promise<{ savedCount: number; linkedCount: number }> {
     if (tweets.length === 0) {
-      return [];
+      return { savedCount: 0, linkedCount: 0 };
     }
 
     try {
-      // Check which tweets already exist
       const tweetIds = tweets.map((t) => t.tweetId);
+
+      // Find existing tweets
       const existingTweets = await this.tweetRepository.find({
         where: { tweetId: In(tweetIds) },
       });
 
-      const existingTweetIds = new Set(existingTweets.map((t) => t.tweetId));
-      const newTweets = tweets.filter((t) => !existingTweetIds.has(t.tweetId));
+      const existingTweetMap = new Map(
+        existingTweets.map((t) => [t.tweetId, t]),
+      );
 
-      if (newTweets.length > 0) {
-        const saved = await this.tweetRepository.save(newTweets);
-        this.logger.log(`Saved ${saved.length} new tweets`);
-        return saved;
+      // Find existing links for this profile
+      const existingLinks = await this.tweetMonitoredProfileRepository.find({
+        where: {
+          monitoredProfileId,
+          tweetId: In(existingTweets.map((t) => t.id)),
+        },
+      });
+
+      const existingLinkTweetIds = new Set(
+        existingLinks.map((l) => l.tweetId),
+      );
+
+      let savedCount = 0;
+      let linkedCount = 0;
+
+      for (const tweet of tweets) {
+        let savedTweet = existingTweetMap.get(tweet.tweetId);
+
+        // Save new tweet if it doesn't exist
+        if (!savedTweet) {
+          savedTweet = await this.tweetRepository.save(tweet);
+          savedCount++;
+        }
+
+        // Check if link already exists
+        if (!existingLinkTweetIds.has(savedTweet.id)) {
+          // Create link to this monitored profile
+          const link = new TweetMonitoredProfile();
+          link.tweetId = savedTweet.id;
+          link.monitoredProfileId = monitoredProfileId;
+          await this.tweetMonitoredProfileRepository.save(link);
+          linkedCount++;
+        }
       }
 
-      this.logger.log('No new tweets to save');
-      return [];
+      this.logger.log(
+        `Profile ${monitoredProfileId}: saved ${savedCount} new tweets, linked ${linkedCount} tweets`,
+      );
+
+      return { savedCount, linkedCount };
     } catch (error) {
-      this.logger.error(`Error saving tweets: ${error.message}`);
+      this.logger.error(`Error saving tweets for profile: ${error.message}`);
       throw error;
     }
   }
 
   /**
-   * Get tweets for a monitored profile
+   * Get tweets for a monitored profile (via junction table)
    */
   async getTweetsByProfile(
     monitoredProfileId: string,
     limit: number = 50,
     offset: number = 0,
   ): Promise<Tweet[]> {
-    return this.tweetRepository.find({
+    const links = await this.tweetMonitoredProfileRepository.find({
       where: { monitoredProfileId },
-      order: { createdAt: 'DESC' },
+      relations: ['tweet'],
+      order: { linkedAt: 'DESC' },
+      take: limit,
+      skip: offset,
     });
+
+    // Extract tweets and sort by createdAt
+    const tweets = links
+      .map((link) => link.tweet)
+      .filter((tweet) => tweet != null)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return tweets;
   }
 
   /**
    * Get tweets for multiple monitored profiles (aggregated timeline)
+   * Returns tweets with monitoredProfileId attached for frontend matching
    */
   async getTweetsByProfileIds(
     monitoredProfileIds: string[],
     limit: number = 50,
     offset: number = 0,
-  ): Promise<Tweet[]> {
+  ): Promise<any[]> {
     if (!monitoredProfileIds.length) return [];
 
-    return this.tweetRepository.find({
+    const links = await this.tweetMonitoredProfileRepository.find({
       where: { monitoredProfileId: In(monitoredProfileIds) },
-      order: { createdAt: 'DESC' },
-      take: limit,
-      skip: offset,
-      relations: ['monitoredProfile'],
+      relations: ['tweet'],
+      order: { linkedAt: 'DESC' },
     });
+
+    // Build map of tweet to its first associated profileId
+    const tweetProfileMap = new Map<string, string>();
+    const tweetMap = new Map<string, Tweet>();
+
+    links.forEach((link) => {
+      if (link.tweet && !tweetMap.has(link.tweet.id)) {
+        tweetMap.set(link.tweet.id, link.tweet);
+        tweetProfileMap.set(link.tweet.id, link.monitoredProfileId);
+      }
+    });
+
+    // Sort by createdAt and apply pagination
+    const tweets = Array.from(tweetMap.values())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(offset, offset + limit);
+
+    // Attach monitoredProfileId to each tweet for frontend matching
+    return tweets.map((tweet) => ({
+      ...tweet,
+      monitoredProfileId: tweetProfileMap.get(tweet.id),
+    }));
   }
 
   /**
@@ -406,14 +422,9 @@ export class TweetsService {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    return this.tweetRepository
-      .createQueryBuilder('tweet')
-      .where('tweet.monitoredProfileId = :profileId', {
-        profileId: monitoredProfileId,
-      })
-      .andWhere('tweet.createdAt >= :since', { since })
-      .orderBy('tweet.createdAt', 'DESC')
-      .getMany();
+    const tweets = await this.getTweetsByProfile(monitoredProfileId, 1000);
+
+    return tweets.filter((t) => t.createdAt >= since);
   }
 
   /**

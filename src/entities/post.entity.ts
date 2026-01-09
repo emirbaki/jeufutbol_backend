@@ -97,4 +97,28 @@ export class Post {
   @Field(() => GraphQLJSON, { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
   failureReasons?: Record<string, string>;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
+  tiktokSettings?: {
+    privacy_level: string;
+    allow_comment: boolean;
+    allow_duet: boolean;
+    allow_stitch: boolean;
+    is_brand_organic?: boolean;
+    is_branded_content?: boolean;
+  };
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
+  youtubeSettings?: {
+    title: string;
+    privacy_status: string;
+    category_id?: string;
+    tags?: string[];
+    is_short?: boolean;
+    made_for_kids?: boolean;
+    notify_subscribers?: boolean;
+  };
 }
+

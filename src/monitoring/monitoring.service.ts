@@ -202,14 +202,17 @@ export class MonitoringService {
         return 0;
       }
 
-      // Convert to our Tweet entities
+      // Convert to our Tweet entities (without profile association)
       const tweets = rettiwtTweets.map((rt) =>
-        this.tweetsService.convertRettiwtTweetToEntity(rt, profile.id),
+        this.tweetsService.convertRettiwtTweetToEntity(rt),
       );
 
-      // Save to database
-      const savedTweets = await this.tweetsService.saveTweets(tweets);
-      const storedCount = savedTweets.length;
+      // Save tweets and link to this profile
+      const result = await this.tweetsService.saveTweetsForProfile(
+        tweets,
+        profile.id,
+      );
+      const storedCount = result.savedCount + result.linkedCount;
 
       // Update profile stats
       profile.lastFetchedAt = new Date();
@@ -222,7 +225,7 @@ export class MonitoringService {
       await this.monitoredProfileRepository.save(profile);
 
       this.logger.log(
-        `Stored ${storedCount} new tweets for @${profile.xUsername}`,
+        `Stored ${result.savedCount} new tweets, linked ${result.linkedCount} existing for @${profile.xUsername}`,
       );
       return storedCount;
     } catch (error) {

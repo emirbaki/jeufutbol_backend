@@ -157,6 +157,8 @@ export class TokenRefreshService {
       const clientKey = this.configService.get('TIKTOK_CLIENT_KEY');
       const clientSecret = this.configService.get('TIKTOK_CLIENT_SECRET');
 
+      this.logger.log(`Refreshing TikTok token for credential ${credential.id}`);
+
       const params = new URLSearchParams({
         client_key: clientKey!,
         client_secret: clientSecret!,
@@ -176,14 +178,81 @@ export class TokenRefreshService {
         ),
       );
 
+      this.logger.log(`TikTok refresh response: ${JSON.stringify(response.data)}`);
+
+      // TikTok v2 API returns error in response.data.error structure
+      if (response.data.error) {
+        this.logger.error(`TikTok API Error: ${response.data.error} - ${response.data.error_description}`);
+        throw new Error(`TikTok API Error: ${response.data.error_description || response.data.error}`);
+      }
+
+      // TikTok v2 returns data nested under response.data (not response.data.data for some endpoints)
+      const tokenData = response.data.data || response.data;
+
+      if (!tokenData.access_token) {
+        this.logger.error(`TikTok response missing access_token: ${JSON.stringify(response.data)}`);
+        throw new Error('TikTok response missing access_token');
+      }
+
       return {
-        accessToken: response.data.data.access_token,
-        refreshToken: response.data.data.refresh_token, // TikTok returns a new refresh token
-        expiresIn: response.data.data.expires_in || 86400, // 24 hours
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token, // TikTok returns a new refresh token
+        expiresIn: tokenData.expires_in || 86400, // 24 hours
+      };
+    } catch (error: any) {
+      // Log the full error details including axios response data
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      this.logger.error(`TikTok token refresh failed: ${errorDetails}`, error.stack);
+      throw new Error(`Failed to refresh TikTok token: ${errorDetails}`);
+    }
+  }
+
+  /**
+   * Refresh YouTube/Google token
+   * Uses Google OAuth2 refresh token flow
+   */
+  async refreshYoutubeToken(credential: Credential): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn: number;
+  }> {
+    try {
+      const refreshToken = this.encryptionService.decrypt(
+        credential.refreshToken!,
+      );
+      const clientId = this.configService.get('YOUTUBE_CLIENT_ID');
+      const clientSecret = this.configService.get('YOUTUBE_CLIENT_SECRET');
+
+      const params = new URLSearchParams({
+        client_id: clientId!,
+        client_secret: clientSecret!,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      });
+
+      const response = await firstValueFrom(
+        this.httpService.post(
+          'https://oauth2.googleapis.com/token',
+          params.toString(),
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          },
+        ),
+      );
+
+      return {
+        accessToken: response.data.access_token,
+        // Google doesn't always return a new refresh token
+        refreshToken: response.data.refresh_token || undefined,
+        expiresIn: response.data.expires_in || 3600, // 1 hour default
       };
     } catch (error) {
-      this.logger.error('TikTok token refresh failed:', error);
-      throw new Error('Failed to refresh TikTok token');
+      this.logger.error('YouTube token refresh failed:', error);
+      throw new Error('Failed to refresh YouTube token');
     }
   }
 }

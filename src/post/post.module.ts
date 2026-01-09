@@ -4,8 +4,13 @@ import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
 import { PostsService } from './post.service';
 import { PostsResolver } from './post.resolver';
+import { AnalyticsService } from './analytics.service';
+import { AnalyticsResolver } from './analytics.resolver';
+import { AnalyticsSchedulerService } from './analytics-scheduler.service';
 import { Post } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
+import { PostAnalytics } from '../entities/post-analytics.entity';
+import { AnalyticsSettings } from '../entities/analytics-settings.entity';
 import { User } from '../entities/user.entity';
 import { ApiKey } from '../entities/api-key.entity';
 import { PostGatewayFactory } from './post-gateway.factory';
@@ -13,6 +18,7 @@ import { FacebookPostGateway } from './gateways/facebook.gateway';
 import { InstagramPostGateway } from './gateways/instagram.gateway';
 import { TiktokPostGateway } from './gateways/tiktok.gateway';
 import { XPostGateway } from './gateways/x.gateway';
+import { YoutubePostGateway } from './gateways/youtube.gateway';
 import { Credential } from 'src/entities/credential.entity';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { CredentialsModule } from 'src/credentials/credential.module';
@@ -30,7 +36,16 @@ import { Tenant } from '../entities/tenant.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Post, PublishedPost, Credential, User, ApiKey, Tenant]),
+    TypeOrmModule.forFeature([
+      Post,
+      PublishedPost,
+      PostAnalytics,
+      AnalyticsSettings,
+      Credential,
+      User,
+      ApiKey,
+      Tenant,
+    ]),
     HttpModule,
     CredentialsModule,
     UploadModule,
@@ -55,15 +70,20 @@ import { Tenant } from '../entities/tenant.entity';
     EncryptionService,
     PostsService,
     PostsResolver,
+    AnalyticsService,
+    AnalyticsResolver,
     PostGatewayFactory,
     FacebookPostGateway,
     InstagramPostGateway,
     TiktokPostGateway,
     XPostGateway,
+    YoutubePostGateway,
     TiktokPollingProcessor, // Deprecated - keeping for backward compatibility
     AsyncPollingProcessor, // New generic async processor
     ScheduledPostProcessor,
+    AnalyticsSchedulerService,
   ],
-  exports: [PostsService],
+  exports: [PostsService, AnalyticsService],
 })
 export class PostModule { }
+

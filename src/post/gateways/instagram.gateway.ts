@@ -3,6 +3,8 @@ import axios from 'axios';
 import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile, getMediaType } from '../utils/media-utils';
+import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
+import { PlatformAccountInfo } from './post-base.gateway';
 
 const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0';
 
@@ -474,4 +476,118 @@ export class InstagramPostGateway extends AsyncPostGateway {
     };
   }
 
+  /**
+   * Get analytics for a published Instagram post
+   * @param platformPostId The Instagram media ID
+   * @param access_token OAuth access token with instagram_business_manage_insights scope
+   */
+  async getPostAnalytics(platformPostId: string, access_token: string): Promise<PlatformAnalyticsResponse> {
+    try {
+      this.logger.log(`[Instagram] Fetching analytics for post: ${platformPostId}`);
+
+      // First, get media type to determine which metrics to request
+      const mediaResponse = await axios.get(
+        `${GRAPH_API_BASE}/${platformPostId}`,
+        {
+          params: {
+            fields: 'media_type,like_count,comments_count',
+            access_token: access_token,
+          },
+        },
+      );
+
+      const mediaType = mediaResponse.data.media_type; // IMAGE, VIDEO, CAROUSEL_ALBUM, REELS
+      const isReel = mediaType === 'REELS' || mediaType === 'VIDEO';
+
+      // Different metrics for different media types
+      // See: https://developers.facebook.com/docs/instagram-api/reference/ig-media/insights
+      // FEED (posts): comments, likes, saved, shares, reach, total_interactions, views
+      // REELS: comments, likes, saved, shares, reach, total_interactions, views
+      // STORY: reaches, shares, total_interactions, views
+      // Note: 'impressions' is deprecated for media created after July 2, 2024
+      // Note: 'plays' is deprecated for v22.0 and all versions on April 21, 2025
+
+      // Use 'views' (available for all types) instead of deprecated metrics
+      const insightMetrics = isReel
+        ? 'reach,saved,shares,total_interactions,views'
+        : 'reach,saved,shares,total_interactions,views';  // Same metrics work for FEED too
+
+      let insights: any[] = [];
+      try {
+        const insightsResponse = await axios.get(
+          `${GRAPH_API_BASE}/${platformPostId}/insights`,
+          {
+            params: {
+              metric: insightMetrics,
+              access_token: access_token,
+            },
+          },
+        );
+        insights = insightsResponse.data.data || [];
+      } catch (insightError: any) {
+        // Log detailed error for debugging
+        const errorDetails = insightError.response?.data?.error || {};
+        this.logger.warn(
+          `[Instagram] Could not fetch insights for ${mediaType}: ${insightError.message}` +
+          ` | Code: ${errorDetails.code} | Subcode: ${errorDetails.error_subcode}` +
+          ` | Message: ${errorDetails.message}`,
+        );
+      }
+
+      const getMetric = (name: string) => {
+        const metric = insights.find((m: any) => m.name === name);
+        return metric?.values?.[0]?.value || 0;
+      };
+
+      return {
+        views: getMetric('views'),
+        likes: mediaResponse.data.like_count || 0,
+        comments: mediaResponse.data.comments_count || 0,
+        shares: getMetric('shares'),
+        reach: getMetric('reach'),
+        saves: getMetric('saved'),
+        rawMetrics: {
+          mediaType: mediaType,
+          totalInteractions: getMetric('total_interactions'),
+          insights: insights,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`[Instagram] Analytics fetch error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Instagram account info including follower count
+   * @param accountId Instagram Business Account ID
+   * @param access_token OAuth access token with instagram_business_basic scope
+   */
+  async getAccountInfo(accountId: string, access_token: string): Promise<PlatformAccountInfo> {
+    try {
+      this.logger.log(`[Instagram] Fetching account info for: ${accountId}`);
+
+      const response = await axios.get(
+        `${GRAPH_API_BASE}/${accountId}`,
+        {
+          params: {
+            fields: 'username,name,followers_count,follows_count,media_count,profile_picture_url',
+            access_token: access_token,
+          },
+        },
+      );
+
+      return {
+        displayName: response.data.name || response.data.username || '',
+        username: response.data.username,
+        followerCount: response.data.followers_count || 0,
+        followingCount: response.data.follows_count || 0,
+        mediaCount: response.data.media_count || 0,
+        profilePictureUrl: response.data.profile_picture_url,
+      };
+    } catch (error: any) {
+      this.logger.error(`[Instagram] Account info fetch error: ${error.message}`);
+      throw error;
+    }
+  }
 }

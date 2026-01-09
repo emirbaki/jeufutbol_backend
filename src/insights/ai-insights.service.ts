@@ -4,6 +4,7 @@ import { Repository, MoreThan, In } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Tweet } from '../entities/tweet.entity';
+import { TweetMonitoredProfile } from '../entities/tweet-monitored-profile.entity';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
 import { Insight, InsightType } from '../entities/insight.entity';
 import { VectorDbService } from './vector-db.service';
@@ -53,6 +54,8 @@ export class AIInsightsService {
   constructor(
     @InjectRepository(Tweet)
     private tweetRepository: Repository<Tweet>,
+    @InjectRepository(TweetMonitoredProfile)
+    private tweetMonitoredProfileRepository: Repository<TweetMonitoredProfile>,
     @InjectRepository(MonitoredProfile)
     private monitoredProfileRepository: Repository<MonitoredProfile>,
     @InjectRepository(Insight)
@@ -137,16 +140,22 @@ export class AIInsightsService {
    */
   async indexTweetsToVectorDb(profileId: string): Promise<number> {
     try {
-      // Only fetch tweets that haven't been indexed yet
-      const tweets = await this.tweetRepository.find({
-        where: {
-          monitoredProfileId: profileId,
-          isIndexedInVector: false, // Only unindexed tweets
-        },
-        order: { createdAt: 'DESC' },
-        take: 100, // Reduced since we only fetch new tweets now
-        relations: ['monitoredProfile'], // Ensure profile is loaded
+      // Get the profile first for username
+      const profile = await this.monitoredProfileRepository.findOne({
+        where: { id: profileId },
       });
+
+      // Get tweets linked to this profile via junction table
+      const links = await this.tweetMonitoredProfileRepository.find({
+        where: { monitoredProfileId: profileId },
+        relations: ['tweet'],
+      });
+
+      // Filter to unindexed tweets
+      const tweets = links
+        .map((link) => link.tweet)
+        .filter((tweet) => tweet && !tweet.isIndexedInVector)
+        .slice(0, 100);
 
       if (tweets.length === 0) {
         this.logger.log('No new tweets to index');
@@ -154,7 +163,7 @@ export class AIInsightsService {
       }
 
       this.logger.log(`Found ${tweets.length} unindexed tweets to process`);
-      return await this.indexTweetsBatch(tweets);
+      return await this.indexTweetsBatch(tweets, profile?.xUsername || 'unknown');
     } catch (error) {
       this.logger.error(`Failed to index tweets: ${error.message}`);
       throw error;
@@ -164,7 +173,7 @@ export class AIInsightsService {
   /**
    * Helper to index a batch of tweets
    */
-  private async indexTweetsBatch(tweets: Tweet[]): Promise<number> {
+  private async indexTweetsBatch(tweets: Tweet[], username: string = 'unknown'): Promise<number> {
     try {
       // Process in smaller batches to avoid overwhelming ChromaDB
       const BATCH_SIZE = 50;
@@ -179,7 +188,7 @@ export class AIInsightsService {
           content: tweet.content,
           metadata: {
             tweetId: tweet.tweetId,
-            username: tweet.monitoredProfile?.xUsername || 'unknown',
+            username,
             timestamp: tweet.createdAt.toISOString(),
             likes: tweet.likes,
             retweets: tweet.retweets,
@@ -217,6 +226,38 @@ export class AIInsightsService {
       this.logger.error(`Failed to batch index tweets: ${error.message}`);
       throw error;
     }
+  }
+  /**
+   * Get tweets for multiple profile IDs via junction table (helper for insights)
+   */
+  private async getTweetsByProfileIds(
+    profileIds: string[],
+    since?: Date,
+  ): Promise<Tweet[]> {
+    if (!profileIds.length) return [];
+
+    const links = await this.tweetMonitoredProfileRepository.find({
+      where: { monitoredProfileId: In(profileIds) },
+      relations: ['tweet'],
+    });
+
+    // Get unique tweets
+    const tweetMap = new Map<string, Tweet>();
+    links.forEach((link) => {
+      if (link.tweet && !tweetMap.has(link.tweet.id)) {
+        tweetMap.set(link.tweet.id, link.tweet);
+      }
+    });
+
+    // Filter by date if provided and sort
+    let tweets = Array.from(tweetMap.values());
+    if (since) {
+      tweets = tweets.filter((t) => t.createdAt >= since);
+    }
+
+    return tweets
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 100);
   }
 
   /**
@@ -294,14 +335,7 @@ export class AIInsightsService {
           const weekAgo = new Date();
           weekAgo.setDate(weekAgo.getDate() - 7);
           const profileIds = profiles.map((p) => p.id);
-          relevantTweets = await this.tweetRepository.find({
-            where: {
-              monitoredProfileId: In(profileIds),
-              createdAt: MoreThan(weekAgo),
-            },
-            order: { createdAt: 'DESC' },
-            take: 100,
-          });
+          relevantTweets = await this.getTweetsByProfileIds(profileIds, weekAgo);
           this.logger.log(
             `Using ${relevantTweets.length} recent tweets as fallback`,
           );
@@ -310,16 +344,8 @@ export class AIInsightsService {
         // Get recent tweets (last 7 days)
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-
         const profileIds = profiles.map((p) => p.id);
-        relevantTweets = await this.tweetRepository.find({
-          where: {
-            monitoredProfileId: In(profileIds),
-            createdAt: MoreThan(weekAgo),
-          },
-          order: { createdAt: 'DESC' },
-          take: 100,
-        });
+        relevantTweets = await this.getTweetsByProfileIds(profileIds, weekAgo);
       }
 
       if (relevantTweets.length === 0) {
@@ -351,7 +377,7 @@ export class AIInsightsService {
   /**
    * Search for tweets using vector similarity
    */
-  async searchTweets(query: string, limit = 10, offset = 0): Promise<Tweet[]> {
+  async searchTweets(query: string, limit = 10, offset = 0): Promise<any[]> {
     try {
       this.logger.log(`Searching tweets for query: "${query}" (limit: ${limit}, offset: ${offset})`);
 
@@ -362,22 +388,25 @@ export class AIInsightsService {
         return [];
       }
 
-      // Fetch full tweet entities
-      // We use find with whereInIds equivalent
+      // Fetch full tweet entities with junction table for profile lookup
       const tweets = await this.tweetRepository.find({
         where: { id: In(tweetIds) },
-        relations: ['monitoredProfile'],
-        order: { createdAt: 'DESC' }, // Optional: sort by date, or we could try to preserve relevance order
+        relations: ['tweetMonitoredProfiles'],
+        order: { createdAt: 'DESC' },
       });
 
-      // If we want to preserve the order from vector search (relevance), we need to sort manually
       // Create a map for O(1) lookup
       const tweetMap = new Map(tweets.map(t => [t.id, t]));
 
-      // Map IDs back to tweets, filtering out any that might have been deleted from DB but exist in Vector DB
+      // Map IDs back to tweets, preserving relevance order
+      // Also attach the first monitoredProfileId for frontend matching
       return tweetIds
         .map(id => tweetMap.get(id))
-        .filter(t => !!t);
+        .filter(t => !!t)
+        .map(t => ({
+          ...t,
+          monitoredProfileId: t.tweetMonitoredProfiles?.[0]?.monitoredProfileId,
+        }));
 
     } catch (error) {
       this.logger.error(`Tweet search failed: ${error.message}`);

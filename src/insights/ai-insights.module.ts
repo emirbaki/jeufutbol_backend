@@ -20,12 +20,14 @@ import { AiChatService } from './ai-chat.service';
 import { AiChatResolver } from './ai-chat.resolver';
 import { MonitoringModule } from '../monitoring/monitoring.module';
 import { AuthModule } from '../auth/auth.module';
+import { TweetMonitoredProfile } from '../entities/tweet-monitored-profile.entity';
 import { Tenant } from 'src/entities/tenant.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Tweet,
+      TweetMonitoredProfile,
       MonitoredProfile,
       Insight,
       LlmCredential,

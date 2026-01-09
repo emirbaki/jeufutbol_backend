@@ -15,6 +15,9 @@ import { CreatePostInput } from 'src/graphql/inputs/post.input';
 import { QUEUE_NAMES, ASYNC_POLLING_JOBS, SCHEDULED_POST_JOBS } from 'src/queue/queue.config';
 import { AsyncPostGateway } from './gateways/async-post.gateway';
 import { ScheduledPostJobData } from './processors/scheduled-post.processor';
+import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
+import { TiktokPostGateway } from './gateways/tiktok.gateway';
+
 
 @Injectable()
 export class PostsService {
@@ -33,7 +36,9 @@ export class PostsService {
     private readonly postGatewayFactory: PostGatewayFactory,
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
+    private readonly tiktokGateway: TiktokPostGateway,
   ) { }
+
 
   async createPost(
     userId: string,
@@ -49,7 +54,25 @@ export class PostsService {
       platformSpecificContent: dto.platformSpecificContent || {},
       scheduledFor: dto.scheduledFor,
       status: dto.scheduledFor ? PostStatus.SCHEDULED : PostStatus.DRAFT,
+      tiktokSettings: dto.tiktokSettings ? {
+        privacy_level: dto.tiktokSettings.privacy_level,
+        allow_comment: dto.tiktokSettings.allow_comment,
+        allow_duet: dto.tiktokSettings.allow_duet,
+        allow_stitch: dto.tiktokSettings.allow_stitch,
+        is_brand_organic: dto.tiktokSettings.is_brand_organic,
+        is_branded_content: dto.tiktokSettings.is_branded_content,
+      } : undefined,
+      youtubeSettings: dto.youtubeSettings ? {
+        title: dto.youtubeSettings.title,
+        privacy_status: dto.youtubeSettings.privacy_status,
+        category_id: dto.youtubeSettings.category_id,
+        tags: dto.youtubeSettings.tags,
+        is_short: dto.youtubeSettings.is_short,
+        made_for_kids: dto.youtubeSettings.made_for_kids,
+        notify_subscribers: dto.youtubeSettings.notify_subscribers,
+      } : undefined,
     });
+
 
     const savedPost = await this.postRepository.save(post);
 
@@ -115,7 +138,7 @@ export class PostsService {
   ): Promise<Post> {
     const post = await this.postRepository.findOne({
       where: { id: postId, userId, tenantId },
-      relations: ['publishedPosts'],
+      relations: ['publishedPosts', 'tenant', 'user'],
     });
 
     if (!post) throw new NotFoundException('Post not found');
@@ -229,26 +252,43 @@ export class PostsService {
           const contentToPublish =
             post.platformSpecificContent?.[platform] || post.content;
 
+          // Build gateway options - include platform-specific settings
+          const gatewayOptions: any = { username: credential.accountName };
+          if (platform === PlatformType.TIKTOK && post.tiktokSettings) {
+            gatewayOptions.tiktokSettings = post.tiktokSettings;
+          }
+          if (platform === PlatformType.YOUTUBE && post.youtubeSettings) {
+            gatewayOptions.youtubeSettings = post.youtubeSettings;
+          }
+
           const result = await gateway.createNewPost(
             userId,
             contentToPublish,
             access_token,
             post.mediaUrls,
-            { username: credential.accountName },
+            gatewayOptions,
           );
+
 
           // 3️⃣ Notify gateway & persist
           await gateway.notifyPostPublished(post.id, platform, result);
 
+          // Determine publish status:
+          // - Async platforms with publish_id: PROCESSING_UPLOAD (will be updated by polling)
+          // - Instant platforms (like X): PUBLISH_COMPLETE immediately
+          const isAsyncWithPolling = result.publish_id !== undefined;
+          const initialStatus = isAsyncWithPolling ? 'PROCESSING_UPLOAD' : 'PUBLISH_COMPLETE';
+
           const publishedPost = this.publishedPostRepository.create({
             postId: post.id,
+            tenantId: tenantId,
             platform: platform,
             publishedAt: new Date(),
             platformPostId: result.id,
             platformPostUrl: result.url || 'pending',
             publishMetadata: result,
             publishId: result.publish_id || undefined,
-            publishStatus: result.publish_id ? 'PROCESSING_UPLOAD' : undefined,
+            publishStatus: initialStatus,
           });
 
           publishResults.push(publishedPost);
@@ -262,6 +302,7 @@ export class PostsService {
               {
                 username: credential.accountName,
                 mediaUrls: post.mediaUrls,
+                youtubeSettings: gatewayOptions.youtubeSettings,
               },
             );
 
@@ -297,17 +338,22 @@ export class PostsService {
           // Update with actual saved ID
           jobData.publishedPostId = savedPost.id;
 
+          // Platform-specific polling settings
+          // TikTok needs more attempts due to content moderation delays
+          const isTikTok = jobData.platform === PlatformType.TIKTOK;
+          const pollingOptions = {
+            delay: 5000, // Start polling after 5 seconds
+            attempts: isTikTok ? 30 : 15, // TikTok: 30 attempts for moderation delays
+            backoff: {
+              type: 'exponential' as const,
+              delay: isTikTok ? 10000 : 5000, // TikTok: 10s base, others: 5s
+            },
+          };
+
           await this.asyncPollingQueue.add(
             ASYNC_POLLING_JOBS.POLL_STATUS,
             jobData,
-            {
-              delay: 5000, // Start polling after 5 seconds
-              attempts: 15, // Poll up to 15 times
-              backoff: {
-                type: 'exponential',
-                delay: 5000, // 5s, 10s, 20s, 40s... up to ~5 minutes total
-              },
-            },
+            pollingOptions,
           );
 
           this.logger.log(
@@ -392,4 +438,36 @@ export class PostsService {
 
     return result;
   }
+
+  /**
+   * Get TikTok creator info for posting compliance
+   * Returns privacy options, posting limits, and interaction settings
+   * Required by TikTok Content Sharing Guidelines
+   */
+  async getTikTokCreatorInfo(
+    userId: string,
+    tenantId: string,
+  ): Promise<TikTokCreatorInfo> {
+    // Get TikTok credentials for the user
+    const credentials = await this.credentialsService.getUserCredentials(
+      userId,
+      tenantId,
+      PlatformName.TIKTOK,
+    );
+
+    if (credentials.length === 0) {
+      throw new Error('No TikTok credentials found. Please connect your TikTok account first.');
+    }
+
+    // Get access token from first available credential
+    const access_token = await this.credentialsService.getAccessToken(
+      credentials[0].id,
+      userId,
+      tenantId,
+    );
+
+    // Fetch creator info from TikTok API via gateway
+    return this.tiktokGateway.getCreatorInfo(access_token);
+  }
 }
+

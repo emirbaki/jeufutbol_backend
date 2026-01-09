@@ -19,7 +19,7 @@ export class CredentialsService {
     private credentialRepository: Repository<Credential>,
     private encryptionService: EncryptionService,
     private tokenRefreshService: TokenRefreshService,
-  ) {}
+  ) { }
 
   /**
    * Save OAuth2 credentials
@@ -175,6 +175,8 @@ export class CredentialsService {
         return this.tokenRefreshService.refreshInstagramToken(credential);
       case PlatformName.TIKTOK:
         return this.tokenRefreshService.refreshTiktokToken(credential);
+      case PlatformName.YOUTUBE:
+        return this.tokenRefreshService.refreshYoutubeToken(credential);
       // Add other platforms
       default:
         throw new Error(`Token refresh not implemented for ${platform}`);
@@ -198,6 +200,30 @@ export class CredentialsService {
       where,
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * Get credentials for a tenant by platform (for tenant-scoped operations like analytics)
+   */
+  async getTenantCredentials(
+    tenantId: string,
+    platform: PlatformName,
+  ): Promise<Credential[]> {
+    return this.credentialRepository.find({
+      where: { tenantId, platform, isActive: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Get decrypted access token by credential ID (tenant-scoped - no userId check)
+   */
+  async getDecryptedAccessToken(credentialId: string): Promise<string | null> {
+    const credential = await this.credentialRepository.findOne({
+      where: { id: credentialId, isActive: true },
+    });
+    if (!credential?.accessToken) return null;
+    return this.encryptionService.decrypt(credential.accessToken);
   }
 
   /**

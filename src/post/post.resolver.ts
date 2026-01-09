@@ -13,6 +13,7 @@ import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { ApiKeyScope } from '../auth/api-key-scopes.enum';
 import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
+import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
@@ -21,6 +22,7 @@ export class PostsResolver {
     private postsService: PostsService,
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) { }
+
 
   @Mutation(() => Post)
   @RequireScopes(ApiKeyScope.POSTS_WRITE)
@@ -156,5 +158,26 @@ export class PostsResolver {
   @Subscription(() => Post)
   postUpdated() {
     return this.pubSub.asyncIterableIterator('postUpdated');
+  }
+
+  /**
+   * Get TikTok creator info for posting compliance
+   * Returns privacy options, posting limits, and interaction settings
+   * Required by TikTok Content Sharing Guidelines
+   */
+  @Query(() => TikTokCreatorInfo)
+  @RequireScopes(ApiKeyScope.POSTS_READ)
+  async getTikTokCreatorInfo(
+    @CurrentUser() user: User,
+    @CurrentApiKey() apiKey: ApiKey,
+  ): Promise<TikTokCreatorInfo> {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    const userId = user?.id || apiKey?.createdByUserId;
+
+    if (!userId) {
+      throw new Error('User context required');
+    }
+
+    return this.postsService.getTikTokCreatorInfo(userId, tenantId);
   }
 }

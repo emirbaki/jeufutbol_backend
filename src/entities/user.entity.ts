@@ -87,4 +87,21 @@ export class User {
     default: UserRole.USER,
   })
   role: UserRole;
+
+  // Notification Settings
+  @Field()
+  @Column({ default: true })
+  notifyOnPublish: boolean;
+
+  @Field()
+  @Column({ default: true })
+  notifyOnFail: boolean;
+
+  @Field()
+  @Column({ default: true })
+  notifyWeeklyReport: boolean;
+
+  @Field()
+  @Column({ default: true })
+  notifyNewInsights: boolean;
 }
