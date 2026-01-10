@@ -140,7 +140,7 @@ export class AuthService {
   async login(email: string, password: string) {
     const user = await this.userRepository.findOne({
       where: { email },
-      relations: ['tenant'],
+      relations: ['tenant', 'tenant.subscription'],
     });
 
     if (!user) {
@@ -345,7 +345,7 @@ export class AuthService {
   async validateUser(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['tenant'],
+      relations: ['tenant', 'tenant.subscription'],
     });
     if (!user) {
       throw new UnauthorizedException('User not found');
