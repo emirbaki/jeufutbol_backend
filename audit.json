@@ -1,0 +1,256 @@
+﻿{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@jest/core": {
+      "name": "@jest/core",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        "jest-config"
+      ],
+      "effects": [],
+      "range": ">=26.6.0",
+      "nodes": [
+        "node_modules/@jest/core"
+      ],
+      "fixAvailable": true
+    },
+    "@langchain/community": {
+      "name": "@langchain/community",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        "typeorm"
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/@langchain/community"
+      ],
+      "fixAvailable": false
+    },
+    "create-jest": {
+      "name": "create-jest",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        "jest-config"
+      ],
+      "effects": [
+        "jest-cli"
+      ],
+      "range": ">=29.7.0",
+      "nodes": [
+        "node_modules/create-jest"
+      ],
+      "fixAvailable": {
+        "name": "jest",
+        "version": "26.5.3",
+        "isSemVerMajor": true
+      }
+    },
+    "diff": {
+      "name": "diff",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1112148,
+          "name": "diff",
+          "dependency": "diff",
+          "title": "jsdiff has a Denial of Service vulnerability in parsePatch and applyPatch",
+          "url": "https://github.com/advisories/GHSA-73rr-hh4g-fpgx",
+          "severity": "low",
+          "cwe": [
+            "CWE-400",
+            "CWE-1333"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<8.0.3"
+        }
+      ],
+      "effects": [
+        "ts-node"
+      ],
+      "range": "<8.0.3",
+      "nodes": [
+        "node_modules/diff"
+      ],
+      "fixAvailable": {
+        "name": "jest",
+        "version": "26.5.3",
+        "isSemVerMajor": true
+      }
+    },
+    "jest": {
+      "name": "jest",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        "@jest/core",
+        "jest-cli"
+      ],
+      "effects": [
+        "ts-jest"
+      ],
+      "range": ">=26.6.0",
+      "nodes": [
+        "node_modules/jest"
+      ],
+      "fixAvailable": {
+        "name": "jest",
+        "version": "26.5.3",
+        "isSemVerMajor": true
+      }
+    },
+    "jest-cli": {
+      "name": "jest-cli",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        "@jest/core",
+        "create-jest",
+        "jest-config"
+      ],
+      "effects": [
+        "jest"
+      ],
+      "range": ">=26.6.0",
+      "nodes": [
+        "node_modules/jest-cli"
+      ],
+      "fixAvailable": {
+        "name": "jest",
+        "version": "26.5.3",
+        "isSemVerMajor": true
+      }
+    },
+    "jest-config": {
+      "name": "jest-config",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        "ts-node"
+      ],
+      "effects": [
+        "@jest/core",
+        "create-jest",
+        "jest-cli"
+      ],
+      "range": ">=26.6.0",
+      "nodes": [
+        "node_modules/jest-config"
+      ],
+      "fixAvailable": {
+        "name": "jest",
+        "version": "26.5.3",
+        "isSemVerMajor": true
+      }
+    },
+    "langchain": {
+      "name": "langchain",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1111699,
+          "name": "langchain",
+          "dependency": "langchain",
+          "title": "LangChain serialization injection vulnerability enables secret extraction",
+          "url": "https://github.com/advisories/GHSA-r399-636x-v7f6",
+          "severity": "high",
+          "cwe": [
+            "CWE-502"
+          ],
+          "cvss": {
+            "score": 8.6,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+          },
+          "range": ">=1.0.0 <1.2.3"
+        }
+      ],
+      "effects": [],
+      "range": ">=1.0.0 <1.2.3",
+      "nodes": [
+        "node_modules/langchain"
+      ],
+      "fixAvailable": true
+    },
+    "ts-jest": {
+      "name": "ts-jest",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        "jest"
+      ],
+      "effects": [],
+      "range": ">=27.0.0-alpha.0",
+      "nodes": [
+        "node_modules/ts-jest"
+      ],
+      "fixAvailable": {
+        "name": "ts-jest",
+        "version": "26.5.6",
+        "isSemVerMajor": true
+      }
+    },
+    "ts-node": {
+      "name": "ts-node",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        "diff"
+      ],
+      "effects": [
+        "jest-config",
+        "typeorm"
+      ],
+      "range": "<=1.4.3 || >=1.7.2",
+      "nodes": [
+        "node_modules/ts-node"
+      ],
+      "fixAvailable": {
+        "name": "jest",
+        "version": "26.5.3",
+        "isSemVerMajor": true
+      }
+    },
+    "typeorm": {
+      "name": "typeorm",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        "ts-node"
+      ],
+      "effects": [
+        "@langchain/community"
+      ],
+      "range": ">=0.3.2-dev.05fc744",
+      "nodes": [
+        "node_modules/typeorm"
+      ],
+      "fixAvailable": false
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 10,
+      "moderate": 0,
+      "high": 1,
+      "critical": 0,
+      "total": 11
+    },
+    "dependencies": {
+      "prod": 658,
+      "dev": 580,
+      "optional": 79,
+      "peer": 53,
+      "peerOptional": 0,
+      "total": 1327
+    }
+  }
+}

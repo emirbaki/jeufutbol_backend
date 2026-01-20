@@ -534,22 +534,8 @@ ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isol
       let thinkingContent = '';
       let isInsideThinkTag = false;
 
-      // Stream the agent with updates and messages modes
-      const streamResult = await agent.stream(
-        {
-          messages: [
-            systemMessage,
-            ...langChainHistory,
-            new HumanMessage(message),
-          ],
-        },
-        {
-          ...config,
-          streamMode: ['updates', 'messages'] as any,
-        },
-      );
-
-      for await (const chunk of streamResult) {
+      // Helper function to process streaming chunks
+      const processStreamChunk = async (chunk: any) => {
         // Handle tuple format [mode, data] when using multiple stream modes
         const [mode, data] = Array.isArray(chunk) && chunk.length === 2
           ? chunk
@@ -594,7 +580,7 @@ ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isol
                   content,
                 },
               });
-              continue; // Skip to next chunk
+              return; // Skip to next chunk
             }
 
             // Check for thinking tags
@@ -639,6 +625,68 @@ ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isol
               });
             }
           }
+        }
+      };
+
+      // Try streaming first, fall back to non-streaming if stream parsing fails
+      try {
+        // Stream the agent with updates and messages modes
+        const streamResult = await agent.stream(
+          {
+            messages: [
+              systemMessage,
+              ...langChainHistory,
+              new HumanMessage(message),
+            ],
+          },
+          {
+            ...config,
+            streamMode: ['updates', 'messages'] as any,
+          },
+        );
+
+        for await (const chunk of streamResult) {
+          await processStreamChunk(chunk);
+        }
+      } catch (streamError: any) {
+        // Handle stream parsing errors by falling back to non-streaming
+        if (streamError.message?.includes('Failed to parse stream') ||
+          streamError.message?.includes('Failed to parse')) {
+          this.logger.warn(`Stream parsing failed, falling back to non-streaming: ${streamError.message}`);
+
+          // Fall back to non-streaming invoke
+          const result = await agent.invoke(
+            {
+              messages: [
+                systemMessage,
+                ...langChainHistory,
+                new HumanMessage(message),
+              ],
+            },
+            config,
+          );
+
+          // Extract the final response from the result
+          const messages = result.messages;
+          const lastMessage = messages[messages.length - 1];
+
+          if (typeof lastMessage.content === 'string') {
+            fullResponse = this.cleanResponseContent(lastMessage.content);
+          } else {
+            fullResponse = JSON.stringify(lastMessage.content);
+          }
+
+          // Publish the complete response as a single token event
+          await this.pubSub.publish(pubSubTopic, {
+            chatStream: {
+              sessionId,
+              type: ChatStreamEventType.TOKEN,
+              content: fullResponse,
+            },
+          });
+        } else {
+          // Re-throw other errors
+          throw streamError;
         }
       }
 
