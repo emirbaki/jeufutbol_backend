@@ -54,6 +54,7 @@ export class PostsResolver {
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
     @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+    @Args('offset', { type: () => Int, nullable: true }) offset?: number,
   ): Promise<Post[]> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -62,7 +63,7 @@ export class PostsResolver {
       throw new Error('User context required');
     }
 
-    return this.postsService.getUserPosts(userId, tenantId, limit);
+    return this.postsService.getUserPosts(userId, tenantId, limit, offset);
   }
 
   @Query(() => Post)

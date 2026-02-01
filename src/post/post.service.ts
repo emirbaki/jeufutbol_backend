@@ -121,12 +121,14 @@ export class PostsService {
     userId: string,
     tenantId: string,
     limit = 50,
+    offset = 0,
   ): Promise<Post[]> {
     // Get ALL posts from the organization (not just the user's posts)
     return this.postRepository.find({
       where: { tenantId },
       order: { createdAt: 'DESC' },
       take: limit,
+      skip: offset,
       relations: ['publishedPosts', 'user'], // Include user relation to show who created each post
     });
   }
