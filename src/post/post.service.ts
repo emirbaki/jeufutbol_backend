@@ -406,18 +406,25 @@ export class PostsService {
       throw new Error('Can only retry failed posts');
     }
 
-    // Get platforms that already succeeded
+    // Get platforms that already succeeded or are still processing
     const publishedPosts = await this.publishedPostRepository.find({
       where: { postId: post.id },
     });
-    const succeededPlatforms = publishedPosts.map((p) => p.platform);
+    const activePlatforms = publishedPosts
+      .filter((p) => p.publishStatus !== 'FAILED')
+      .map((p) => p.platform);
 
     // Filter target platforms to only retry failed ones
     const originalPlatforms = [...post.targetPlatforms];
     const failedPlatforms = originalPlatforms.filter(
-      (platform) => !succeededPlatforms.includes(platform as PlatformType),
+      (platform) => !activePlatforms.includes(platform as PlatformType),
     );
 
+    // Clean up old failed records so we don't have duplicates when retrying
+    const failedPublishedPosts = publishedPosts.filter((p) => p.publishStatus === 'FAILED');
+    if (failedPublishedPosts.length > 0) {
+      await this.publishedPostRepository.remove(failedPublishedPosts);
+    }
 
     if (failedPlatforms.length === 0) {
       throw new Error('No failed platforms to retry');
