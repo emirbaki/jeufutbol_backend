@@ -6,7 +6,7 @@ import { isVideoFile, getMediaType } from '../utils/media-utils';
 import { PlatformAnalyticsResponse } from 'src/graphql/types/analytics.type';
 import { PlatformAccountInfo } from './post-base.gateway';
 
-const GRAPH_API_BASE = 'https://graph.instagram.com/v24.0';
+const GRAPH_API_BASE = 'https://graph.instagram.com/v25.0';
 
 @Injectable()
 export class InstagramPostGateway extends AsyncPostGateway {
