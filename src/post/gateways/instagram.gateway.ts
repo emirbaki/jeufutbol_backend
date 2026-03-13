@@ -331,8 +331,9 @@ export class InstagramPostGateway extends AsyncPostGateway {
         failReason: statusCode === 'ERROR' || statusCode === 'EXPIRED' ? (statusMessage || 'Container processing failed') : undefined,
       };
     } catch (error: any) {
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : error.message;
       this.logger.error(
-        `[Instagram] Status check error for ${containerId}: ${error.message}`,
+        `[Instagram] Status check error for ${containerId}: ${errorMsg}`,
       );
       throw error;
     }
@@ -355,14 +356,16 @@ export class InstagramPostGateway extends AsyncPostGateway {
         media_type: 'REELS',
         video_url: videoUrl,
         caption: caption,
-        share_to_feed: true, // Set to true if you want Reel to appear in feed
       };
 
       if (options?.instagramSettings?.isTrialReel) {
+        // trial_params must be sent, and it should not be forced to feed yet.
         dataPayload.trial_params = {
           graduation_strategy: options.instagramSettings.graduationStrategy || 'MANUAL',
         };
         this.logger.log(`[Instagram] Adding trial_params for Trial Reel: ${dataPayload.trial_params.graduation_strategy}`);
+      } else {
+        dataPayload.share_to_feed = true; // Set to true if you want regular Reel to appear in feed
       }
 
       // Step 1: Create video container
@@ -378,7 +381,7 @@ export class InstagramPostGateway extends AsyncPostGateway {
           },
         )
         .catch((err) => {
-          const errortext = JSON.stringify(err.toJSON());
+          const errortext = err.response?.data ? JSON.stringify(err.response.data) : JSON.stringify(err.toJSON());
           const req = err.request;
           this.logger.error('Request:', req && req._header);
           this.logger.error(
@@ -456,8 +459,9 @@ export class InstagramPostGateway extends AsyncPostGateway {
         postUrl: postUrl.data.permalink,
       };
     } catch (error: any) {
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : error.message;
       this.logger.error(
-        `[Instagram] Failed to publish container ${containerId}: ${error.message}`,
+        `[Instagram] Failed to publish container ${containerId}: ${errorMsg}`,
       );
       throw error;
     }

@@ -105,8 +105,32 @@ export class AsyncPollingProcessor extends WorkerHost {
                     this.logger.error(
                         `[Job ${job.id}] Error completing publish: ${error.message}`,
                     );
-                    // Don't fail the entire job if completion fails
-                    // Some platforms don't need completion step
+
+                    // Mark as FAILED because the final step failed
+                    publishedPost.publishStatus = 'FAILED';
+                    publishedPost.publishMetadata = {
+                        ...(publishedPost.publishMetadata as object || {}),
+                        fail_reason: `Completion failed: ${error.message}`,
+                    };
+                    await this.publishedPostRepository.save(publishedPost);
+
+                    await this.postRepository.update(publishedPost.postId, {
+                        status: PostStatus.FAILED,
+                        failureReasons: {
+                            [platform.toLowerCase()]: `Completion failed: ${error.message}`,
+                        },
+                    });
+
+                    // Publish update
+                    const updatedPost = await this.postRepository.findOne({
+                        where: { id: publishedPost.postId },
+                        relations: ['publishedPosts', 'user', 'tenant'],
+                    });
+                    if (updatedPost) {
+                        this.pubSub.publish('postUpdated', { postUpdated: updatedPost });
+                    }
+
+                    return; // Terminal state
                 }
 
                 // Also use any postId/postUrl from the status check
