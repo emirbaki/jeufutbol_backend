@@ -171,6 +171,7 @@ type Post {
   failureReasons: JSON
   tiktokSettings: JSON
   youtubeSettings: JSON
+  instagramSettings: JSON
 }
 
 """PostStatus enum representing the status of a post"""
@@ -400,7 +401,7 @@ type Query {
   verifyEmail(token: String!): MessageResponse!
   me: User!
   listApiKeys: [ApiKey!]!
-  getUserPosts(limit: Int): [Post!]!
+  getUserPosts(limit: Int, offset: Int): [Post!]!
   getPost(postId: String!): Post!
   getTikTokCreatorInfo: TikTokCreatorInfo!
   getAnalyticsData(period: String! = "7days"): RawAnalyticsDataType!
@@ -511,6 +512,7 @@ input CreatePostInput {
   scheduledFor: String
   tiktokSettings: TikTokPostSettingsInput
   youtubeSettings: YouTubePostSettingsInput
+  instagramSettings: InstagramPostSettingsInput
 }
 
 input TikTokPostSettingsInput {
@@ -534,6 +536,11 @@ input YouTubePostSettingsInput {
   notify_subscribers: Boolean! = false
 }
 
+input InstagramPostSettingsInput {
+  isTrialReel: Boolean
+  graduationStrategy: String
+}
+
 input UpdatePostInput {
   content: String
   mediaUrls: [String!]
@@ -542,6 +549,7 @@ input UpdatePostInput {
   scheduledFor: String
   tiktokSettings: TikTokPostSettingsInput
   youtubeSettings: YouTubePostSettingsInput
+  instagramSettings: InstagramPostSettingsInput
 }
 
 input InviteUserInput {
