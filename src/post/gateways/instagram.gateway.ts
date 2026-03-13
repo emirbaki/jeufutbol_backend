@@ -40,11 +40,12 @@ export class InstagramPostGateway extends AsyncPostGateway {
     content: string,
     access_token: string,
     media?: string[],
+    options?: any,
   ): Promise<any> {
     try {
       const containerIds: string[] = [];
       const accountID_response = await axios
-        .get(`https://graph.instagram.com/v24.0/me`, {
+        .get(`https://graph.instagram.com/v25.0/me`, {
           params: {
             fields: 'user_id',
             access_token: access_token,
@@ -77,6 +78,7 @@ export class InstagramPostGateway extends AsyncPostGateway {
           videoUrl!,
           content,
           access_token,
+          options,
         );
       }
 
@@ -157,7 +159,7 @@ export class InstagramPostGateway extends AsyncPostGateway {
         );
 
         const postUrl = await axios.get(
-          `https://graph.instagram.com/v24.0/${publish.data.id}`,
+          `https://graph.instagram.com/v25.0/${publish.data.id}`,
           {
             params: {
               fields: 'permalink',
@@ -218,7 +220,7 @@ export class InstagramPostGateway extends AsyncPostGateway {
         );
 
         const postUrl = await axios.get(
-          `https://graph.instagram.com/v24.0/${publish.data.id}`,
+          `https://graph.instagram.com/v25.0/${publish.data.id}`,
           {
             params: {
               fields: 'permalink',
@@ -344,20 +346,30 @@ export class InstagramPostGateway extends AsyncPostGateway {
     videoUrl: string,
     caption: string,
     access_token: string,
+    options?: any,
   ): Promise<any> {
     try {
       this.logger.log(`[Instagram] Creating Reel container with video: ${videoUrl}`);
+
+      const dataPayload: any = {
+        media_type: 'REELS',
+        video_url: videoUrl,
+        caption: caption,
+        share_to_feed: true, // Set to true if you want Reel to appear in feed
+      };
+
+      if (options?.instagramSettings?.isTrialReel) {
+        dataPayload.trial_params = {
+          graduation_strategy: options.instagramSettings.graduationStrategy || 'MANUAL',
+        };
+        this.logger.log(`[Instagram] Adding trial_params for Trial Reel: ${dataPayload.trial_params.graduation_strategy}`);
+      }
 
       // Step 1: Create video container
       const mediaContainer = await axios
         .post(
           `${GRAPH_API_BASE}/${accountID}/media`,
-          {
-            media_type: 'REELS',
-            video_url: videoUrl,
-            caption: caption,
-            share_to_feed: true, // Set to true if you want Reel to appear in feed
-          },
+          dataPayload,
           {
             headers: {
               'Content-Type': 'application/json',

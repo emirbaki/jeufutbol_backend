@@ -71,6 +71,10 @@ export class PostsService {
         made_for_kids: dto.youtubeSettings.made_for_kids,
         notify_subscribers: dto.youtubeSettings.notify_subscribers,
       } : undefined,
+      instagramSettings: dto.instagramSettings ? {
+        isTrialReel: dto.instagramSettings.isTrialReel,
+        graduationStrategy: dto.instagramSettings.graduationStrategy,
+      } : undefined,
     });
 
 
@@ -261,6 +265,9 @@ export class PostsService {
           }
           if (platform === PlatformType.YOUTUBE && post.youtubeSettings) {
             gatewayOptions.youtubeSettings = post.youtubeSettings;
+          }
+          if (platform === PlatformType.INSTAGRAM && post.instagramSettings) {
+            gatewayOptions.instagramSettings = post.instagramSettings;
           }
 
           const result = await gateway.createNewPost(

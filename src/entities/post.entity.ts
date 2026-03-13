@@ -120,5 +120,12 @@ export class Post {
     made_for_kids?: boolean;
     notify_subscribers?: boolean;
   };
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
+  instagramSettings?: {
+    isTrialReel?: boolean;
+    graduationStrategy?: string;
+  };
 }
 

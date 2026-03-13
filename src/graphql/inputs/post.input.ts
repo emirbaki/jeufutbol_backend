@@ -11,6 +11,7 @@ import { Type } from 'class-transformer';
 import GraphQLJSON from 'graphql-type-json';
 import { TikTokPostSettingsInput } from '../types/tiktok.type';
 import { YouTubePostSettingsInput } from '../types/youtube.type';
+import { InstagramPostSettingsInput } from '../types/instagram.type';
 
 @InputType()
 export class CreatePostInput {
@@ -47,5 +48,11 @@ export class CreatePostInput {
   @ValidateNested()
   @Type(() => YouTubePostSettingsInput)
   youtubeSettings?: YouTubePostSettingsInput;
+
+  @Field(() => InstagramPostSettingsInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InstagramPostSettingsInput)
+  instagramSettings?: InstagramPostSettingsInput;
 }
 
