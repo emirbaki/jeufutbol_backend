@@ -174,7 +174,7 @@ export class AsyncPollingProcessor extends WorkerHost {
                     `[Job ${job.id}] ❌ ${platform} upload failed: ${statusData.failReason}`,
                 );
 
-                throw new Error(`${platform} upload failed: ${statusData.failReason}`);
+                return; // Terminal state: don't throw to avoid unnecessary retries
             } else {
                 // ⏳ Still processing - update status and retry
                 publishedPost.publishStatus = statusData.status;

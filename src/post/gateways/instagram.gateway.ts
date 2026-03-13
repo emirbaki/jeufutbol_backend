@@ -309,23 +309,24 @@ export class InstagramPostGateway extends AsyncPostGateway {
         `${GRAPH_API_BASE}/${containerId}`,
         {
           params: {
-            fields: 'status_code',
+            fields: 'status_code,status',
             access_token: access_token,
           },
         },
       );
 
       const statusCode = statusResponse.data.status_code;
+      const statusMessage = statusResponse.data.status;
 
       this.logger.log(
-        `[Instagram] Container ${containerId} status: ${statusCode}`,
+        `[Instagram] Container ${containerId} status: ${statusCode}${statusMessage ? ` (${statusMessage})` : ''}`,
       );
 
       return {
         status: statusCode, // FINISHED, IN_PROGRESS, ERROR, EXPIRED
         postId: undefined, // Will be set after publishing
         postUrl: undefined, // Will be set after publishing
-        failReason: statusCode === 'ERROR' || statusCode === 'EXPIRED' ? 'Container processing failed' : undefined,
+        failReason: statusCode === 'ERROR' || statusCode === 'EXPIRED' ? (statusMessage || 'Container processing failed') : undefined,
       };
     } catch (error: any) {
       this.logger.error(
