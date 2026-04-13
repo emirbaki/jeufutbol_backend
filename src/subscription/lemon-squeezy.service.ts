@@ -48,11 +48,13 @@ export class LemonSqueezyService {
     private readonly apiKey: string;
     private readonly storeId: string;
     private readonly webhookSecret: string;
+    private readonly paymentEnabled: boolean;
 
     constructor(private configService: ConfigService) {
         this.apiKey = this.configService.get<string>('LEMON_SQUEEZY_API_KEY') || '';
         this.storeId = this.configService.get<string>('LEMON_SQUEEZY_STORE_ID') || '';
         this.webhookSecret = this.configService.get<string>('LEMON_SQUEEZY_WEBHOOK_SECRET') || '';
+        this.paymentEnabled = this.configService.get<string>('PAYMENT_ENABLED') === 'true';
 
         if (!this.apiKey) {
             this.logger.warn('LEMON_SQUEEZY_API_KEY is not configured');
@@ -60,9 +62,20 @@ export class LemonSqueezyService {
     }
 
     /**
+     * Check if payment service is enabled
+     */
+    isEnabled(): boolean {
+        return this.paymentEnabled;
+    }
+
+    /**
      * Create a checkout session for a subscription
      */
     async createCheckout(options: CreateCheckoutOptions): Promise<{ checkoutUrl: string }> {
+        if (!this.isEnabled()) {
+            throw new Error('Subscription service is currently disabled');
+        }
+
         const response = await fetch(`${this.apiUrl}/checkouts`, {
             method: 'POST',
             headers: {
@@ -159,6 +172,10 @@ export class LemonSqueezyService {
      * Cancel a subscription (at period end)
      */
     async cancelSubscription(subscriptionId: string): Promise<void> {
+        if (!this.isEnabled()) {
+            return; // Silently fail or throw error? Better to just not call LS if disabled but let local logic handle if needed.
+        }
+
         const response = await fetch(`${this.apiUrl}/subscriptions/${subscriptionId}`, {
             method: 'DELETE',
             headers: {
@@ -176,6 +193,10 @@ export class LemonSqueezyService {
      * Resume a paused or cancelled subscription
      */
     async resumeSubscription(subscriptionId: string): Promise<void> {
+        if (!this.isEnabled()) {
+            throw new Error('Subscription service is currently disabled');
+        }
+
         const response = await fetch(`${this.apiUrl}/subscriptions/${subscriptionId}`, {
             method: 'PATCH',
             headers: {

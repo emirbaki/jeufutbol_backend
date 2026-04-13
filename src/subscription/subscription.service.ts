@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subscription } from '../entities/subscription.entity';
@@ -23,16 +24,50 @@ export class SubscriptionService {
         @InjectRepository(Tenant)
         private tenantRepository: Repository<Tenant>,
         private lemonSqueezyService: LemonSqueezyService,
+        private configService: ConfigService,
     ) { }
 
     /**
      * Get subscription for a tenant
      */
     async getSubscriptionByTenantId(tenantId: string): Promise<Subscription | null> {
-        return this.subscriptionRepository.findOne({
+        let subscription = await this.subscriptionRepository.findOne({
             where: { tenantId },
             relations: ['tenant'],
         });
+
+        // Grant proactive PRO access if payments are disabled
+        const paymentEnabled = this.configService.get<string>('PAYMENT_ENABLED') === 'true';
+        if (!paymentEnabled) {
+            if (subscription) {
+                subscription.plan = SubscriptionPlan.PRO;
+                subscription.status = SubscriptionStatus.ACTIVE;
+                subscription.isGrandfathered = true;
+                return subscription;
+            } else {
+                const mockSubscription = new Subscription();
+                mockSubscription.id = `mock_pro_${tenantId.substring(0, 8)}`;
+                mockSubscription.tenantId = tenantId;
+                mockSubscription.plan = SubscriptionPlan.PRO;
+                mockSubscription.status = SubscriptionStatus.ACTIVE;
+                mockSubscription.billingCycle = BillingCycle.MONTHLY;
+                mockSubscription.isGrandfathered = true;
+
+                const now = new Date();
+                mockSubscription.createdAt = now;
+                mockSubscription.updatedAt = now;
+                mockSubscription.currentPeriodStart = now;
+
+                const future = new Date();
+                future.setFullYear(future.getFullYear() + 10);
+                mockSubscription.currentPeriodEnd = future;
+                mockSubscription.cancelAtPeriodEnd = false;
+
+                return mockSubscription;
+            }
+        }
+
+        return subscription;
     }
 
     /**
@@ -235,6 +270,10 @@ export class SubscriptionService {
         successUrl: string,
         cancelUrl: string,
     ): Promise<string> {
+        if (!this.lemonSqueezyService.isEnabled()) {
+            throw new Error('Subscription service is currently disabled');
+        }
+
         const variantId = this.lemonSqueezyService.getVariantId(plan);
         if (!variantId) {
             throw new Error(`Variant ID not configured for plan: ${plan}`);
@@ -269,7 +308,9 @@ export class SubscriptionService {
             throw new Error('No Lemon Squeezy subscription ID found');
         }
 
-        await this.lemonSqueezyService.cancelSubscription(subscription.lemonSqueezySubscriptionId);
+        if (this.lemonSqueezyService.isEnabled()) {
+            await this.lemonSqueezyService.cancelSubscription(subscription.lemonSqueezySubscriptionId);
+        }
 
         subscription.cancelAtPeriodEnd = true;
         return this.subscriptionRepository.save(subscription);

@@ -47,6 +47,10 @@ export class SubscriptionResolver {
             throw new Error('Invalid plan. Must be pro_monthly or pro_yearly');
         }
 
+        if (this.configService.get<string>('PAYMENT_ENABLED') !== 'true') {
+            throw new Error('Subscription service is currently disabled');
+        }
+
         // Get origin from request to support wildcard subdomains
         const req = ctx.req;
         const origin = req?.get?.('origin') || req?.headers?.origin;
