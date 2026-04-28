@@ -311,7 +311,7 @@ export class InstagramPostGateway extends AsyncPostGateway {
         `${GRAPH_API_BASE}/${containerId}`,
         {
           params: {
-            fields: 'status_code,status',
+            fields: 'status_code,status,error_message',
             access_token: access_token,
           },
         },
@@ -319,16 +319,28 @@ export class InstagramPostGateway extends AsyncPostGateway {
 
       const statusCode = statusResponse.data.status_code;
       const statusMessage = statusResponse.data.status;
+      const errorMessage = statusResponse.data.error_message;
 
-      this.logger.log(
-        `[Instagram] Container ${containerId} status: ${statusCode}${statusMessage ? ` (${statusMessage})` : ''}`,
-      );
+      let combinedError = statusMessage;
+      if (errorMessage) {
+        combinedError = `${statusMessage ? statusMessage + ' - ' : ''}${errorMessage}`;
+      } else if (statusCode === 'ERROR' && statusMessage === 'ERROR') {
+        combinedError = 'Instagram could not process the video. Common reasons: Video URL not publicly accessible, unsupported video format/codec, or duration limits exceeded.';
+      }
+
+      if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+        this.logger.error(`[Instagram] Container ${containerId} failed. Full response: ${JSON.stringify(statusResponse.data)}`);
+      } else {
+        this.logger.log(
+          `[Instagram] Container ${containerId} status: ${statusCode}${combinedError ? ` (${combinedError})` : ''}`,
+        );
+      }
 
       return {
         status: statusCode, // FINISHED, IN_PROGRESS, ERROR, EXPIRED
         postId: undefined, // Will be set after publishing
         postUrl: undefined, // Will be set after publishing
-        failReason: statusCode === 'ERROR' || statusCode === 'EXPIRED' ? (statusMessage || 'Container processing failed') : undefined,
+        failReason: statusCode === 'ERROR' || statusCode === 'EXPIRED' ? (combinedError || 'Container processing failed') : undefined,
       };
     } catch (error: any) {
       const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : error.message;

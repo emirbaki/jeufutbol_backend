@@ -88,10 +88,9 @@ export class XPostGateway extends AsyncPostGateway {
       }
 
       const _post = await this.twitterClient.v2.tweet(payload);
-      const details = await this.rettiwt.tweet.details(_post.data.id);
 
       this.logger.log(`[X] Tweet created successfully: ${_post.data.id}`);
-      return { id: _post.data.id, url: details?.url };
+      return { id: _post.data.id, url: `https://x.com/i/status/${_post.data.id}` };
     } catch (err: any) {
       this.logger.error(
         '[X] Tweet failed:',
