@@ -116,10 +116,17 @@ export class LLMService {
 
     if (credentialId) {
       // When credentialId is provided, find by id and tenantId only
-      // (credentials are shared within a tenant, not per-user)
       cred = await this.credentialRepo.findOne({
         where: { id: credentialId, tenantId },
       });
+      // If the requested provider doesn't match the credential's provider, try to find a credential for the requested provider instead
+      if (cred && cred.provider !== provider) {
+        this.logger.warn(`Requested provider ${provider} does not match credential ${credentialId} provider ${cred.provider}. Falling back to finding by provider.`);
+        cred = await this.credentialRepo.findOne({
+          where: { userId, provider, tenantId },
+          order: { id: 'DESC' },
+        });
+      }
     } else {
       cred = await this.credentialRepo.findOne({
         where: { userId, provider, tenantId },

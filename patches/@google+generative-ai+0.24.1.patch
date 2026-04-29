@@ -1,0 +1,13 @@
+diff --git a/node_modules/@google/generative-ai/dist/index.js b/node_modules/@google/generative-ai/dist/index.js
+index 0e19952..d8f1bae 100644
+--- a/node_modules/@google/generative-ai/dist/index.js
++++ b/node_modules/@google/generative-ai/dist/index.js
+@@ -730,7 +730,7 @@ function getResponseStream(inputStream) {
+                     .then(({ value, done }) => {
+                     if (done) {
+                         if (currentText.trim()) {
+-                            controller.error(new GoogleGenerativeAIError("Failed to parse stream"));
++                            try { controller.error(new GoogleGenerativeAIError("Failed to parse stream")); } catch(e) {}
+                             return;
+                         }
+                         controller.close();
