@@ -1,0 +1,13 @@
+diff --git a/node_modules/@langchain/ollama/dist/utils.cjs b/node_modules/@langchain/ollama/dist/utils.cjs
+index d545f9e..e9f919c 100644
+--- a/node_modules/@langchain/ollama/dist/utils.cjs
++++ b/node_modules/@langchain/ollama/dist/utils.cjs
+@@ -10,7 +10,7 @@ function convertOllamaMessagesToLangChain(messages, extra) {
+ 			args: JSON.stringify(tc.function.arguments),
+ 			type: "tool_call_chunk",
+ 			index: 0,
+-			id: (0, _langchain_core_utils_uuid.v4)()
++			id: (typeof _langchain_core_utils_uuid.v4 === "function" ? (0, _langchain_core_utils_uuid.v4)() : (0, _langchain_core_utils_uuid.v4.default)())
+ 		})),
+ 		response_metadata: {
+ 			...extra?.responseMetadata,

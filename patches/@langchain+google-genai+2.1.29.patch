@@ -1,0 +1,22 @@
+diff --git a/node_modules/@langchain/google-genai/dist/utils/common.cjs b/node_modules/@langchain/google-genai/dist/utils/common.cjs
+index ec37824..67d9d2c 100644
+--- a/node_modules/@langchain/google-genai/dist/utils/common.cjs
++++ b/node_modules/@langchain/google-genai/dist/utils/common.cjs
+@@ -278,7 +278,7 @@ function mapGenerateContentResultToChatResult(response, extra) {
+ 	const functionCalls = candidateContent?.parts?.reduce((acc, p) => {
+ 		if ("functionCall" in p && p.functionCall) acc.push({
+ 			...p,
+-			id: "id" in p.functionCall && typeof p.functionCall.id === "string" ? p.functionCall.id : (0, _langchain_core_utils_uuid.v4)()
++			id: "id" in p.functionCall && typeof p.functionCall.id === "string" ? p.functionCall.id : (typeof _langchain_core_utils_uuid.v4 === "function" ? (0, _langchain_core_utils_uuid.v4)() : (0, _langchain_core_utils_uuid.v4.default)())
+ 		});
+ 		return acc;
+ 	}, []);
+@@ -362,7 +362,7 @@ function convertResponseContentToChatGenerationChunk(response, extra) {
+ 	const functionCalls = candidateContent.parts?.reduce((acc, p) => {
+ 		if ("functionCall" in p && p.functionCall) acc.push({
+ 			...p,
+-			id: "id" in p.functionCall && typeof p.functionCall.id === "string" ? p.functionCall.id : (0, _langchain_core_utils_uuid.v4)()
++			id: "id" in p.functionCall && typeof p.functionCall.id === "string" ? p.functionCall.id : (typeof _langchain_core_utils_uuid.v4 === "function" ? (0, _langchain_core_utils_uuid.v4)() : (0, _langchain_core_utils_uuid.v4.default)())
+ 		});
+ 		return acc;
+ 	}, []);
