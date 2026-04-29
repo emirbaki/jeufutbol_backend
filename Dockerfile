@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY patches ./patches/
 
 # Install the application dependencies
-RUN npm install --legacy-peer-deps
+RUN npm install
 
 
 # Copy the rest of the application files
