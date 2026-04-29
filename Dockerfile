@@ -6,6 +6,8 @@ WORKDIR /usr/src/app
 
 # Copy package.json and package-lock.json to the working directory
 COPY package*.json ./
+# Copy patches directory so patch-package can apply them during postinstall
+COPY patches ./patches/
 
 # Install the application dependencies
 RUN npm install --legacy-peer-deps
