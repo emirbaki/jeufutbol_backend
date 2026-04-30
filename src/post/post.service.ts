@@ -335,7 +335,19 @@ export class PostsService {
 
     // 4️⃣ Update post status and save published posts
     if (publishResults.length > 0) {
-      post.status = PostStatus.PUBLISHED;
+      if (errors.length > 0) {
+        post.status = PostStatus.FAILED;
+        post.failureReasons = errors.reduce(
+          (acc, err) => {
+            acc[err.platform] = err.error;
+            return acc;
+          },
+          {} as Record<string, string>,
+        );
+      } else {
+        post.status = PostStatus.PUBLISHED;
+        post.failureReasons = undefined; // Clear any previous failures
+      }
 
       // Save all published posts
       const savedPublishedPosts = await this.publishedPostRepository.save(publishResults);
@@ -370,8 +382,6 @@ export class PostsService {
           );
         }
       }
-
-      post.failureReasons = undefined; // Clear any previous failures
     } else {
       post.status = PostStatus.FAILED;
 
@@ -409,8 +419,8 @@ export class PostsService {
   ): Promise<Post> {
     const post = await this.getPost(postId, userId, tenantId);
 
-    if (post.status !== PostStatus.FAILED) {
-      throw new Error('Can only retry failed posts');
+    if (post.status === PostStatus.DRAFT || post.status === PostStatus.SCHEDULED) {
+      throw new Error('Can only retry failed or partially published posts');
     }
 
     // Get platforms that already succeeded or are still processing

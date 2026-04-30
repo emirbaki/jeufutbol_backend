@@ -114,9 +114,13 @@ export class AsyncPollingProcessor extends WorkerHost {
                     };
                     await this.publishedPostRepository.save(publishedPost);
 
+                    const currentPost = await this.postRepository.findOne({ where: { id: publishedPost.postId } });
+                    const existingFailures = currentPost?.failureReasons || {};
+                    
                     await this.postRepository.update(publishedPost.postId, {
                         status: PostStatus.FAILED,
                         failureReasons: {
+                            ...existingFailures,
                             [platform.toLowerCase()]: `Completion failed: ${error.message}`,
                         },
                     });
@@ -147,12 +151,22 @@ export class AsyncPollingProcessor extends WorkerHost {
 
                 await this.publishedPostRepository.save(publishedPost);
 
-                // Update Post status to PUBLISHED if not already
-                if (publishedPost.post.status !== PostStatus.PUBLISHED) {
-                    await this.postRepository.update(publishedPost.postId, {
-                        status: PostStatus.PUBLISHED,
-                        failureReasons: undefined,
-                    });
+                // Check overall post status before blindly marking it PUBLISHED
+                const currentPost = await this.postRepository.findOne({ where: { id: publishedPost.postId } });
+                const existingFailures = currentPost?.failureReasons || {};
+                
+                const allPublishedPosts = await this.publishedPostRepository.find({
+                    where: { postId: publishedPost.postId },
+                });
+                const hasFailed = allPublishedPosts.some(p => p.publishStatus === 'FAILED' || p.publishStatus === 'ERROR');
+
+                if (!hasFailed && Object.keys(existingFailures).length === 0) {
+                    if (publishedPost.post.status !== PostStatus.PUBLISHED) {
+                        await this.postRepository.update(publishedPost.postId, {
+                            status: PostStatus.PUBLISHED,
+                            failureReasons: undefined,
+                        });
+                    }
                 }
 
                 // Publish update
@@ -178,9 +192,13 @@ export class AsyncPollingProcessor extends WorkerHost {
                 await this.publishedPostRepository.save(publishedPost);
 
                 // Update Post status to FAILED
+                const currentPost = await this.postRepository.findOne({ where: { id: publishedPost.postId } });
+                const existingFailures = currentPost?.failureReasons || {};
+                
                 await this.postRepository.update(publishedPost.postId, {
                     status: PostStatus.FAILED,
                     failureReasons: {
+                        ...existingFailures,
                         [platform.toLowerCase()]: statusData.failReason || 'Upload failed',
                     },
                 });
