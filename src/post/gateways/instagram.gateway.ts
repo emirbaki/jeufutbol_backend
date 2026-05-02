@@ -379,10 +379,13 @@ export class InstagramPostGateway extends AsyncPostGateway {
         dataPayload.share_to_feed = true; // Set to true if you want regular Reel to appear in feed
       }
 
+      // For Resumable Uploads, Meta requires using graph.facebook.com instead of graph.instagram.com
+      const facebookGraphBase = 'https://graph.facebook.com/v25.0';
+
       // Step 1: Create resumable video container
       const mediaContainer = await axios
         .post(
-          `${GRAPH_API_BASE}/${accountID}/media`,
+          `${facebookGraphBase}/${accountID}/media`,
           dataPayload,
           {
             params: {
