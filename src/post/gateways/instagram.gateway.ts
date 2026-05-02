@@ -366,7 +366,6 @@ export class InstagramPostGateway extends AsyncPostGateway {
 
       const dataPayload: any = {
         media_type: 'REELS',
-        upload_type: 'resumable',
         caption: caption,
       };
 
@@ -386,6 +385,9 @@ export class InstagramPostGateway extends AsyncPostGateway {
           `${GRAPH_API_BASE}/${accountID}/media`,
           dataPayload,
           {
+            params: {
+              upload_type: 'resumable'
+            },
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${access_token}`,
