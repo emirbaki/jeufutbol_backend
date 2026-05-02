@@ -362,11 +362,11 @@ export class InstagramPostGateway extends AsyncPostGateway {
     options?: any,
   ): Promise<any> {
     try {
-      this.logger.log(`[Instagram] Creating Reel container with video: ${videoUrl}`);
+      this.logger.log(`[Instagram] Initializing Resumable Upload for Reel: ${videoUrl}`);
 
       const dataPayload: any = {
         media_type: 'REELS',
-        video_url: videoUrl,
+        upload_type: 'resumable',
         caption: caption,
       };
 
@@ -380,7 +380,7 @@ export class InstagramPostGateway extends AsyncPostGateway {
         dataPayload.share_to_feed = true; // Set to true if you want regular Reel to appear in feed
       }
 
-      // Step 1: Create video container
+      // Step 1: Create resumable video container
       const mediaContainer = await axios
         .post(
           `${GRAPH_API_BASE}/${accountID}/media`,
@@ -397,13 +397,51 @@ export class InstagramPostGateway extends AsyncPostGateway {
           const req = err.request;
           this.logger.error('Request:', req && req._header);
           this.logger.error(
-            `[Instagram] Error creating video container: ${errortext || err.message}`,
+            `[Instagram] Error creating resumable video container: ${errortext || err.message}`,
           );
           throw err;
         });
 
       const containerId = mediaContainer.data.id;
-      this.logger.log(`[Instagram] Video Container ID: ${containerId} - will poll asynchronously`);
+      const uploadUri = mediaContainer.data.uri;
+
+      if (!uploadUri) {
+        throw new Error('Resumable upload URI not returned by Instagram API');
+      }
+
+      this.logger.log(`[Instagram] Resumable Video Container ID: ${containerId}. Uploading binary data to rupload...`);
+
+      // Step 2: Upload the video file binary to the uploadUri
+      // Fetch the file from our own server as a stream
+      const fileStreamResponse = await axios.get(videoUrl, { responseType: 'stream' });
+      const contentLength = fileStreamResponse.headers['content-length'];
+
+      if (!contentLength) {
+        this.logger.warn('[Instagram] Content-Length header missing from video URL response. This might cause upload issues.');
+      }
+
+      this.logger.log(`[Instagram] Uploading video of size ${contentLength} bytes to rupload`);
+
+      await axios.post(
+        uploadUri,
+        fileStreamResponse.data,
+        {
+          headers: {
+            Authorization: `OAuth ${access_token}`,
+            offset: '0',
+            file_size: contentLength ? contentLength.toString() : '',
+            'Content-Type': 'application/octet-stream',
+          },
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+        }
+      ).catch((err) => {
+        const errortext = err.response?.data ? JSON.stringify(err.response.data) : JSON.stringify(err.toJSON());
+        this.logger.error(`[Instagram] Error uploading binary data to rupload: ${errortext || err.message}`);
+        throw err;
+      });
+
+      this.logger.log(`[Instagram] Video binary uploaded successfully for container ${containerId} - will poll asynchronously`);
 
       // Return container ID for async polling
       return {
