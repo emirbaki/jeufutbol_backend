@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { Credential } from '../entities/credential.entity';
 import { User } from '../entities/user.entity';
 import { ApiKey } from '../entities/api-key.entity';
@@ -22,6 +23,7 @@ import { TenancyService } from 'src/tenancy/tenancy.service';
     TypeOrmModule.forFeature([Credential, User, ApiKey, Tenant]),
     HttpModule,
     ConfigModule,
+    ScheduleModule.forRoot(),
     AuthModule,
     TenancyModule,
   ],

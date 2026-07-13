@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThan, Not, IsNull } from 'typeorm';
 import {
   Credential,
   PlatformName,
@@ -8,6 +8,7 @@ import {
 } from '../entities/credential.entity';
 import { EncryptionService } from './token-encryption.service';
 import { TokenRefreshService } from './token-refresher.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class CredentialsService {
@@ -184,6 +185,34 @@ export class CredentialsService {
   }
 
   /**
+   * Refresh token using a credential entity directly (no userId/tenantId check).
+   * Used by getDecryptedAccessToken and the cron job for internal refreshes.
+   */
+  private async refreshTokenById(credential: Credential): Promise<void> {
+    if (!credential.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+    this.logger.log(`Refreshing token for credential ${credential.id} (${credential.platform})`);
+
+    const newTokenData = await this.refreshTokenByPlatform(credential);
+
+    // Update credential in-place and save
+    credential.accessToken = this.encryptionService.encrypt(
+      newTokenData.accessToken,
+    );
+    if (newTokenData.refreshToken) {
+      credential.refreshToken = this.encryptionService.encrypt(
+        newTokenData.refreshToken,
+      );
+    }
+    credential.tokenExpiresAt = new Date(
+      Date.now() + newTokenData.expiresIn * 1000,
+    );
+
+    await this.credentialRepository.save(credential);
+  }
+
+  /**
    * Get all credentials for a user
    */
   async getUserCredentials(
@@ -217,12 +246,33 @@ export class CredentialsService {
 
   /**
    * Get decrypted access token by credential ID (tenant-scoped - no userId check)
+   * Automatically refreshes the token if it's expired or about to expire.
    */
   async getDecryptedAccessToken(credentialId: string): Promise<string | null> {
     const credential = await this.credentialRepository.findOne({
       where: { id: credentialId, isActive: true },
     });
     if (!credential?.accessToken) return null;
+
+    // Auto-refresh if token is expired and a refresh token exists
+    if (credential.refreshToken && this.isTokenExpired(credential)) {
+      try {
+        this.logger.log(`Auto-refreshing expired token for credential ${credential.id}`);
+        await this.refreshTokenById(credential);
+        // Reload credential to get updated values
+        const updated = await this.credentialRepository.findOne({
+          where: { id: credentialId, isActive: true },
+        });
+        if (updated?.accessToken) {
+          return this.encryptionService.decrypt(updated.accessToken);
+        }
+        // Fall through to return original token if reload fails
+      } catch (error) {
+        this.logger.error(`Auto-refresh failed for credential ${credentialId}: ${error}`);
+        // Return existing token even if refresh fails — it might still be accepted
+      }
+    }
+
     return this.encryptionService.decrypt(credential.accessToken);
   }
 
@@ -239,6 +289,46 @@ export class CredentialsService {
       userId,
       tenantId,
     });
+  }
+
+  /**
+   * Cron job: refreshes tokens that expire within the next 12 hours.
+   * Runs every 12 hours as a safety net for credentials that haven't
+   * been touched via on-demand auto-refresh (getAccessToken etc.).
+   * Short-lived tokens (YouTube 1h, X 2h) are handled on-demand;
+   * this catches the rest before they'd silently go stale.
+   */
+  @Cron(CronExpression.EVERY_12_HOURS)
+  async refreshExpiringTokens(): Promise<void> {
+    const now = new Date();
+    const expiryWindow = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+
+    try {
+      const expiringCredentials = await this.credentialRepository.find({
+        where: {
+          isActive: true,
+          refreshToken: Not(IsNull()),
+          tokenExpiresAt: LessThan(expiryWindow),
+        },
+      });
+
+      if (expiringCredentials.length === 0) return;
+
+      this.logger.log(
+        `[Cron] Found ${expiringCredentials.length} credential(s) expiring within 12 hours, refreshing...`,
+      );
+
+      for (const credential of expiringCredentials) {
+        try {
+          await this.refreshTokenById(credential);
+          this.logger.log(`[Cron] Refreshed ${credential.id} (${credential.platform})`);
+        } catch (error) {
+          this.logger.error(`[Cron] Refresh failed for ${credential.id}: ${error}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`[Cron] Query error: ${error}`);
+    }
   }
 
   /**
