@@ -101,12 +101,14 @@ export class Post {
   @Field(() => GraphQLJSON, { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
   tiktokSettings?: {
+    title?: string;
     privacy_level: string;
     allow_comment: boolean;
     allow_duet: boolean;
     allow_stitch: boolean;
     is_brand_organic?: boolean;
     is_branded_content?: boolean;
+    auto_add_music?: boolean;
   };
 
   @Field(() => GraphQLJSON, { nullable: true })

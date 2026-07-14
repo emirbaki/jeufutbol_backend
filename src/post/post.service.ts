@@ -55,12 +55,14 @@ export class PostsService {
       scheduledFor: dto.scheduledFor,
       status: dto.scheduledFor ? PostStatus.SCHEDULED : PostStatus.DRAFT,
       tiktokSettings: dto.tiktokSettings ? {
+        title: dto.tiktokSettings.title,
         privacy_level: dto.tiktokSettings.privacy_level,
         allow_comment: dto.tiktokSettings.allow_comment,
         allow_duet: dto.tiktokSettings.allow_duet,
         allow_stitch: dto.tiktokSettings.allow_stitch,
         is_brand_organic: dto.tiktokSettings.is_brand_organic,
         is_branded_content: dto.tiktokSettings.is_branded_content,
+        auto_add_music: dto.tiktokSettings.auto_add_music,
       } : undefined,
       youtubeSettings: dto.youtubeSettings ? {
         title: dto.youtubeSettings.title,
