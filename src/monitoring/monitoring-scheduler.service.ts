@@ -13,17 +13,19 @@ export class MonitoringSchedulerService {
   ) {}
 
   /**
-   * Refresh all profiles every 12 hours
+   * Refresh all profiles every 24 hours at 3:00 AM (Europe/Istanbul timezone)
    */
-  @Cron('0 */12 * * *') // Every 12 hours (at :00 minute)
-  async handleTwelveHourlyRefresh() {
-    this.logger.log('Starting 12-hourly tweet refresh');
+  @Cron('0 3 * * *', {
+    timeZone: 'Europe/Istanbul',
+  })
+  async handleDailyRefresh() {
+    this.logger.log('Starting daily tweet refresh at 3:00 AM (Turkey time)');
 
     try {
       const { jobId } = await this.monitoringService.refreshAllProfiles();
-      this.logger.log(`12-hourly refresh job enqueued: ${jobId}`);
+      this.logger.log(`Daily refresh job enqueued: ${jobId}`);
     } catch (error) {
-      this.logger.error(`12-hourly refresh failed: ${error.message}`);
+      this.logger.error(`Daily refresh failed: ${error.message}`);
     }
   }
 
