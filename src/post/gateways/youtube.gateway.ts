@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as https from 'https';
 import { AsyncPostGateway, AsyncPollingJobData, AsyncPublishStatus } from './async-post.gateway';
 import { PlatformType } from 'src/enums/platform-type.enum';
 import { isVideoFile } from '../utils/media-utils';
@@ -13,6 +16,10 @@ const YOUTUBE_UPLOAD_BASE = 'https://www.googleapis.com/upload/youtube/v3';
 // YouTube Shorts max duration in seconds (3 minutes as of Oct 2024)
 const SHORTS_MAX_DURATION_SECONDS = 180;
 
+// Google Resumable Upload Chunk Size (must be multiple of 256KB = 262,144 bytes)
+// 8MB = 8 * 1024 * 1024 bytes (32 * 256KB)
+const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
+
 /**
  * Extended options for YouTube posting with user-selected settings
  */
@@ -24,6 +31,11 @@ export interface YouTubePostOptions {
 @Injectable()
 export class YoutubePostGateway extends AsyncPostGateway {
     private readonly logger = new Logger(YoutubePostGateway.name);
+
+    private readonly httpsAgent = new https.Agent({
+        keepAlive: true,
+        timeout: 60000,
+    });
 
     async notifyPostPublished(
         postId: string,
@@ -61,6 +73,7 @@ export class YoutubePostGateway extends AsyncPostGateway {
                 headers: {
                     Authorization: `Bearer ${access_token}`,
                 },
+                httpsAgent: this.httpsAgent,
             });
 
             const channel = response.data.items?.[0];
@@ -135,7 +148,7 @@ export class YoutubePostGateway extends AsyncPostGateway {
                 settings?.notify_subscribers ?? true,
             );
 
-            // Step 2: Download video and upload to session
+            // Step 2: Download video and upload to session in chunks
             const videoId = await this.uploadVideoToSession(
                 sessionUri,
                 videoUrl,
@@ -198,6 +211,8 @@ export class YoutubePostGateway extends AsyncPostGateway {
                         'Content-Type': 'application/json; charset=UTF-8',
                         'X-Upload-Content-Type': 'video/*',
                     },
+                    timeout: 30000,
+                    httpsAgent: this.httpsAgent,
                 },
             );
 
@@ -218,7 +233,7 @@ export class YoutubePostGateway extends AsyncPostGateway {
     }
 
     /**
-     * Upload video binary to the resumable session URI
+     * Upload video binary to the resumable session URI in chunks with resume and retry support
      */
     private async uploadVideoToSession(
         sessionUri: string,
@@ -226,34 +241,163 @@ export class YoutubePostGateway extends AsyncPostGateway {
         access_token: string,
     ): Promise<string> {
         try {
-            // Download video from our storage
-            this.logger.log(`[YouTube] Downloading video from: ${videoUrl}`);
-            const videoResponse = await axios.get(videoUrl, {
-                responseType: 'arraybuffer',
-            });
-            const videoBuffer = Buffer.from(videoResponse.data);
-            const contentLength = videoBuffer.length;
+            // Step 1: Load video buffer (check local disk first to avoid slow network loopback, fallback to HTTP download)
+            let videoBuffer: Buffer;
+            const uploadDir = process.env.UPLOAD_DIR || '/var/www/uploads';
+            const urlParts = videoUrl.split('/uploads/');
+            const localFilename = urlParts.length > 1 ? urlParts[urlParts.length - 1].split('?')[0] : null;
+            const localFilePath = localFilename ? path.join(uploadDir, localFilename) : null;
 
-            this.logger.log(`[YouTube] Uploading ${(contentLength / 1024 / 1024).toFixed(2)}MB to YouTube...`);
-
-            // Upload to session URI
-            const uploadResponse = await axios.put(sessionUri, videoBuffer, {
-                headers: {
-                    Authorization: `Bearer ${access_token}`,
-                    'Content-Type': 'video/*',
-                    'Content-Length': contentLength,
-                },
-                maxBodyLength: Infinity,
-                maxContentLength: Infinity,
-            });
-
-            const videoId = uploadResponse.data?.id;
-            if (!videoId) {
-                throw new Error('No video ID returned from YouTube upload');
+            if (localFilePath && fs.existsSync(localFilePath)) {
+                this.logger.log(`[YouTube] Loading video from local disk: ${localFilePath}`);
+                videoBuffer = await fs.promises.readFile(localFilePath);
+            } else {
+                this.logger.log(`[YouTube] Downloading video from: ${videoUrl}`);
+                const videoResponse = await axios.get(videoUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 120000,
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity,
+                    httpsAgent: this.httpsAgent,
+                });
+                videoBuffer = Buffer.from(videoResponse.data);
             }
 
-            this.logger.log(`[YouTube] Upload complete, video ID: ${videoId}`);
-            return videoId;
+            const totalBytes = videoBuffer.length;
+            if (totalBytes === 0) {
+                throw new Error('Video file is empty (0 bytes)');
+            }
+
+            const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
+            const totalChunks = Math.ceil(totalBytes / UPLOAD_CHUNK_SIZE);
+            this.logger.log(
+                `[YouTube] Starting chunked upload of ${totalMB}MB (${totalChunks} chunks) to YouTube...`,
+            );
+
+            // Step 2: Upload in 8MB chunks using Google Resumable Upload protocol
+            let currentOffset = 0;
+            const maxRetries = 5;
+
+            while (currentOffset < totalBytes) {
+                const end = Math.min(currentOffset + UPLOAD_CHUNK_SIZE, totalBytes) - 1;
+                const chunk = videoBuffer.subarray(currentOffset, end + 1);
+                const chunkLength = chunk.length;
+
+                let chunkUploaded = false;
+                let retryCount = 0;
+
+                while (!chunkUploaded && retryCount < maxRetries) {
+                    try {
+                        const response = await axios.put(sessionUri, chunk, {
+                            headers: {
+                                Authorization: `Bearer ${access_token}`,
+                                'Content-Type': 'video/*',
+                                'Content-Length': chunkLength,
+                                'Content-Range': `bytes ${currentOffset}-${end}/${totalBytes}`,
+                            },
+                            validateStatus: (status) => (status >= 200 && status < 300) || status === 308,
+                            timeout: 60000,
+                            maxBodyLength: Infinity,
+                            maxContentLength: Infinity,
+                            httpsAgent: this.httpsAgent,
+                        });
+
+                        // Final chunk returns 200 OK or 201 Created with video metadata
+                        if (response.status === 200 || response.status === 201) {
+                            const videoId = response.data?.id;
+                            if (!videoId) {
+                                throw new Error('Upload completed but no video ID was returned from YouTube');
+                            }
+                            this.logger.log(`[YouTube] Upload complete, video ID: ${videoId}`);
+                            return videoId;
+                        }
+
+                        // Intermediate chunk returns 308 Resume Incomplete
+                        if (response.status === 308) {
+                            const rangeHeader = response.headers['range'];
+                            if (rangeHeader) {
+                                const match = rangeHeader.match(/bytes=0-(\d+)/);
+                                if (match) {
+                                    currentOffset = parseInt(match[1], 10) + 1;
+                                } else {
+                                    currentOffset = end + 1;
+                                }
+                            } else {
+                                currentOffset = end + 1;
+                            }
+
+                            const progressPct = ((currentOffset / totalBytes) * 100).toFixed(1);
+                            const uploadedMB = (currentOffset / (1024 * 1024)).toFixed(2);
+                            this.logger.log(
+                                `[YouTube] Upload progress: ${uploadedMB}MB / ${totalMB}MB (${progressPct}%)`,
+                            );
+                            chunkUploaded = true;
+                        } else {
+                            throw new Error(`Unexpected HTTP status from YouTube upload: ${response.status}`);
+                        }
+                    } catch (err: any) {
+                        retryCount++;
+                        this.logger.warn(
+                            `[YouTube] Chunk upload interrupted (${err.message}) at byte ${currentOffset}/${totalBytes}. Retry ${retryCount}/${maxRetries}...`,
+                        );
+
+                        if (retryCount >= maxRetries) {
+                            throw new Error(
+                                `Upload failed after ${maxRetries} retries at byte ${currentOffset}: ${err.message}`,
+                            );
+                        }
+
+                        // Exponential backoff delay (1s, 2s, 4s, 8s, 16s)
+                        const delayMs = Math.min(1000 * Math.pow(2, retryCount - 1), 16000);
+                        await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+                        // Query upload status from YouTube to resume from the exact byte YouTube received
+                        try {
+                            const statusResponse = await axios.put(
+                                sessionUri,
+                                null,
+                                {
+                                    headers: {
+                                        Authorization: `Bearer ${access_token}`,
+                                        'Content-Range': `bytes */${totalBytes}`,
+                                        'Content-Length': 0,
+                                    },
+                                    validateStatus: (status) => (status >= 200 && status < 300) || status === 308,
+                                    timeout: 30000,
+                                    httpsAgent: this.httpsAgent,
+                                },
+                            );
+
+                            if (statusResponse.status === 200 || statusResponse.status === 201) {
+                                const videoId = statusResponse.data?.id;
+                                if (videoId) {
+                                    this.logger.log(`[YouTube] Upload already completed! Video ID: ${videoId}`);
+                                    return videoId;
+                                }
+                            }
+
+                            if (statusResponse.status === 308) {
+                                const rangeHeader = statusResponse.headers['range'];
+                                if (rangeHeader) {
+                                    const match = rangeHeader.match(/bytes=0-(\d+)/);
+                                    if (match) {
+                                        currentOffset = parseInt(match[1], 10) + 1;
+                                        this.logger.log(
+                                            `[YouTube] Resumed upload state from YouTube: next byte is ${currentOffset}`,
+                                        );
+                                    }
+                                }
+                                // Break inner retry loop so outer loop recomputes slice from updated currentOffset
+                                break;
+                            }
+                        } catch (statusErr: any) {
+                            this.logger.warn(`[YouTube] Failed to query resume status: ${statusErr.message}`);
+                        }
+                    }
+                }
+            }
+
+            throw new Error('Upload loop finished without receiving video ID from YouTube');
         } catch (err: any) {
             this.logger.error(
                 `[YouTube] Upload failed: ${JSON.stringify(err.response?.data, null, 2) || err.message}`,
