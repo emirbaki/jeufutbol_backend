@@ -31,6 +31,7 @@ import { TenancyModule } from './tenancy/tenancy.module';
 import { UserModule } from './user/user.module';
 import { PubSubModule } from './pubsub/pubsub.module';
 import { SubscriptionModule } from './subscription/subscription.module';
+import { McpModule } from './mcp/mcp.module';
 
 
 @Module({
@@ -129,6 +130,7 @@ import { SubscriptionModule } from './subscription/subscription.module';
     UserModule,
     PubSubModule,
     SubscriptionModule,
+    McpModule,
   ],
   controllers: [AppController],
   providers: [
