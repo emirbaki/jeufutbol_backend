@@ -36,13 +36,18 @@ async function connect(server: McpServer): Promise<Client> {
 }
 
 describe('McpServerFactory', () => {
-  beforeAll(() => {
-    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+  let logSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
   });
 
-  afterAll(() => {
+  afterEach(() => {
     jest.restoreAllMocks();
   });
+
+  const notAvailable = (name: string) =>
+    `Tool ${name} is not available for this API key. Call tools/list to see the tools you can use.`;
 
   it('lists only the tools that the scopes allow', async () => {
     const client = await connect(new McpServerFactory(groups).create(ctxWith(false, ['posts:read'])));
@@ -63,6 +68,40 @@ describe('McpServerFactory', () => {
     const r: any = await client.callTool({ name: 'any_x', arguments: { n: 3 } });
     expect(r.isError).toBeFalsy();
     expect(JSON.parse(r.content[0].text)).toEqual({ got: 3 });
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy.mock.calls[0][0]).toMatch(/tool=any_x tenant=t1 key=jeu_ab ms=\d+ result=ok/);
+    await client.close();
+  });
+
+  it('maps bad arguments with runTool and writes one error log line', async () => {
+    const client = await connect(new McpServerFactory(groups).create(ctxWith(true, [])));
+    const r: any = await client.callTool({ name: 'any_x', arguments: { n: 'x' } });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/^n: /);
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy.mock.calls[0][0]).toMatch(/tool=any_x tenant=t1 key=jeu_ab ms=\d+ result=error/);
+    await client.close();
+  });
+
+  it('rejects a call to a tool that the scopes do not allow and logs it', async () => {
+    const handler = jest.fn();
+    const guarded = [{ tools: () => [{ ...tool('write_x', ['posts:write']), handler }] }];
+    const client = await connect(new McpServerFactory(guarded).create(ctxWith(false, ['posts:read'])));
+    const r: any = await client.callTool({ name: 'write_x', arguments: { n: 1 } });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe(notAvailable('write_x'));
+    expect(handler).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy.mock.calls[0][0]).toMatch(/tool=write_x tenant=t1 key=jeu_ab ms=\d+ result=error/);
+    await client.close();
+  });
+
+  it('rejects a call to an unknown tool', async () => {
+    const client = await connect(new McpServerFactory(groups).create(ctxWith(true, [])));
+    const r: any = await client.callTool({ name: 'no_such_tool', arguments: {} });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe(notAvailable('no_such_tool'));
+    expect(logSpy).toHaveBeenCalledTimes(1);
     await client.close();
   });
 });

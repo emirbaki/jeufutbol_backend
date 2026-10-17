@@ -37,7 +37,9 @@ export class JobToolsGroup implements McpToolGroup {
       };
     } catch (err) {
       if (err instanceof NotFoundException) {
-        throw new McpToolError('Job not found.');
+        throw new McpToolError(
+          'Job not found. The jobId is wrong, expired, or from another account. Use the jobId from the tool that started the job.',
+        );
       }
       throw err;
     }

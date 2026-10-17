@@ -33,8 +33,10 @@ describe('JobToolsGroup', () => {
     expect(out).toMatchObject({ jobId: 'j1', status: 'completed', result: { a: 1 } });
   });
 
-  it('get_job maps not found to "Job not found."', async () => {
+  it('get_job maps not found to a three-part error', async () => {
     jobs.getJobStatus.mockRejectedValue(new NotFoundException('Job j1 not found'));
-    await expect(group.tools()[0].handler({ jobId: 'j1' }, ctx)).rejects.toThrow('Job not found.');
+    await expect(group.tools()[0].handler({ jobId: 'j1' }, ctx)).rejects.toThrow(
+      'Job not found. The jobId is wrong, expired, or from another account. Use the jobId from the tool that started the job.',
+    );
   });
 });

@@ -6,7 +6,7 @@ import { JobToolsGroup } from './tools/jobs.tools';
 
 export const MCP_CONTROLLERS: Type[] = [McpController];
 
-/** Each tool group class goes in this list and in the MCP_TOOL_GROUPS inject list. */
+/** Add each tool group class to this list only. It feeds the providers and the MCP_TOOL_GROUPS inject list. */
 const TOOL_GROUP_CLASSES: Type<McpToolGroup>[] = [JobToolsGroup];
 
 export const MCP_PROVIDERS: Provider[] = [
