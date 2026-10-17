@@ -40,10 +40,14 @@ export class CombinedAuthGuard implements CanActivate {
         const authHeader = request.headers.authorization;
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
+            let isUploadToken = false;
             try {
                 const payload = this.jwtService.verify(token);
 
-                if (payload.type === 'api_key') {
+                if (payload.type === 'upload') {
+                    // An MCP upload token has no `sub`. A user lookup with it would match the first user.
+                    isUploadToken = true;
+                } else if (payload.type === 'api_key') {
                     const apiKey = await this.apiKeyRepository.findOne({
                         where: { id: payload.sub, isActive: true },
                         relations: ['tenant'],
@@ -106,6 +110,13 @@ export class CombinedAuthGuard implements CanActivate {
                     this.updateLastUsed(apiKey.id).catch(() => { });
                     return true;
                 }
+            }
+
+            // Outside the try block, so the API key fallback in catch does not run.
+            if (isUploadToken) {
+                throw new UnauthorizedException(
+                    'Authentication required. Provide either a valid JWT token or API key.',
+                );
             }
         }
 

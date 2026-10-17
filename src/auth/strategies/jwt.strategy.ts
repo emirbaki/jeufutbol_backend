@@ -22,7 +22,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayload): Promise<User> {
+  async validate(payload: JwtPayload & { type?: string }): Promise<User> {
+    // An MCP upload token has no `sub`. A user lookup with it would match the first user.
+    if (payload.type === 'upload' || !payload.sub) {
+      throw new UnauthorizedException();
+    }
     const user = await this.authService.validateUser(payload.sub);
     if (!user) {
       throw new UnauthorizedException();
