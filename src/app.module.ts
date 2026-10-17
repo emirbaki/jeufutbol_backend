@@ -12,8 +12,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { JwtService } from '@nestjs/jwt';
-import { UploadService } from './upload/upload.service';
-import { UploadController } from './upload/upload.controller';
 import { StaticFilesModule } from './staticfiles/staticfiles.module';
 import { UploadModule } from './upload/upload.module';
 import { CredentialsModule } from './credentials/credential.module';
@@ -132,11 +130,10 @@ import { SubscriptionModule } from './subscription/subscription.module';
     PubSubModule,
     SubscriptionModule,
   ],
-  controllers: [AppController, UploadController],
+  controllers: [AppController],
   providers: [
     AppService,
     GraphqlResolver,
-    UploadService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerBehindProxyGuard,

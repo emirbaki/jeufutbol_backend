@@ -7,6 +7,7 @@ import {
   BadRequestException,
   UsePipes,
   UploadedFiles,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
@@ -14,6 +15,14 @@ import { existsSync, mkdirSync } from 'fs';
 import { IsString, IsNumber, IsOptional } from 'class-validator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
 import { UploadService } from './upload.service';
+import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
+import { ApiKeyScopeGuard } from '../auth/guards/api-key-scope.guard';
+import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
+import { ApiKeyScope } from '../auth/api-key-scopes.enum';
+import { User } from '../entities/user.entity';
+import { ApiKey } from '../entities/api-key.entity';
 
 // Multer disk storage configuration for regular uploads
 const uploadPath = process.env.UPLOAD_DIR || '/var/www/uploads';
@@ -58,8 +67,9 @@ class CompleteChunkUploadDto {
   uploadId: string;
 }
 
-
 @Controller('upload')
+@UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
+@RequireScopes(ApiKeyScope.POSTS_WRITE)
 export class UploadController {
   constructor(private readonly uploadService: UploadService) { }
 
@@ -99,7 +109,11 @@ export class UploadController {
    * Initialize a chunked upload session
    */
   @Post('chunk/init')
-  async initChunkUpload(@Body() dto: InitChunkUploadDto) {
+  async initChunkUpload(
+    @Body() dto: InitChunkUploadDto,
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
+  ) {
     if (!dto.filename || !dto.totalSize || !dto.totalChunks) {
       throw new BadRequestException('Missing required fields: filename, totalSize, totalChunks');
     }
@@ -109,6 +123,7 @@ export class UploadController {
       dto.totalSize,
       dto.totalChunks,
       dto.mimeType || 'application/octet-stream',
+      this.tenantIdOf(user, apiKey),
     );
 
     return { uploadId };
@@ -122,6 +137,8 @@ export class UploadController {
   async uploadChunk(
     @UploadedFile() chunk: Express.Multer.File,
     @Body() body: { uploadId: string; chunkIndex: string },
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
   ) {
     if (!chunk) throw new BadRequestException('Chunk file is required');
     if (!body.uploadId) throw new BadRequestException('uploadId is required');
@@ -134,6 +151,7 @@ export class UploadController {
       body.uploadId,
       chunkIndex,
       chunk.buffer,
+      this.tenantIdOf(user, apiKey),
     );
 
     return result;
@@ -143,10 +161,17 @@ export class UploadController {
    * Complete chunked upload - assemble all chunks
    */
   @Post('chunk/complete')
-  async completeChunkUpload(@Body() dto: CompleteChunkUploadDto) {
+  async completeChunkUpload(
+    @Body() dto: CompleteChunkUploadDto,
+    @CurrentUser() user?: User,
+    @CurrentApiKey() apiKey?: ApiKey,
+  ) {
     if (!dto.uploadId) throw new BadRequestException('uploadId is required');
 
-    const result = await this.uploadService.completeChunkUpload(dto.uploadId);
+    const result = await this.uploadService.completeChunkUpload(
+      dto.uploadId,
+      this.tenantIdOf(user, apiKey),
+    );
 
     return {
       message: 'File assembled successfully',
@@ -155,5 +180,10 @@ export class UploadController {
       size: result.size,
     };
   }
-}
 
+  private tenantIdOf(user?: User, apiKey?: ApiKey): string {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    if (!tenantId) throw new BadRequestException('Tenant context required');
+    return tenantId;
+  }
+}

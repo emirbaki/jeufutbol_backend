@@ -3,9 +3,12 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import { ApiKey } from '../../entities/api-key.entity';
 
 export const CurrentApiKey = createParamDecorator(
-    (data: unknown, context: ExecutionContext): ApiKey | undefined => {
-        const ctx = GqlExecutionContext.create(context);
-        const request = ctx.getContext().req;
-        return request.apiKey;
-    },
+  (data: unknown, context: ExecutionContext): ApiKey | undefined => {
+    if (context.getType() === 'http') {
+      return context.switchToHttp().getRequest()?.apiKey;
+    }
+
+    const ctx = GqlExecutionContext.create(context);
+    return ctx.getContext().req?.apiKey;
+  },
 );

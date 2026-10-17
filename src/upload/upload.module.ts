@@ -4,9 +4,16 @@ import { UploadController } from './upload.controller';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
+import { User } from '../entities/user.entity';
+import { ApiKey } from '../entities/api-key.entity';
+import { Tenant } from '../entities/tenant.entity';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([User, ApiKey, Tenant]),
+    AuthModule,
     MulterModule.registerAsync({
       useFactory: () => {
         const uploadPath = process.env.UPLOAD_DIR!;
@@ -28,5 +35,6 @@ import { existsSync, mkdirSync } from 'fs';
   ],
   controllers: [UploadController],
   providers: [UploadService],
+  exports: [UploadService],
 })
 export class UploadModule {}

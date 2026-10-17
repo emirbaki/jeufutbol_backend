@@ -23,7 +23,6 @@ import { Credential } from 'src/entities/credential.entity';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { CredentialsModule } from 'src/credentials/credential.module';
 import { UploadModule } from 'src/upload/upload.module';
-import { UploadService } from 'src/upload/upload.service';
 import { TweetsModule } from 'src/tweets/tweets.module';
 import { TokenRefreshService } from 'src/credentials/token-refresher.service';
 import { EncryptionService } from 'src/credentials/token-encryption.service';
@@ -64,7 +63,6 @@ import { Tenant } from '../entities/tenant.entity';
     ),
   ],
   providers: [
-    UploadService,
     CredentialsService,
     TokenRefreshService,
     EncryptionService,

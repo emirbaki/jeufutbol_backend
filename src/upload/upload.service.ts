@@ -9,6 +9,7 @@ interface ChunkUploadSession {
   totalSize: number;
   totalChunks: number;
   mimeType: string;
+  tenantId: string;
   receivedChunks: number[];
   createdAt: Date;
 }
@@ -125,6 +126,7 @@ export class UploadService {
     totalSize: number,
     totalChunks: number,
     mimeType: string,
+    tenantId: string,
   ): Promise<string> {
     const uploadId = uuidv4();
     const sessionDir = path.join(this.tempDir, uploadId);
@@ -138,6 +140,7 @@ export class UploadService {
       totalSize,
       totalChunks,
       mimeType,
+      tenantId,
       receivedChunks: [],
       createdAt: new Date(),
     });
@@ -156,10 +159,17 @@ export class UploadService {
     uploadId: string,
     chunkIndex: number,
     chunkBuffer: Buffer,
+    tenantId: string,
   ): Promise<{ received: boolean; chunkIndex: number }> {
-    const session = this.uploadSessions.get(uploadId);
-    if (!session) {
-      throw new BadRequestException(`Invalid upload session: ${uploadId}`);
+    const session = this.getSession(uploadId, tenantId);
+    if (
+      !Number.isInteger(chunkIndex) ||
+      chunkIndex < 0 ||
+      chunkIndex >= session.totalChunks
+    ) {
+      throw new BadRequestException(
+        `chunkIndex must be between 0 and ${session.totalChunks - 1}`,
+      );
     }
 
     const chunkPath = path.join(this.tempDir, uploadId, `chunk-${chunkIndex}`);
@@ -182,17 +192,17 @@ export class UploadService {
    */
   async completeChunkUpload(
     uploadId: string,
+    tenantId: string,
   ): Promise<{ publicUrl: string; filename: string; size: number }> {
-    const session = this.uploadSessions.get(uploadId);
-    if (!session) {
-      throw new BadRequestException(`Invalid upload session: ${uploadId}`);
-    }
+    const session = this.getSession(uploadId, tenantId);
 
     // Verify all chunks received
-    if (session.receivedChunks.length !== session.totalChunks) {
-      throw new BadRequestException(
-        `Missing chunks: received ${session.receivedChunks.length}/${session.totalChunks}`,
-      );
+    const missing: number[] = [];
+    for (let i = 0; i < session.totalChunks; i++) {
+      if (!session.receivedChunks.includes(i)) missing.push(i);
+    }
+    if (missing.length > 0) {
+      throw new BadRequestException(`Missing chunks: ${missing.join(', ')}.`);
     }
 
     const sessionDir = path.join(this.tempDir, uploadId);
@@ -231,7 +241,7 @@ export class UploadService {
 
       return {
         publicUrl: `${this.publicBaseUrl}/${finalFilename}`,
-        filename: session.filename,
+        filename: finalFilename,
         size: stats.size,
       };
     } catch (error) {
@@ -239,6 +249,28 @@ export class UploadService {
       this.logger.error(`Failed to complete chunked upload: ${error.message}`);
       throw new BadRequestException('Failed to assemble file chunks');
     }
+  }
+
+  /**
+   * Reserve a new file path in the upload folder for a server-side import
+   */
+  createImportTarget(ext: string): { filePath: string; publicUrl: string } {
+    const fileName = `${uuidv4()}${ext}`;
+    return {
+      filePath: path.join(this.uploadDir, fileName),
+      publicUrl: `${this.publicBaseUrl}/${fileName}`,
+    };
+  }
+
+  /**
+   * Get a session that belongs to the tenant, or throw
+   */
+  private getSession(uploadId: string, tenantId: string): ChunkUploadSession {
+    const session = this.uploadSessions.get(uploadId);
+    if (!session || session.tenantId !== tenantId) {
+      throw new BadRequestException(`Invalid upload session: ${uploadId}`);
+    }
+    return session;
   }
 
   /**
