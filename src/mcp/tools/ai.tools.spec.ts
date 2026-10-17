@@ -53,7 +53,12 @@ describe('AiToolsGroup', () => {
 
   it('analyze_trends uses 7d by default', async () => {
     await tool('analyze_trends').handler({}, ctx);
-    expect(ai.analyzeTrends).toHaveBeenCalledWith({ topic: undefined, timeRange: '7d', minEngagement: 100 });
+    expect(ai.analyzeTrends).toHaveBeenCalledWith({
+      topic: undefined,
+      timeRange: '7d',
+      minEngagement: 100,
+      tenantId: 't1',
+    });
   });
 
   it('rejects an unknown tone and provider', () => {

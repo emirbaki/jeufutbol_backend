@@ -7,7 +7,7 @@ import { platformSchema } from '../schemas/post.schemas';
 
 const llmProviderSchema = z.enum(['openai', 'gemini', 'ollama', 'claude']);
 const generatePostTextSchema = z.object({
-  insights: z.array(z.string()).min(1).max(20),
+  insights: z.array(z.string().min(1)).min(1).max(20),
   platform: platformSchema,
   tone: z.enum(['professional', 'casual', 'humorous', 'informative', 'engaging']).optional(),
   llmProvider: llmProviderSchema.optional(),
@@ -22,7 +22,7 @@ const getInsightsSchema = z.object({
   limit: z.number().int().min(1).max(50).default(10),
 });
 const analyzeTrendsSchema = z.object({
-  topic: z.string().optional(),
+  topic: z.string().min(1).max(200).optional(),
   timeRange: z.enum(['24h', '7d', '30d']).default('7d'),
 });
 const JOB_NEXT = 'Call get_job with this jobId until status is completed.';
@@ -71,11 +71,12 @@ export class AiToolsGroup implements McpToolGroup {
         description: 'Get the trending topics and posts for a time range.',
         scopes: ['insights:read'],
         inputSchema: analyzeTrendsSchema,
-        handler: (args: AnalyzeTrendsArgs) =>
+        handler: (args: AnalyzeTrendsArgs, ctx: McpAuthContext) =>
           this.aiInsightsService.analyzeTrends({
             topic: args.topic,
             timeRange: args.timeRange ?? '7d',
             minEngagement: 100,
+            tenantId: ctx.tenantId,
           }),
       },
     ];
