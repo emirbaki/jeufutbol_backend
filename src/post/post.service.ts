@@ -140,6 +140,13 @@ export class PostsService {
     const post = await this.getPost(postId, userId, tenantId);
     if (mode === 'publish' && post.status === PostStatus.PUBLISHED)
       throw new Error('Post already published');
+    // Check before touching the queue: a retry job on a SCHEDULED post would
+    // remove its delayed job and then fail in the worker.
+    if (
+      mode === 'retry' &&
+      (post.status === PostStatus.DRAFT || post.status === PostStatus.SCHEDULED)
+    )
+      throw new Error('Can only retry failed or partially published posts');
 
     const jobId = `publish-post-${post.id}`;
     const existing = await this.scheduledPostsQueue.getJob(jobId);

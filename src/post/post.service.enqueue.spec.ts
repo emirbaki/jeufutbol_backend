@@ -59,6 +59,16 @@ describe('PostsService.enqueuePublish', () => {
     await svc.enqueuePublish('p1', 'u1', 't1', 'publish');
     expect(old.remove).toHaveBeenCalled();
     expect(queue.add).toHaveBeenCalled();
+    expect(old.remove.mock.invocationCallOrder[0]).toBeLessThan(queue.add.mock.invocationCallOrder[0]);
+  });
+
+  it.each([PostStatus.DRAFT, PostStatus.SCHEDULED])('rejects a retry of a %s post without touching the queue', async (status) => {
+    jest.spyOn(svc, 'getPost').mockResolvedValue({ id: 'p1', status } as any);
+    const old = { getState: async () => 'delayed', remove: jest.fn() };
+    queue.getJob.mockResolvedValue(old);
+    await expect(svc.enqueuePublish('p1', 'u1', 't1', 'retry')).rejects.toThrow('Can only retry failed or partially published posts');
+    expect(old.remove).not.toHaveBeenCalled();
+    expect(queue.add).not.toHaveBeenCalled();
   });
 
   it.each(['waiting', 'active'])('rejects a second publish while the job is %s', async (state) => {
