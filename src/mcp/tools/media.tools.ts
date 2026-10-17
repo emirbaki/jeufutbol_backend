@@ -11,7 +11,9 @@ const createUploadInput = z.object({
     .string()
     .min(1)
     .max(255)
-    .regex(/^[^/\\]+$/, 'The file name must not contain / or \\. Give the name only, not the path.'),
+    .regex(/^[^/\\]+$/, 'The file name must not contain / or \\. Give the name only, not the path.')
+    // eslint-disable-next-line no-control-regex
+    .regex(/^[^\x00-\x1f\x7f]+$/, 'The file name must not contain control characters. Rename the file first.'),
   sizeBytes: z.number().int().min(1).max(MAX_UPLOAD_BYTES),
   mimeType: z.string().regex(/^(video|image)\/[\w.+-]+$/, 'The mimeType must be a video or image type, for example video/mp4.'),
 });
@@ -31,7 +33,7 @@ export class MediaToolsGroup implements McpToolGroup {
         name: 'create_upload',
         title: 'Start a file upload',
         description:
-          'Start an upload of a local video or image (300 MB or less). Run the returned commands in a shell, then call complete_upload. For a file that is already on the web, use import_media_from_url.',
+          'Start an upload of a local video or image (300 MB or less). Run the returned commands in bash (Git Bash on Windows), not in PowerShell or cmd. Then call complete_upload. For a file that is already on the web, use import_media_from_url.',
         scopes: ['posts:write'],
         inputSchema: createUploadInput,
         handler: (args: z.infer<typeof createUploadInput>, ctx: McpAuthContext) => this.createUpload(args, ctx),
@@ -60,6 +62,7 @@ export class MediaToolsGroup implements McpToolGroup {
     const { token, expiresAt } = this.uploadTokens.sign(uploadId, ctx.tenantId);
     const commands = buildUploadCommands({
       chunkUrlBase: `${ctx.apiBaseUrl}/mcp/uploads/${uploadId}/chunks`,
+      uploadId,
       token,
       filename: args.filename,
       totalChunks,
@@ -71,7 +74,7 @@ export class MediaToolsGroup implements McpToolGroup {
       totalChunks,
       expiresAt: expiresAt.toISOString(),
       commands,
-      next: 'Run the commands in the folder of the file. Then call complete_upload with this uploadId.',
+      next: 'Run the commands in bash (Git Bash on Windows) in the folder of the file. Then call complete_upload with this uploadId.',
     };
   }
 

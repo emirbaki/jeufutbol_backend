@@ -75,6 +75,17 @@ describe('UploadService chunked uploads', () => {
     ).toBe('abcd');
   });
 
+  it('rejects an assembled file that is not the declared size, and deletes it', async () => {
+    const id = await svc.initChunkUpload('a.mp4', 10, 2, 'video/mp4', 't1');
+    await svc.saveChunk(id, 0, Buffer.from('ab'), 't1');
+    await svc.saveChunk(id, 1, Buffer.from('cd'), 't1');
+    const before = fs.readdirSync(uploadDir).sort();
+    await expect(svc.completeChunkUpload(id, 't1')).rejects.toThrow(
+      'The file size is 4 bytes, but create_upload said 10 bytes.',
+    );
+    expect(fs.readdirSync(uploadDir).sort()).toEqual(before);
+  });
+
   it('gives an import target in the upload folder', () => {
     const t = svc.createImportTarget('.mp4');
     expect(t.filePath.startsWith(process.env.UPLOAD_DIR!)).toBe(true);

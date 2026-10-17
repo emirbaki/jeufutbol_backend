@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 
 const DEFAULT_TTL_SECONDS = 3600;
@@ -13,16 +14,28 @@ interface UploadTokenPayload {
 
 /**
  * Short-lived token for one chunked upload. It goes into shell commands instead of the API key.
- * CombinedAuthGuard and JwtStrategy reject it as a login.
+ * It uses its own secret, so no login path can verify it. CombinedAuthGuard and JwtStrategy
+ * also reject its `type`.
  */
 @Injectable()
 export class UploadTokenService {
-  constructor(private readonly jwtService: JwtService) {}
+  private readonly secret: string;
+
+  constructor(
+    private readonly jwtService: JwtService,
+    config: ConfigService,
+  ) {
+    const jwtSecret = config.get<string>('JWT_SECRET');
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not defined in configuration');
+    }
+    this.secret = `${jwtSecret}:mcp-upload`;
+  }
 
   sign(uploadId: string, tenantId: string): { token: string; expiresAt: Date } {
     const ttl = this.ttlSeconds();
     const payload: UploadTokenPayload = { type: 'upload', uploadId, tenantId };
-    const token = this.jwtService.sign(payload, { expiresIn: ttl });
+    const token = this.jwtService.sign(payload, { secret: this.secret, expiresIn: ttl });
     return { token, expiresAt: new Date(Date.now() + ttl * 1000) };
   }
 
@@ -32,7 +45,7 @@ export class UploadTokenService {
     }
     let payload: Partial<UploadTokenPayload>;
     try {
-      payload = this.jwtService.verify(token);
+      payload = this.jwtService.verify(token, { secret: this.secret });
     } catch (err) {
       throw new UnauthorizedException(err instanceof TokenExpiredError ? EXPIRED : INVALID);
     }

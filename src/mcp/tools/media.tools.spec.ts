@@ -25,8 +25,14 @@ describe('MediaToolsGroup', () => {
 
   beforeEach(() => {
     upload = { initChunkUpload: jest.fn(), completeChunkUpload: jest.fn() };
-    tokens = new UploadTokenService(new JwtService({ secret: 's' }));
+    tokens = new UploadTokenService(new JwtService({ secret: 's' }), { get: () => 's' } as any);
     group = new MediaToolsGroup(upload as any, tokens);
+  });
+
+  it('create_upload says to run the commands in bash', () => {
+    expect(tool('create_upload').description).toBe(
+      'Start an upload of a local video or image (300 MB or less). Run the returned commands in bash (Git Bash on Windows), not in PowerShell or cmd. Then call complete_upload. For a file that is already on the web, use import_media_from_url.',
+    );
   });
 
   it('both tools need posts:write', () => {
@@ -40,9 +46,12 @@ describe('MediaToolsGroup', () => {
     expect(upload.initChunkUpload).toHaveBeenCalledWith('v.mp4', 120_000_000, 3, 'video/mp4', 't1');
     expect(out).toMatchObject({ uploadId: 'up1', chunkSize: 52428800, totalChunks: 3 });
     expect(out.commands[1]).toContain('https://x/api/mcp/uploads/up1/chunks/0');
+    expect(out.commands[0]).toContain('jeu_up1_');
     expect(tokens.verify(out.uploadToken, 'up1')).toEqual({ tenantId: 't1' });
     expect(out.expiresAt).toEqual(expect.any(String));
-    expect(out.next).toBe('Run the commands in the folder of the file. Then call complete_upload with this uploadId.');
+    expect(out.next).toBe(
+      'Run the commands in bash (Git Bash on Windows) in the folder of the file. Then call complete_upload with this uploadId.',
+    );
   });
 
   it('create_upload rejects a file over 300 MB and a type that is not video or image', () => {
@@ -57,6 +66,14 @@ describe('MediaToolsGroup', () => {
     expect(s.safeParse({ filename: 'dir/v.mp4', sizeBytes: 10, mimeType: 'video/mp4' }).success).toBe(false);
     expect(s.safeParse({ filename: 'dir\\v.mp4', sizeBytes: 10, mimeType: 'video/mp4' }).success).toBe(false);
     expect(s.safeParse({ filename: '', sizeBytes: 10, mimeType: 'video/mp4' }).success).toBe(false);
+  });
+
+  it('create_upload rejects a file name with control characters', () => {
+    const s = tool('create_upload').inputSchema;
+    for (const filename of ['a\nb.mp4', 'a\rb.mp4', 'a\x00.mp4', 'a\x1f.mp4', 'a\x7f.mp4']) {
+      expect(s.safeParse({ filename, sizeBytes: 10, mimeType: 'video/mp4' }).success).toBe(false);
+    }
+    expect(s.safeParse({ filename: 'my video (1).mp4', sizeBytes: 10, mimeType: 'video/mp4' }).success).toBe(true);
   });
 
   it('complete_upload adds the next step to a missing chunk error', async () => {

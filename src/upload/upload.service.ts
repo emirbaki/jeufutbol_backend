@@ -232,6 +232,13 @@ export class UploadService {
       // Get final file size
       const stats = await fs.promises.stat(finalPath);
 
+      if (stats.size !== session.totalSize) {
+        await fs.promises.unlink(finalPath);
+        throw new BadRequestException(
+          `The file size is ${stats.size} bytes, but create_upload said ${session.totalSize} bytes.`,
+        );
+      }
+
       this.logger.log(
         `Chunked upload completed: ${finalFilename} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`,
       );
@@ -246,6 +253,9 @@ export class UploadService {
       };
     } catch (error) {
       writeStream.destroy();
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       this.logger.error(`Failed to complete chunked upload: ${error.message}`);
       throw new BadRequestException('Failed to assemble file chunks');
     }

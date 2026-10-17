@@ -6,11 +6,23 @@ describe('UploadTokenService', () => {
   const jwt = new JwtService({ secret: 's' });
   let svc: UploadTokenService;
 
+  const config = { get: (key: string) => (key === 'JWT_SECRET' ? 's' : undefined) };
+
   beforeEach(() => {
-    svc = new UploadTokenService(jwt);
+    svc = new UploadTokenService(jwt, config as any);
   });
 
   afterEach(() => jest.useRealTimers());
+
+  it('signs with its own secret, so a login check with the default secret fails', () => {
+    const { token } = svc.sign('up1', 't1');
+    expect(() => jwt.verify(token)).toThrow('invalid signature');
+    expect(jwt.verify(token, { secret: 's:mcp-upload' })).toMatchObject({ type: 'upload', uploadId: 'up1' });
+  });
+
+  it('needs JWT_SECRET', () => {
+    expect(() => new UploadTokenService(jwt, { get: () => undefined } as any)).toThrow('JWT_SECRET');
+  });
 
   it('verifies a token for the same upload', () => {
     const { token } = svc.sign('up1', 't1');
