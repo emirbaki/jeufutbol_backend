@@ -22,12 +22,34 @@ describe('ssrf-guard', () => {
     'fd12::1',
     'fe80::1',
     '::',
+    '100.64.0.1',
+    '100.100.100.200',
+    '100.127.255.255',
+    '198.18.0.1',
+    '198.19.255.255',
+    '224.0.0.1',
+    '239.255.255.250',
+    '240.0.0.1',
+    '255.255.255.255',
+    '64:ff9b::a00:1',
+    '64:ff9b::8.8.8.8',
+    'ff02::1',
+    '::127.0.0.1',
+    '::a9fe:a9fe',
+    '::10.0.0.1',
   ])('blocks %s', (ip) => expect(isBlockedAddress(ip)).toBe(true));
 
-  it.each(['8.8.8.8', '172.32.0.1', '2606:4700::1111', '::ffff:8.8.8.8'])(
-    'allows %s',
-    (ip) => expect(isBlockedAddress(ip)).toBe(false),
-  );
+  it.each([
+    '8.8.8.8',
+    '172.32.0.1',
+    '2606:4700::1111',
+    '::ffff:8.8.8.8',
+    '100.63.255.255',
+    '100.128.0.1',
+    '198.20.0.1',
+    '223.255.255.255',
+    '::8.8.8.8',
+  ])('allows %s', (ip) => expect(isBlockedAddress(ip)).toBe(false));
 
   it('blocks a value that is not an IP address', () =>
     expect(isBlockedAddress('nope')).toBe(true));
@@ -39,6 +61,8 @@ describe('ssrf-guard', () => {
     'https://[::ffff:7f00:1]/v.mp4',
     'https://[::ffff:127.0.0.1]/v.mp4',
     'https://[::1]/v.mp4',
+    'https://100.100.100.200/latest/meta-data',
+    'https://[::127.0.0.1]/v.mp4',
     'https://0x7f.1/v.mp4',
     'https://2130706433/v.mp4',
     'https://localhost/v.mp4',

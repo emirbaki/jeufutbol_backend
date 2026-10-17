@@ -8,7 +8,7 @@ import { Logger } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { Job } from 'bullmq';
 import { MEDIA_IMPORT_JOBS, QUEUE_NAMES } from '../../queue/queue.config';
-import { IMPORT_EXT_PATTERN, UploadService } from '../../upload/upload.service';
+import { UploadService } from '../../upload/upload.service';
 import { McpToolError } from '../mcp-tool';
 import { assertAllowedUrl, safeLookup } from '../ssrf-guard';
 
@@ -32,40 +32,44 @@ const TYPE_EXTENSIONS: Record<string, string> = {
   'video/mp4': '.mp4',
   'video/quicktime': '.mov',
   'video/webm': '.webm',
+  'video/x-matroska': '.mkv',
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/webp': '.webp',
+  'image/gif': '.gif',
 };
 
-/** Types and URL extensions that a browser can run as active content when the CDN serves them. */
-const ACTIVE_TYPES = new Set(['image/svg+xml']);
-const ACTIVE_EXTENSIONS = new Set([
-  '.html',
-  '.htm',
-  '.xhtml',
-  '.xht',
-  '.shtml',
-  '.svg',
-  '.svgz',
-  '.xml',
-  '.js',
-  '.mjs',
-  '.php',
-  '.phtml',
-  '.asp',
-  '.aspx',
-  '.jsp',
-  '.cgi',
-  '.pl',
-  '.py',
-  '.sh',
-  '.exe',
-  '.bat',
-  '.cmd',
+/** The only URL path extensions that another video or image type can use (ruling R12: an allow-list). */
+const URL_EXTENSIONS = new Set([
+  '.mp4',
+  '.mov',
+  '.webm',
+  '.m4v',
+  '.mkv',
+  '.avi',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
 ]);
 
 const NOT_MEDIA_MESSAGE =
   'The URL does not point to a video or an image. Use a direct link to the video or image file.';
+const TOO_MANY_REDIRECTS_MESSAGE = `The URL redirects more than ${MAX_REDIRECTS} times. Use the final URL of the file.`;
+const HOST_NOT_FOUND_MESSAGE =
+  'The host of the URL does not exist. Check the URL.';
+const NO_ANSWER_MESSAGE =
+  'The server of the URL did not answer correctly. Check that the URL works in a browser, then try again.';
+/** Connection and TLS error codes that mean the server did not answer correctly. */
+const NO_ANSWER_CODES =
+  /^(ECONNREFUSED|ECONNRESET|ETIMEDOUT|EPIPE|EPROTO|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/;
+
+/** MEDIA_IMPORT_MAX_BYTES when it is a positive integer, otherwise the default. */
+function readMaxBytes(): number {
+  const value = Number(process.env.MEDIA_IMPORT_MAX_BYTES);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_MAX_BYTES;
+}
 
 @Processor(QUEUE_NAMES.MEDIA_IMPORT)
 export class MediaImportProcessor extends WorkerHost {
@@ -81,8 +85,7 @@ export class MediaImportProcessor extends WorkerHost {
     }
     // Check again in the worker: a job can reach the queue without the tool.
     const url = assertAllowedUrl(job.data.url);
-    const maxBytes =
-      Number(process.env.MEDIA_IMPORT_MAX_BYTES) || DEFAULT_MAX_BYTES;
+    const maxBytes = readMaxBytes();
     const signal = AbortSignal.timeout(IMPORT_TIMEOUT_MS);
     // Log the host only. A query string can hold a signed token.
     this.logger.log(
@@ -165,27 +168,31 @@ export class MediaImportProcessor extends WorkerHost {
           `The server answered with HTTP ${err.response.status}. Check that the URL is a public direct link to the file.`,
         );
       }
+      // process() turns an abort into the timeout message.
+      if (signal.aborted) throw err;
+      const codes = errorCodes(err);
+      if (codes.includes('ERR_FR_TOO_MANY_REDIRECTS')) {
+        throw new McpToolError(TOO_MANY_REDIRECTS_MESSAGE);
+      }
+      if (codes.includes('ENOTFOUND')) {
+        throw new McpToolError(HOST_NOT_FOUND_MESSAGE);
+      }
+      if (codes.some((c) => NO_ANSWER_CODES.test(c))) {
+        throw new McpToolError(NO_ANSWER_MESSAGE);
+      }
       throw err;
     }
   }
 
-  /** The file extension from the allow-list, or a clean extension from the URL path for another media type. */
+  /** The file extension from the type list, or an allowed extension from the URL path for another media type. */
   private extensionFor(mimeType: string, url: URL): string {
     const known = TYPE_EXTENSIONS[mimeType];
     if (known) return known;
-    if (
-      !/^(video|image)\/[\w.+-]+$/.test(mimeType) ||
-      ACTIVE_TYPES.has(mimeType)
-    ) {
-      throw new McpToolError(NOT_MEDIA_MESSAGE);
-    }
     const ext = path.posix.extname(url.pathname).toLowerCase();
-    if (!IMPORT_EXT_PATTERN.test(ext) || ACTIVE_EXTENSIONS.has(ext)) {
-      throw new McpToolError(
-        `The server sent the type ${mimeType}, but the URL path has no usable file extension. Use a URL whose path ends with the file extension, for example .mkv.`,
-      );
+    if (/^(video|image)\/[\w.+-]+$/.test(mimeType) && URL_EXTENSIONS.has(ext)) {
+      return ext;
     }
-    return ext;
+    throw new McpToolError(NOT_MEDIA_MESSAGE);
   }
 }
 
@@ -199,4 +206,18 @@ function findToolError(err: unknown): McpToolError | undefined {
     if (e instanceof McpToolError) return e;
   }
   return undefined;
+}
+
+/** The error codes in the cause chain, for example ENOTFOUND under an AxiosError. */
+function errorCodes(err: unknown): string[] {
+  const codes: string[] = [];
+  for (
+    let e = err, depth = 0;
+    e && depth < 5;
+    e = (e as { cause?: unknown }).cause, depth++
+  ) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === 'string') codes.push(code);
+  }
+  return codes;
 }

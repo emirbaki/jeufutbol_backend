@@ -9,18 +9,24 @@ const blockList = new net.BlockList();
 for (const [prefix, bits] of [
   ['0.0.0.0', 8],
   ['10.0.0.0', 8],
+  ['100.64.0.0', 10], // carrier-grade NAT, also some cloud metadata (100.100.100.200)
   ['127.0.0.0', 8],
   ['169.254.0.0', 16],
   ['172.16.0.0', 12],
   ['192.168.0.0', 16],
+  ['198.18.0.0', 15], // benchmark networks
+  ['224.0.0.0', 4], // multicast
+  ['240.0.0.0', 4], // reserved and broadcast
 ] as const) {
   blockList.addSubnet(prefix, bits, 'ipv4');
 }
 for (const [prefix, bits] of [
   ['::', 128],
   ['::1', 128],
+  ['64:ff9b::', 96], // NAT64 can reach an internal IPv4 address
   ['fc00::', 7],
   ['fe80::', 10],
+  ['ff00::', 8], // multicast
 ] as const) {
   blockList.addSubnet(prefix, bits, 'ipv6');
 }
@@ -44,10 +50,12 @@ function ipv6Groups(ip: string): number[] {
   return [...headGroups, ...zeros, ...tailGroups].map((g) => parseInt(g, 16));
 }
 
-/** The IPv4 part of an IPv4-mapped IPv6 address (::ffff:a.b.c.d), or null. */
-function mappedIpv4(ip: string): string | null {
+/** The IPv4 part of an IPv4-mapped (::ffff:a.b.c.d) or IPv4-compatible (::a.b.c.d) IPv6 address, or null. */
+function embeddedIpv4(ip: string): string | null {
   const g = ipv6Groups(ip);
-  if (g.slice(0, 5).some((x) => x !== 0) || g[5] !== 0xffff) return null;
+  if (g.slice(0, 5).some((x) => x !== 0) || (g[5] !== 0xffff && g[5] !== 0)) {
+    return null;
+  }
   return [g[6] >> 8, g[6] & 0xff, g[7] >> 8, g[7] & 0xff].join('.');
 }
 
@@ -57,7 +65,7 @@ export function isBlockedAddress(ip: string): boolean {
   const version = net.isIP(address);
   if (version === 4) return blockList.check(address, 'ipv4');
   if (version === 6) {
-    const v4 = mappedIpv4(address);
+    const v4 = embeddedIpv4(address);
     return v4 ? blockList.check(v4, 'ipv4') : blockList.check(address, 'ipv6');
   }
   return true;
