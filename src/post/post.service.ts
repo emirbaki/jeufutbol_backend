@@ -14,9 +14,12 @@ import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
 import { QUEUE_NAMES, ASYNC_POLLING_JOBS, SCHEDULED_POST_JOBS } from 'src/queue/queue.config';
 import { AsyncPostGateway } from './gateways/async-post.gateway';
-import { ScheduledPostJobData } from './processors/scheduled-post.processor';
+import { PublishMode, ScheduledPostJobData } from './processors/scheduled-post.processor';
 import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
 import { TiktokPostGateway } from './gateways/tiktok.gateway';
+
+export type { PublishMode } from './processors/scheduled-post.processor';
+export type PublishJobState = 'waiting' | 'delayed' | 'active' | 'none';
 
 
 @Injectable()
@@ -123,15 +126,74 @@ export class PostsService {
     }
   }
 
+  /**
+   * Publish (or retry) a post in the background through the scheduled-posts queue,
+   * so the platform uploads do not run inside the HTTP request.
+   * A delayed (scheduled) job for the post is replaced by the new one.
+   */
+  async enqueuePublish(
+    postId: string,
+    userId: string,
+    tenantId: string,
+    mode: PublishMode,
+  ): Promise<{ postId: string; jobState: 'waiting' }> {
+    const post = await this.getPost(postId, userId, tenantId);
+    if (mode === 'publish' && post.status === PostStatus.PUBLISHED)
+      throw new Error('Post already published');
+
+    const jobId = `publish-post-${post.id}`;
+    const existing = await this.scheduledPostsQueue.getJob(jobId);
+    if (existing) {
+      const state = this.toPublishJobState(await existing.getState());
+      if (state === 'waiting' || state === 'active')
+        throw new Error('A publish for this post is already in progress.');
+      // failed, completed or delayed: remove it so the job ID is free
+      await existing.remove();
+    }
+
+    const jobData: ScheduledPostJobData = { postId: post.id, userId, tenantId, mode };
+    await this.scheduledPostsQueue.add(SCHEDULED_POST_JOBS.PUBLISH_POST, jobData, {
+      jobId,
+      delay: 0,
+      attempts: 1, // never retry automatically: a retry after a partial publish posts twice
+      removeOnComplete: true,
+    });
+
+    this.logger.log(`Enqueued ${mode} for post ${post.id}`);
+    return { postId: post.id, jobState: 'waiting' };
+  }
+
+  async getPublishJobState(postId: string): Promise<PublishJobState> {
+    const job = await this.scheduledPostsQueue.getJob(`publish-post-${postId}`);
+    if (!job) return 'none';
+    return this.toPublishJobState(await job.getState());
+  }
+
+  private toPublishJobState(state: string): PublishJobState {
+    switch (state) {
+      case 'active':
+        return 'active';
+      case 'delayed':
+        return 'delayed';
+      case 'waiting':
+      case 'prioritized':
+      case 'waiting-children':
+        return 'waiting';
+      default:
+        return 'none'; // completed, failed, unknown
+    }
+  }
+
   async getUserPosts(
     userId: string,
     tenantId: string,
     limit = 50,
     offset = 0,
+    status?: PostStatus,
   ): Promise<Post[]> {
     // Get ALL posts from the organization (not just the user's posts)
     return this.postRepository.find({
-      where: { tenantId },
+      where: status ? { tenantId, status } : { tenantId },
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,

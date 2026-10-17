@@ -5,10 +5,13 @@ import { PubSub } from 'graphql-subscriptions';
 import { QUEUE_NAMES } from 'src/queue/queue.config';
 import { PostsService } from '../post.service';
 
+export type PublishMode = 'publish' | 'retry';
+
 export interface ScheduledPostJobData {
     postId: string;
     userId: string;
     tenantId: string;
+    mode?: PublishMode; // missing means 'publish'
 }
 
 @Processor(QUEUE_NAMES.SCHEDULED_POSTS)
@@ -23,12 +26,16 @@ export class ScheduledPostProcessor extends WorkerHost {
     }
 
     async process(job: Job<ScheduledPostJobData>): Promise<void> {
-        const { postId, userId, tenantId } = job.data;
+        const { postId, userId, tenantId, mode = 'publish' } = job.data;
 
         this.logger.log(`[Job ${job.id}] Processing scheduled post ${postId}`);
 
         try {
-            await this.postsService.publishPost(postId, userId, tenantId);
+            if (mode === 'retry') {
+                await this.postsService.retryPublishPost(postId, userId, tenantId);
+            } else {
+                await this.postsService.publishPost(postId, userId, tenantId);
+            }
             this.logger.log(`[Job ${job.id}] Successfully published post ${postId}`);
         } catch (error) {
             this.logger.error(
