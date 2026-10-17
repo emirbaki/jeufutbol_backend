@@ -34,6 +34,9 @@ import { JobResolver } from './job.resolver';
       {
         name: QUEUE_NAMES.TIKTOK_POLLING,
       },
+      {
+        name: QUEUE_NAMES.MEDIA_IMPORT,
+      },
     ),
   ],
   providers: [QueueHealthService, JobService, JobResolver],

@@ -67,6 +67,7 @@ export const QUEUE_NAMES = {
   TIKTOK_POLLING: 'tiktok-polling', // Deprecated - use ASYNC_POST_POLLING
   ASYNC_POST_POLLING: 'async-post-polling', // Generic async polling for all platforms
   SCHEDULED_POSTS: 'scheduled-posts',
+  MEDIA_IMPORT: 'media-import',
 } as const;
 
 // Job types for AI Insights queue
@@ -96,4 +97,9 @@ export const ASYNC_POLLING_JOBS = {
 // Job types for Scheduled Posts queue
 export const SCHEDULED_POST_JOBS = {
   PUBLISH_POST: 'publish-post',
+} as const;
+
+// Job types for Media Import queue
+export const MEDIA_IMPORT_JOBS = {
+  IMPORT_URL: 'import-url',
 } as const;

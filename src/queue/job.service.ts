@@ -4,6 +4,16 @@ import { Queue, Job } from 'bullmq';
 import { QUEUE_NAMES } from '../queue/queue.config';
 import { JobStatusDto, JobStatusEnum } from '../insights/dto/job.dto';
 
+/**
+ * Who is asking for a job.
+ * - `tenantId`: a job whose data has a different `tenantId` is not found.
+ * - `requireTenant`: a job whose data has no `tenantId` is not found.
+ */
+export interface JobAccess {
+  tenantId?: string;
+  requireTenant?: boolean;
+}
+
 @Injectable()
 export class JobService {
   private readonly logger = new Logger(JobService.name);
@@ -13,34 +23,29 @@ export class JobService {
     private aiInsightsQueue: Queue,
     @InjectQueue(QUEUE_NAMES.TWEET_MONITORING)
     private monitoringQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.MEDIA_IMPORT)
+    private mediaImportQueue: Queue,
   ) {}
 
   /**
    * Get job status by ID (checks all queues)
    */
-  async getJobStatus(jobId: string): Promise<JobStatusDto> {
-    // Try to find the job in all queues
-    let job = await this.aiInsightsQueue.getJob(jobId);
-
-    if (!job) {
-      job = await this.monitoringQueue.getJob(jobId);
-    }
-
-    if (!job) {
-      throw new NotFoundException(`Job ${jobId} not found`);
-    }
-
+  async getJobStatus(jobId: string, access?: JobAccess): Promise<JobStatusDto> {
+    const job = await this.findJob(jobId, access);
     return this.mapJobToDto(job);
   }
 
   /**
    * Get multiple job statuses
    */
-  async getJobStatuses(jobIds: string[]): Promise<JobStatusDto[]> {
+  async getJobStatuses(
+    jobIds: string[],
+    access?: JobAccess,
+  ): Promise<JobStatusDto[]> {
     const statuses = await Promise.all(
       jobIds.map(async (id) => {
         try {
-          return await this.getJobStatus(id);
+          return await this.getJobStatus(id, access);
         } catch (error) {
           this.logger.warn(`Job ${id} not found`);
           return null;
@@ -77,8 +82,8 @@ export class JobService {
   /**
    * Get result of a completed job
    */
-  async getJobResult(jobId: string): Promise<any> {
-    const status = await this.getJobStatus(jobId);
+  async getJobResult(jobId: string, access?: JobAccess): Promise<any> {
+    const status = await this.getJobStatus(jobId, access);
 
     if (status.status !== JobStatusEnum.COMPLETED) {
       throw new Error(
@@ -92,16 +97,8 @@ export class JobService {
   /**
    * Retry a failed job
    */
-  async retryJob(jobId: string): Promise<JobStatusDto> {
-    let job = await this.aiInsightsQueue.getJob(jobId);
-
-    if (!job) {
-      job = await this.monitoringQueue.getJob(jobId);
-    }
-
-    if (!job) {
-      throw new NotFoundException(`Job ${jobId} not found`);
-    }
+  async retryJob(jobId: string, access?: JobAccess): Promise<JobStatusDto> {
+    const job = await this.findJob(jobId, access);
 
     if (await job.isFailed()) {
       await job.retry();
@@ -111,6 +108,34 @@ export class JobService {
     }
 
     return this.mapJobToDto(job);
+  }
+
+  /**
+   * Find a job in the AI insights, monitoring and media import queues, and
+   * apply the tenant rules of `access`. A job the caller may not see is
+   * reported as not found, so job IDs of other tenants do not leak.
+   */
+  private async findJob(jobId: string, access?: JobAccess): Promise<Job> {
+    const job =
+      (await this.aiInsightsQueue.getJob(jobId)) ||
+      (await this.monitoringQueue.getJob(jobId)) ||
+      (await this.mediaImportQueue.getJob(jobId));
+
+    if (!job || !this.canAccess(job, access)) {
+      throw new NotFoundException(`Job ${jobId} not found`);
+    }
+
+    return job;
+  }
+
+  private canAccess(job: Job, access?: JobAccess): boolean {
+    const jobTenantId: string | undefined = job.data?.tenantId;
+
+    if (jobTenantId) {
+      return jobTenantId === access?.tenantId;
+    }
+
+    return !access?.requireTenant;
   }
 
   /**
@@ -159,6 +184,8 @@ export class JobService {
         return this.aiInsightsQueue;
       case QUEUE_NAMES.TWEET_MONITORING:
         return this.monitoringQueue;
+      case QUEUE_NAMES.MEDIA_IMPORT:
+        return this.mediaImportQueue;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
     }
