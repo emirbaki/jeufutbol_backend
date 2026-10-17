@@ -9,6 +9,7 @@ import { JobToolsGroup } from './tools/jobs.tools';
 import { MediaToolsGroup } from './tools/media.tools';
 import { AccountToolsGroup } from './tools/accounts.tools';
 import { PostToolsGroup } from './tools/posts.tools';
+import { AiToolsGroup } from './tools/ai.tools';
 
 export const MCP_CONTROLLERS: Type[] = [McpController, McpUploadController];
 
@@ -18,6 +19,7 @@ const TOOL_GROUP_CLASSES: Type<McpToolGroup>[] = [
   MediaToolsGroup,
   AccountToolsGroup,
   PostToolsGroup,
+  AiToolsGroup,
 ];
 
 export const MCP_PROVIDERS: Provider[] = [
