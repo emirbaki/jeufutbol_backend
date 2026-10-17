@@ -90,4 +90,10 @@ describe('JobService', () => {
     );
     expect(job.retry).not.toHaveBeenCalled();
   });
+
+  it('does not list the media import queue', async () => {
+    await expect(svc.getQueueJobs('media-import')).rejects.toThrow(
+      'Unknown queue: media-import',
+    );
+  });
 });

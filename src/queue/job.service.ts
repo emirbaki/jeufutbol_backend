@@ -184,8 +184,6 @@ export class JobService {
         return this.aiInsightsQueue;
       case QUEUE_NAMES.TWEET_MONITORING:
         return this.monitoringQueue;
-      case QUEUE_NAMES.MEDIA_IMPORT:
-        return this.mediaImportQueue;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
     }
