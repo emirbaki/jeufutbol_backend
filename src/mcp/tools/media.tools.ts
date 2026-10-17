@@ -1,10 +1,16 @@
+import { randomUUID } from 'crypto';
+import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Queue } from 'bullmq';
 import { z } from 'zod/v4';
+import { MEDIA_IMPORT_JOBS, QUEUE_NAMES } from '../../queue/queue.config';
 import { UploadService } from '../../upload/upload.service';
 import { McpToolDef, McpToolError, McpToolGroup } from '../mcp-tool';
 import { McpAuthContext } from '../mcp-auth.context';
 import { UploadTokenService } from '../upload-token.service';
 import { buildUploadCommands, CHUNK_SIZE, MAX_UPLOAD_BYTES } from '../upload-commands';
+import type { MediaImportJobData } from '../processors/media-import.processor';
+import { assertAllowedUrl } from '../ssrf-guard';
 
 const createUploadInput = z.object({
   filename: z
@@ -20,11 +26,14 @@ const createUploadInput = z.object({
 
 const completeUploadInput = z.object({ uploadId: z.uuid() });
 
+const importMediaInput = z.object({ url: z.string().min(1).max(2048) });
+
 @Injectable()
 export class MediaToolsGroup implements McpToolGroup {
   constructor(
     private readonly uploadService: UploadService,
     private readonly uploadTokens: UploadTokenService,
+    @InjectQueue(QUEUE_NAMES.MEDIA_IMPORT) private readonly mediaImportQueue: Queue<MediaImportJobData>,
   ) {}
 
   tools(): McpToolDef[] {
@@ -46,6 +55,15 @@ export class MediaToolsGroup implements McpToolGroup {
         inputSchema: completeUploadInput,
         handler: (args: z.infer<typeof completeUploadInput>, ctx: McpAuthContext) =>
           this.completeUpload(args.uploadId, ctx),
+      },
+      {
+        name: 'import_media_from_url',
+        title: 'Import media from a URL',
+        description:
+          'Import a video or image from a public https URL (300 MB or less). The server downloads it in the background. Returns a jobId for get_job.',
+        scopes: ['posts:write'],
+        inputSchema: importMediaInput,
+        handler: (args: z.infer<typeof importMediaInput>, ctx: McpAuthContext) => this.importMedia(args.url, ctx),
       },
     ];
   }
@@ -88,5 +106,20 @@ export class MediaToolsGroup implements McpToolGroup {
       }
       throw err;
     }
+  }
+
+  private async importMedia(url: string, ctx: McpAuthContext) {
+    assertAllowedUrl(url);
+    // BullMQ numbers jobs per queue. A UUID keeps the ID unique across the queues that get_job reads.
+    const jobId = `media-import-${randomUUID()}`;
+    await this.mediaImportQueue.add(
+      MEDIA_IMPORT_JOBS.IMPORT_URL,
+      { url, tenantId: ctx.tenantId, userId: ctx.userId },
+      { jobId, attempts: 1, removeOnComplete: 100, removeOnFail: 100 },
+    );
+    return {
+      jobId,
+      next: 'Call get_job with this jobId until status is completed. Then use result.mediaUrl in create_post.',
+    };
   }
 }

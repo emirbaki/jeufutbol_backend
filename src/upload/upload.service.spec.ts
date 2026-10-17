@@ -91,4 +91,10 @@ describe('UploadService chunked uploads', () => {
     expect(t.filePath.startsWith(process.env.UPLOAD_DIR!)).toBe(true);
     expect(t.publicUrl).toMatch(/\/[0-9a-f-]{36}\.mp4$/);
   });
+  it.each(['/../x', '../x.mp4', 'mp4', '.mp4/..', '.', '.verylongext1', '.mp 4', ''])(
+    'rejects the import extension %j',
+    (ext) => {
+      expect(() => svc.createImportTarget(ext)).toThrow();
+    },
+  );
 });

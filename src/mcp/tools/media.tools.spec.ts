@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { MediaToolsGroup } from './media.tools';
 import { UploadTokenService } from '../upload-token.service';
 import { McpAuthContext } from '../mcp-auth.context';
+import { McpToolError } from '../mcp-tool';
 
 const UUID = '3f2b8c1e-4d5a-4b6c-8e7f-9a0b1c2d3e4f';
 
@@ -20,13 +21,15 @@ const ctx: McpAuthContext = {
 describe('MediaToolsGroup', () => {
   let upload: { initChunkUpload: jest.Mock; completeChunkUpload: jest.Mock };
   let tokens: UploadTokenService;
+  let queue: { add: jest.Mock };
   let group: MediaToolsGroup;
   const tool = (name: string) => group.tools().find((t) => t.name === name)!;
 
   beforeEach(() => {
     upload = { initChunkUpload: jest.fn(), completeChunkUpload: jest.fn() };
     tokens = new UploadTokenService(new JwtService({ secret: 's' }), { get: () => 's' } as any);
-    group = new MediaToolsGroup(upload as any, tokens);
+    queue = { add: jest.fn() };
+    group = new MediaToolsGroup(upload as any, tokens, queue as any);
   });
 
   it('create_upload says to run the commands in bash', () => {
@@ -35,9 +38,10 @@ describe('MediaToolsGroup', () => {
     );
   });
 
-  it('both tools need posts:write', () => {
+  it('all media tools need posts:write', () => {
     expect(tool('create_upload').scopes).toEqual(['posts:write']);
     expect(tool('complete_upload').scopes).toEqual(['posts:write']);
+    expect(tool('import_media_from_url').scopes).toEqual(['posts:write']);
   });
 
   it('create_upload gives the chunk count and the commands', async () => {
@@ -95,5 +99,35 @@ describe('MediaToolsGroup', () => {
 
   it('complete_upload needs a UUID', () => {
     expect(tool('complete_upload').inputSchema.safeParse({ uploadId: 'nope' }).success).toBe(false);
+  });
+  it('import_media_from_url has the description', () => {
+    expect(tool('import_media_from_url').description).toBe(
+      'Import a video or image from a public https URL (300 MB or less). The server downloads it in the background. Returns a jobId for get_job.',
+    );
+  });
+
+  it('import_media_from_url queues a job with a unique ID and attempts 1', async () => {
+    queue.add.mockImplementation((_n, _d, o) => Promise.resolve({ id: o.jobId }));
+    const out: any = await tool('import_media_from_url').handler({ url: 'https://cdn.example.com/v.mp4' }, ctx);
+    expect(queue.add).toHaveBeenCalledWith(
+      'import-url',
+      { url: 'https://cdn.example.com/v.mp4', tenantId: 't1', userId: 'u1' },
+      expect.objectContaining({ attempts: 1, jobId: expect.stringMatching(/^media-import-[0-9a-f-]{36}$/) }),
+    );
+    expect(queue.add.mock.calls[0][2]).toMatchObject({ removeOnComplete: 100, removeOnFail: 100 });
+    expect(out.jobId).toMatch(/^media-import-/);
+    expect(out.next).toBe('Call get_job with this jobId until status is completed. Then use result.mediaUrl in create_post.');
+  });
+
+  it('import_media_from_url gives a new job ID for each call', async () => {
+    queue.add.mockImplementation((_n, _d, o) => Promise.resolve({ id: o.jobId }));
+    const a: any = await tool('import_media_from_url').handler({ url: 'https://cdn.example.com/v.mp4' }, ctx);
+    const b: any = await tool('import_media_from_url').handler({ url: 'https://cdn.example.com/v.mp4' }, ctx);
+    expect(a.jobId).not.toBe(b.jobId);
+  });
+
+  it('import_media_from_url rejects a private URL before it queues', async () => {
+    await expect(tool('import_media_from_url').handler({ url: 'https://127.0.0.1/v.mp4' }, ctx)).rejects.toThrow(McpToolError);
+    expect(queue.add).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { McpUploadController } from './mcp-upload.controller';
 import { McpServerFactory } from './mcp-server.factory';
 import { MCP_TOOL_GROUPS, McpToolGroup } from './mcp-tool';
 import { UploadTokenService } from './upload-token.service';
+import { MediaImportProcessor } from './processors/media-import.processor';
 import { JobToolsGroup } from './tools/jobs.tools';
 import { MediaToolsGroup } from './tools/media.tools';
 
@@ -15,6 +16,7 @@ const TOOL_GROUP_CLASSES: Type<McpToolGroup>[] = [JobToolsGroup, MediaToolsGroup
 export const MCP_PROVIDERS: Provider[] = [
   McpServerFactory,
   UploadTokenService,
+  MediaImportProcessor,
   ...TOOL_GROUP_CLASSES,
   {
     provide: MCP_TOOL_GROUPS,

@@ -4,6 +4,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
+/** A dot and 1 to 10 letters or digits, for example ".mp4". */
+export const IMPORT_EXT_PATTERN = /^\.[a-z0-9]{1,10}$/i;
+
 interface ChunkUploadSession {
   filename: string;
   totalSize: number;
@@ -265,6 +268,10 @@ export class UploadService {
    * Reserve a new file path in the upload folder for a server-side import
    */
   createImportTarget(ext: string): { filePath: string; publicUrl: string } {
+    // The extension goes into a file path. A value such as "/../x" would leave the upload folder.
+    if (!IMPORT_EXT_PATTERN.test(ext)) {
+      throw new BadRequestException(`Invalid file extension for an import: ${JSON.stringify(ext)}`);
+    }
     const fileName = `${uuidv4()}${ext}`;
     return {
       filePath: path.join(this.uploadDir, fileName),
