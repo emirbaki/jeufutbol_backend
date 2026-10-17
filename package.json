@@ -36,6 +36,7 @@
     "@langchain/langgraph": "^1.2.9",
     "@langchain/ollama": "^1.2.7",
     "@langchain/openai": "^1.4.5",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@nestjs/apollo": "^13.3.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bullmq": "^11.0.4",
@@ -82,7 +83,8 @@
     "rxjs": "^7.8.1",
     "tiktoken": "^1.0.22",
     "twitter-api-v2": "^1.27.0",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -131,7 +133,10 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    }
   },
   "overrides": {
     "@apollo/server-plugin-landing-page-graphql-playground": {

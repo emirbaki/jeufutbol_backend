@@ -7,7 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { SCOPES_KEY } from '../decorators/require-scopes.decorator';
-import { ApiKeyScope } from '../api-key-scopes.enum';
+import { hasScopes } from '../scope.utils';
 
 @Injectable()
 export class ApiKeyScopeGuard implements CanActivate {
@@ -31,40 +31,18 @@ export class ApiKeyScopeGuard implements CanActivate {
             request = ctx.getContext().req;
         }
 
-        // If authenticated with JWT (user), allow all scopes
-        if (request.user) {
-            return true;
-        }
-
-        // If authenticated with API key, check scopes
-        const apiKey = request.apiKey;
-        if (!apiKey) {
+        if (!request.user && !request.apiKey) {
             throw new ForbiddenException(
                 'API key authentication required for this operation',
             );
         }
 
-        // Check if API key has admin scope (grants all permissions)
-        if (apiKey.scopes.includes(ApiKeyScope.ADMIN)) {
-            return true;
-        }
-
-        // Check if API key has READ_ONLY scope (grants all read permissions)
-        if (apiKey.scopes.includes(ApiKeyScope.READ_ONLY)) {
-            const isReadOperation = requiredScopes.every((scope) =>
-                scope.endsWith(':read'),
-            );
-            if (isReadOperation) {
-                return true;
-            }
-        }
-
-        // Check if API key has all required scopes
-        const hasAllScopes = requiredScopes.every((scope) =>
-            apiKey.scopes.includes(scope),
+        const granted = hasScopes(
+            { isUser: !!request.user, scopes: request.apiKey?.scopes ?? [] },
+            requiredScopes,
         );
 
-        if (!hasAllScopes) {
+        if (!granted) {
             throw new ForbiddenException(
                 `API key does not have required scopes: ${requiredScopes.join(', ')}`,
             );
