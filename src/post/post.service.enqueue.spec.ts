@@ -16,7 +16,8 @@ import { TiktokPostGateway } from './gateways/tiktok.gateway';
 describe('PostsService.enqueuePublish', () => {
   let svc: PostsService;
   let queue: { getJob: jest.Mock; add: jest.Mock };
-  let postRepository: { find: jest.Mock };
+  let postRepository: { find: jest.Mock; save: jest.Mock };
+  let publishedPostRepository: { find: jest.Mock; remove: jest.Mock };
 
   beforeAll(() => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -24,12 +25,13 @@ describe('PostsService.enqueuePublish', () => {
 
   beforeEach(async () => {
     queue = { getJob: jest.fn(), add: jest.fn() };
-    postRepository = { find: jest.fn().mockResolvedValue([]) };
+    postRepository = { find: jest.fn().mockResolvedValue([]), save: jest.fn() };
+    publishedPostRepository = { find: jest.fn(), remove: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
         PostsService,
         { provide: getRepositoryToken(Post), useValue: postRepository },
-        { provide: getRepositoryToken(PublishedPost), useValue: {} },
+        { provide: getRepositoryToken(PublishedPost), useValue: publishedPostRepository },
         { provide: getQueueToken(QUEUE_NAMES.ASYNC_POST_POLLING), useValue: {} },
         { provide: getQueueToken(QUEUE_NAMES.SCHEDULED_POSTS), useValue: queue },
         { provide: 'PUB_SUB', useValue: { publish: jest.fn() } },
@@ -80,6 +82,45 @@ describe('PostsService.enqueuePublish', () => {
   it('rejects a publish of a published post', async () => {
     jest.spyOn(svc, 'getPost').mockResolvedValue({ id: 'p1', status: PostStatus.PUBLISHED } as any);
     await expect(svc.enqueuePublish('p1', 'u1', 't1', 'publish')).rejects.toThrow('Post already published');
+  });
+
+  const livePost = (status: PostStatus) => ({
+    id: 'p1',
+    status,
+    targetPlatforms: ['x', 'tiktok'],
+    publishedPosts: [{ platform: 'x', publishStatus: 'PUBLISH_COMPLETE' }],
+  });
+
+  it('rejects a publish of a FAILED post that is live on some platforms', async () => {
+    jest.spyOn(svc, 'getPost').mockResolvedValue(livePost(PostStatus.FAILED) as any);
+    await expect(svc.enqueuePublish('p1', 'u1', 't1', 'publish')).rejects.toThrow(
+      'This post is live on some platforms. Call retry_publish_post to publish to the other platforms.');
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('publishes a DRAFT post with no published posts', async () => {
+    jest.spyOn(svc, 'getPost').mockResolvedValue({ id: 'p1', status: PostStatus.DRAFT, publishedPosts: [] } as any);
+    queue.getJob.mockResolvedValue(undefined);
+    await expect(svc.enqueuePublish('p1', 'u1', 't1', 'publish')).resolves.toEqual({ postId: 'p1', jobState: 'waiting' });
+  });
+
+  it('allows a retry of a DRAFT post that is live on some platforms', async () => {
+    jest.spyOn(svc, 'getPost').mockResolvedValue(livePost(PostStatus.DRAFT) as any);
+    queue.getJob.mockResolvedValue(undefined);
+    await expect(svc.enqueuePublish('p1', 'u1', 't1', 'retry')).resolves.toEqual({ postId: 'p1', jobState: 'waiting' });
+  });
+
+  it('retries a DRAFT live post only on the platforms that are not live', async () => {
+    const post = { ...livePost(PostStatus.DRAFT), failureReasons: undefined };
+    jest.spyOn(svc, 'getPost').mockResolvedValue(post as any);
+    publishedPostRepository.find.mockResolvedValue(post.publishedPosts);
+    const publish = jest.spyOn(svc, 'publishPost').mockImplementation(async () => {
+      expect(post.targetPlatforms).toEqual(['tiktok']);
+      return { ...post } as any;
+    });
+    const result = await svc.retryPublishPost('p1', 'u1', 't1');
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(result.targetPlatforms).toEqual(['x', 'tiktok']);
   });
 
   it('maps the job state', async () => {

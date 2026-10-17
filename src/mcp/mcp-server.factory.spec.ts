@@ -104,4 +104,12 @@ describe('McpServerFactory', () => {
     expect(logSpy).toHaveBeenCalledTimes(1);
     await client.close();
   });
+
+  it('removes a newline from an unknown tool name before the log line', async () => {
+    const client = await connect(new McpServerFactory(groups).create(ctxWith(true, [])));
+    const r: any = await client.callTool({ name: 'bad\ntool=x result=ok', arguments: {} });
+    expect(r.content[0].text).toBe(notAvailable('badtoolxresultok'));
+    expect(logSpy.mock.calls[0][0]).toMatch(/^tool=badtoolxresultok tenant=t1 /);
+    await client.close();
+  });
 });

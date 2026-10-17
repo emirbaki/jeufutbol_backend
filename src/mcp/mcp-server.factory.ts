@@ -38,15 +38,17 @@ export class McpServerFactory {
       const name = request.params.name;
       const def = defs.get(name);
       if (!def || !hasScopes(ctx.grant, def.scopes)) {
+        // The client sends the name. Remove line breaks and other characters before the log line.
+        const safeName = name.replace(/[^\w.-]/g, '').slice(0, 64);
         this.logger.log(
-          `tool=${name} tenant=${ctx.tenantId} key=${ctx.keyPrefix} ms=0 result=error`,
+          `tool=${safeName} tenant=${ctx.tenantId} key=${ctx.keyPrefix} ms=0 result=error`,
         );
         return {
           isError: true,
           content: [
             {
               type: 'text',
-              text: `Tool ${name} is not available for this API key. Call tools/list to see the tools you can use.`,
+              text: `Tool ${safeName} is not available for this API key. Call tools/list to see the tools you can use.`,
             },
           ],
         };

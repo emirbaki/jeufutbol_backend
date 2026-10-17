@@ -106,7 +106,7 @@ export interface PostSummary {
   mediaUrls: string[];
   scheduledFor: string | null;
   failureReasons: Record<string, string> | null;
-  published: { platform: string; url: string | null; status: string | null }[];
+  publishedPosts: { platform: string; url: string | null; status: string | null }[];
   jobState: PublishJobState;
   next: string;
 }
@@ -134,7 +134,7 @@ export function summarizePost(post: Post, jobState: PublishJobState): PostSummar
     mediaUrls: post.mediaUrls ?? [],
     scheduledFor: post.scheduledFor ? new Date(post.scheduledFor).toISOString() : null,
     failureReasons: post.failureReasons ?? null,
-    published: (post.publishedPosts ?? []).map((p) => ({
+    publishedPosts: (post.publishedPosts ?? []).map((p) => ({
       platform: p.platform,
       url: p.platformPostUrl ?? null,
       status: p.publishStatus ?? null,

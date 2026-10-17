@@ -120,7 +120,7 @@ describe('PostToolsGroup', () => {
       status: 'failed',
       jobState: 'none',
       failureReasons: { tiktok: 'Token expired' },
-      published: [{ platform: 'youtube', url: 'https://youtu.be/x', status: 'PUBLISHED' }],
+      publishedPosts: [{ platform: 'youtube', url: 'https://youtu.be/x', status: 'PUBLISHED' }],
     });
     expect(out.next).toBe('Some platforms failed. Fix the cause in failureReasons, then call retry_publish_post.');
   });

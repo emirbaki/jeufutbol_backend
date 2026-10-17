@@ -11,7 +11,7 @@ JeuHub has an MCP server for AI agents. An agent can upload a video, make a post
 
 ## 2. Make an API key
 
-1. In JeuHub, open **Settings**, then the **API keys** tab.
+1. In JeuHub, open **Settings**, then the **Developer** tab, then the **API Keys** section.
 2. Make a new key from your user account. A key with no user cannot use the post tools.
 3. Give the key the scopes for the tools that you need.
 4. Copy the key. JeuHub shows the full key one time only.

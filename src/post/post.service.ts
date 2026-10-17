@@ -140,12 +140,14 @@ export class PostsService {
     const post = await this.getPost(postId, userId, tenantId);
     if (mode === 'publish' && post.status === PostStatus.PUBLISHED)
       throw new Error('Post already published');
+    // A full publish posts the same media again to the platforms that are live.
+    if (mode === 'publish' && this.hasLivePlatforms(post))
+      throw new Error(
+        'This post is live on some platforms. Call retry_publish_post to publish to the other platforms.',
+      );
     // Check before touching the queue: a retry job on a SCHEDULED post would
     // remove its delayed job and then fail in the worker.
-    if (
-      mode === 'retry' &&
-      (post.status === PostStatus.DRAFT || post.status === PostStatus.SCHEDULED)
-    )
+    if (mode === 'retry' && !this.canRetry(post))
       throw new Error('Can only retry failed or partially published posts');
 
     const jobId = `publish-post-${post.id}`;
@@ -168,6 +170,21 @@ export class PostsService {
 
     this.logger.log(`Enqueued ${mode} for post ${post.id}`);
     return { postId: post.id, jobState: 'waiting' };
+  }
+
+  /** True when a platform has a published post row that did not fail. */
+  private hasLivePlatforms(post: Post): boolean {
+    return (post.publishedPosts ?? []).some((p) => p.publishStatus !== 'FAILED');
+  }
+
+  /**
+   * A DRAFT or SCHEDULED post can be retried only when it is live on some
+   * platforms (for example after update_post on a failed post).
+   */
+  private canRetry(post: Post): boolean {
+    if (post.status === PostStatus.DRAFT || post.status === PostStatus.SCHEDULED)
+      return this.hasLivePlatforms(post);
+    return true;
   }
 
   async getPublishJobState(postId: string): Promise<PublishJobState> {
@@ -490,7 +507,7 @@ export class PostsService {
   ): Promise<Post> {
     const post = await this.getPost(postId, userId, tenantId);
 
-    if (post.status === PostStatus.DRAFT || post.status === PostStatus.SCHEDULED) {
+    if (!this.canRetry(post)) {
       throw new Error('Can only retry failed or partially published posts');
     }
 
