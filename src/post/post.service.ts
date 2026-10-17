@@ -177,6 +177,15 @@ export class PostsService {
     return (post.publishedPosts ?? []).some((p) => p.publishStatus !== 'FAILED');
   }
 
+  /** True when a target platform has a published post row that did not fail. */
+  private isLiveOnTargetPlatforms(post: Post): boolean {
+    return (post.publishedPosts ?? []).some(
+      (p) =>
+        p.publishStatus !== 'FAILED' &&
+        post.targetPlatforms.includes(p.platform),
+    );
+  }
+
   /**
    * A DRAFT or SCHEDULED post can be retried only when it is live on some
    * platforms (for example after update_post on a failed post).
@@ -310,6 +319,12 @@ export class PostsService {
     const post = await this.getPost(postId, userId, tenantId);
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Post already published');
+    // The scheduled job and the GraphQL resolver call this method directly.
+    // retryPublishPost narrows targetPlatforms first, so it passes this check.
+    if (this.isLiveOnTargetPlatforms(post))
+      throw new Error(
+        'This post is live on some platforms. Call retry_publish_post to publish to the other platforms.',
+      );
 
     const gateways = this.postGatewayFactory.getMany(
       post.targetPlatforms as PlatformType[],

@@ -110,6 +110,20 @@ describe('PostsService.enqueuePublish', () => {
     await expect(svc.enqueuePublish('p1', 'u1', 't1', 'retry')).resolves.toEqual({ postId: 'p1', jobState: 'waiting' });
   });
 
+  it.each([PostStatus.FAILED, PostStatus.SCHEDULED, PostStatus.DRAFT])(
+    'publishPost rejects a %s post that is live on a target platform',
+    async (status) => {
+      jest.spyOn(svc, 'getPost').mockResolvedValue(livePost(status) as any);
+      await expect(svc.publishPost('p1', 'u1', 't1')).rejects.toThrow(
+        'This post is live on some platforms. Call retry_publish_post to publish to the other platforms.');
+    },
+  );
+
+  it('publishPost allows a post whose live rows are not on the target platforms', async () => {
+    jest.spyOn(svc, 'getPost').mockResolvedValue({ ...livePost(PostStatus.DRAFT), targetPlatforms: ['tiktok'] } as any);
+    await expect(svc.publishPost('p1', 'u1', 't1')).rejects.not.toThrow('This post is live on some platforms');
+  });
+
   it('retries a DRAFT live post only on the platforms that are not live', async () => {
     const post = { ...livePost(PostStatus.DRAFT), failureReasons: undefined };
     jest.spyOn(svc, 'getPost').mockResolvedValue(post as any);
