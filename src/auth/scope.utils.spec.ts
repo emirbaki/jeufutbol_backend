@@ -15,4 +15,30 @@ describe('hasScopes', () => {
   });
   it('allows an empty list', () =>
     expect(hasScopes({ isUser: false, scopes: [] }, [])).toBe(true));
+
+  describe('scope text from the web app key form', () => {
+    it('treats ADMIN as admin:*', () =>
+      expect(hasScopes({ isUser: false, scopes: ['ADMIN'] }, ['posts:delete'])).toBe(true));
+    it('gives FULL_ACCESS every granular scope', () =>
+      expect(
+        hasScopes({ isUser: false, scopes: ['FULL_ACCESS'] }, [
+          'posts:read',
+          'posts:write',
+          'posts:delete',
+          'credentials:read',
+          'credentials:write',
+          'insights:read',
+          'insights:generate',
+          'monitoring:read',
+          'monitoring:write',
+        ]),
+      ).toBe(true));
+    it('does not give FULL_ACCESS the admin scope', () =>
+      expect(hasScopes({ isUser: false, scopes: ['FULL_ACCESS'] }, ['admin:*'])).toBe(false));
+    it('matches the text exactly', () => {
+      expect(hasScopes({ isUser: false, scopes: ['admin'] }, ['posts:read'])).toBe(false);
+      expect(hasScopes({ isUser: false, scopes: ['Admin'] }, ['posts:read'])).toBe(false);
+      expect(hasScopes({ isUser: false, scopes: ['full_access'] }, ['posts:read'])).toBe(false);
+    });
+  });
 });
