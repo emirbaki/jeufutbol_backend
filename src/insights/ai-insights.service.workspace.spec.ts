@@ -3,6 +3,7 @@ jest.mock('uuid', () => ({ v4: () => require('crypto').randomUUID() }));
 jest.mock('./vector-db.service', () => ({ VectorDbService: class {} }));
 jest.mock('./llm.service', () => ({ LLMService: class {} }));
 
+import { In } from 'typeorm';
 import { AIInsightsService } from './ai-insights.service';
 import { AIInsightsSchedulerService } from './ai-insights-scheduler.service';
 
@@ -29,6 +30,35 @@ describe('AIInsightsService workspaces', () => {
   it('generateInsightsInternal reads profiles of the workspace', async () => {
     await svc.generateInsightsInternal({ userId: 'u1', tenantId: 't1', workspaceId: 'w2' });
     expect(profiles.find).toHaveBeenCalledWith({ where: { tenantId: 't1', workspaceId: 'w2', isActive: true } });
+  });
+
+  it('vector search keeps only tweets of the workspace profiles', async () => {
+    const tweets = { find: jest.fn().mockResolvedValue([{ id: 'tw1' }]) };
+    const links = { find: jest.fn().mockResolvedValue([{ tweetId: 'tw1', monitoredProfileId: 'mp1' }]) };
+    const vector = { search: jest.fn().mockResolvedValue([{ id: 'tw1' }, { id: 'tw-other-tenant' }]) };
+    profiles.find.mockResolvedValue([{ id: 'mp1' }]);
+    const service = new AIInsightsService(
+      tweets as any,
+      links as any,
+      profiles as any,
+      insights as any,
+      vector as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    jest.spyOn(service as any, 'analyzeWithLLM').mockResolvedValue([]);
+    await service.generateInsightsInternal({
+      userId: 'u1',
+      tenantId: 't1',
+      workspaceId: 'w2',
+      topic: 'derby',
+      useVectorSearch: true,
+    });
+    expect(links.find).toHaveBeenCalledWith({
+      where: { tweetId: In(['tw1', 'tw-other-tenant']), monitoredProfileId: In(['mp1']) },
+    });
+    expect(tweets.find).toHaveBeenCalledWith({ where: { id: In(['tw1']) } });
   });
 
   it('getInsightsForUser filters by workspace', async () => {

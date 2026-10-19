@@ -20,6 +20,12 @@ function sortObject(obj: any): any {
 }
 
 /**
+ * Queries whose data mutations change. A delete by key cannot reach every
+ * argument variant (for example limit: 50), so these are never cached.
+ */
+const NOT_CACHED = new Set(['getInsights', 'getMonitoredProfiles', 'getMonitoredProfile']);
+
+/**
  * The cache key of a GraphQL query for one workspace of a tenant.
  * Use it also to delete the cached entry after a change.
  */
@@ -36,6 +42,11 @@ export class GraphqlCacheInterceptor extends CacheInterceptor {
     // If no info (not a GraphQL request), fall back to super
     if (!info) {
       return super.trackBy(context);
+    }
+
+    // Cache only queries. A cached mutation would skip its effect.
+    if (info.operation?.operation !== 'query' || NOT_CACHED.has(info.fieldName)) {
+      return undefined;
     }
 
     // Cache only when the tenant and the workspace ID are known, so that one

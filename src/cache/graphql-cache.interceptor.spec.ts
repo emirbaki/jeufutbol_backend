@@ -6,9 +6,9 @@ import { GraphqlCacheInterceptor, graphqlCacheKey } from './graphql-cache.interc
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
 
-function contextWith(req: any, fieldName = 'getInsights', args: object = {}) {
+function contextWith(req: any, fieldName = 'getTimelineTweets', args: object = {}, operation = 'query') {
   jest.spyOn(GqlExecutionContext, 'create').mockReturnValue({
-    getInfo: () => ({ fieldName }),
+    getInfo: () => ({ fieldName, operation: { operation } }),
     getArgs: () => args,
     getContext: () => ({ req }),
   } as any);
@@ -22,12 +22,12 @@ describe('GraphqlCacheInterceptor', () => {
 
   it('key includes the workspace header', () => {
     const ctx = contextWith({ user: { tenantId: 't1' }, headers: { 'x-workspace-id': UUID } });
-    expect(interceptor.trackBy(ctx)).toBe(`t1:${UUID}:getInsights:{}`);
+    expect(interceptor.trackBy(ctx)).toBe(`t1:${UUID}:getTimelineTweets:{}`);
   });
 
   it('uses the tenant of an API key', () => {
     const ctx = contextWith({ apiKey: { tenantId: 't2' }, headers: { 'x-workspace-id': UUID } });
-    expect(interceptor.trackBy(ctx)).toBe(`t2:${UUID}:getInsights:{}`);
+    expect(interceptor.trackBy(ctx)).toBe(`t2:${UUID}:getTimelineTweets:{}`);
   });
 
   it('no cache without a header', () => {
@@ -38,6 +38,24 @@ describe('GraphqlCacheInterceptor', () => {
     const ctx = contextWith({ user: { tenantId: 't1' }, headers: { 'x-workspace-id': 'football' } });
     expect(interceptor.trackBy(ctx)).toBeUndefined();
   });
+
+  it('never caches a mutation', () => {
+    const ctx = contextWith(
+      { user: { tenantId: 't1' }, headers: { 'x-workspace-id': UUID } },
+      'addMonitoredProfile',
+      { xUsername: 'club' },
+      'mutation',
+    );
+    expect(interceptor.trackBy(ctx)).toBeUndefined();
+  });
+
+  it.each(['getInsights', 'getMonitoredProfiles', 'getMonitoredProfile'])(
+    'never caches %s, because mutations change it',
+    (field) => {
+      const ctx = contextWith({ user: { tenantId: 't1' }, headers: { 'x-workspace-id': UUID } }, field, { limit: 50 });
+      expect(interceptor.trackBy(ctx)).toBeUndefined();
+    },
+  );
 
   it('no cache without a tenant', () => {
     expect(interceptor.trackBy(contextWith({ headers: { 'x-workspace-id': UUID } }))).toBeUndefined();

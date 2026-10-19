@@ -310,7 +310,18 @@ export class AIInsightsService {
         // Use vector search for relevant tweets
         try {
           const searchResults = await this.vectorDbService.search(topic, 50);
-          const tweetIds = searchResults.map((r) => r.id);
+          // The vector index holds the tweets of all tenants. Keep only the
+          // tweets of the monitored profiles of this workspace.
+          const foundIds = searchResults.map((r) => r.id);
+          const links = foundIds.length
+            ? await this.tweetMonitoredProfileRepository.find({
+                where: {
+                  tweetId: In(foundIds),
+                  monitoredProfileId: In(profiles.map((p) => p.id)),
+                },
+              })
+            : [];
+          const tweetIds = [...new Set(links.map((l) => l.tweetId))];
 
           if (tweetIds.length > 0) {
             relevantTweets = await this.tweetRepository.find({
