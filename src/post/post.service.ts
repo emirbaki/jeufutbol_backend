@@ -202,6 +202,12 @@ export class PostsService {
     return true;
   }
 
+  /** The current tenant of a post, or null when the post does not exist. */
+  async getPostTenantId(postId: string): Promise<string | null> {
+    const post = await this.postRepository.findOne({ where: { id: postId }, select: { id: true, tenantId: true } });
+    return post?.tenantId ?? null;
+  }
+
   async getPublishJobState(postId: string): Promise<PublishJobState> {
     const job = await this.scheduledPostsQueue.getJob(`publish-post-${postId}`);
     if (!job) return 'none';

@@ -26,7 +26,10 @@ export class ScheduledPostProcessor extends WorkerHost {
     }
 
     async process(job: Job<ScheduledPostJobData>): Promise<void> {
-        const { postId, userId, tenantId, mode = 'publish' } = job.data;
+        const { postId, userId, mode = 'publish' } = job.data;
+        // The job keeps the tenant of the moment it was queued. A tenant merge can move
+        // the post later, so the current tenant of the post wins.
+        const tenantId = (await this.postsService.getPostTenantId(postId)) ?? job.data.tenantId;
 
         this.logger.log(`[Job ${job.id}] Processing scheduled post ${postId}`);
 
