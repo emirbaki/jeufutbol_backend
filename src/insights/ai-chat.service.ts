@@ -30,7 +30,7 @@ import {
   ListPostsTool,
   PublishPostTool,
 } from './tools/post-management.tool';
-import { SqlTools } from './tools/sql.tool';
+import { DataQueryTools } from './tools/data-query.tool';
 import { AssistantTool, AssistantCommentaryTool } from './tools/assistant.tool';
 import { SearchTool } from './tools/search.tool';
 import { VisitPageTool } from './tools/visit-page.tool';
@@ -171,7 +171,7 @@ export class AiChatService {
 
     // 4. Initialize Agent
     const model = await this.llmService.getModel(userId, tenantId, llmProvider, credentialId);
-    const tools = await this.buildAgentTools(userId, tenantId, promptWorkspaceId, model);
+    const tools = await this.buildAgentTools(userId, tenantId, promptWorkspaceId);
 
     const memory = new MemorySaver();
 
@@ -311,9 +311,8 @@ Your steps:
 - When users ask "who scored" or "what was the result" - these require visiting the actual page, not just search snippets
 
 ## DATABASE ACCESS
-You have access to a SQL database with tables: post, tweets, insights, monitored_profiles, tweet_monitored_profiles.
-ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
-ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = '${promptWorkspaceId}'. Use only the data of this workspace.
+Use the tools query_posts, count_posts, query_insights, query_monitored_profiles and query_tweets to read the data of the current workspace.
+These tools return only the data of the current workspace. You cannot read the data of other workspaces.
 
 ## RESPONSE GUIDELINES
 - Respond in the same language the user uses
@@ -378,7 +377,6 @@ ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = 
     userId: string,
     tenantId: string,
     workspaceId: string | null,
-    model: any,
   ): Promise<StructuredTool[]> {
     const ws = workspaceId ?? undefined;
     return [
@@ -388,7 +386,8 @@ ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = 
       CreatePostTool.createTool(this.postsService, userId, tenantId, ws),
       ListPostsTool.createTool(this.postsService, userId, tenantId, ws),
       PublishPostTool.createTool(this.postsService, userId, tenantId),
-      ...(await SqlTools.createTools(this.dataSource, model)),
+      // The data tools add the tenant and the workspace to each query in code. A session without a workspace reads no rows.
+      ...DataQueryTools.createTools(this.dataSource, { tenantId, workspaceIds: workspaceId ? [workspaceId] : [] }),
       AssistantTool.createTool(),
       AssistantCommentaryTool.createTool(),
       SearchTool.createTool(),
@@ -442,7 +441,7 @@ ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = 
       const model = await this.llmService.getModel(userId, tenantId, llmProvider, credentialId);
       const session = await this.chatSessionRepo.findOne({ where: { id: sessionId } });
       const promptWorkspaceId = session?.workspaceId ?? null;
-      const tools = await this.buildAgentTools(userId, tenantId, promptWorkspaceId, model);
+      const tools = await this.buildAgentTools(userId, tenantId, promptWorkspaceId);
 
       const memory = new MemorySaver();
 
@@ -540,9 +539,8 @@ When users ask about current events, recent news, sports scores, stock prices, w
 3. **Synthesize and respond**: After visiting pages, provide a complete answer based on the actual content
 
 ## DATABASE ACCESS
-You have access to a SQL database with tables: post, tweets, insights, monitored_profiles, tweet_monitored_profiles.
-ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
-ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = '${promptWorkspaceId}'. Use only the data of this workspace.
+Use the tools query_posts, count_posts, query_insights, query_monitored_profiles and query_tweets to read the data of the current workspace.
+These tools return only the data of the current workspace. You cannot read the data of other workspaces.
 
 ## RESPONSE GUIDELINES
 - Respond in the same language the user uses

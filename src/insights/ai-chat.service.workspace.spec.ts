@@ -39,13 +39,26 @@ describe('AiChatService workspaces', () => {
     sessions.findOne.mockResolvedValue({ id: 's1', userId: 'u1', workspaceId: 'w-session' });
     const build = jest.spyOn(svc, 'buildAgentTools').mockRejectedValue(new Error('stop'));
     await svc.chatWithAI('u1', 't1', 's1', 'hello', 'openai' as any, undefined, 'w-active').catch(() => undefined);
-    expect(build).toHaveBeenCalledWith('u1', 't1', 'w-session', {});
+    expect(build).toHaveBeenCalledWith('u1', 't1', 'w-session');
   });
 
   it('a new session uses the given workspace', async () => {
     const build = jest.spyOn(svc, 'buildAgentTools').mockRejectedValue(new Error('stop'));
     await svc.chatWithAI('u1', 't1', null, 'hello', 'openai' as any, undefined, 'w-active').catch(() => undefined);
     expect(sessions.create).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'w-active' }));
-    expect(build).toHaveBeenCalledWith('u1', 't1', 'w-active', {});
+    expect(build).toHaveBeenCalledWith('u1', 't1', 'w-active');
+  });
+
+  it('the agent has no free SQL tool, and its data tools read only the session workspace', async () => {
+    const postRepo = { find: jest.fn().mockResolvedValue([]), count: jest.fn() };
+    const dataSource = { getRepository: jest.fn(() => postRepo), query: jest.fn() };
+    svc = new AiChatService(sessions as any, messages as any, llm as any, {} as any, {} as any, dataSource as any, {} as any);
+    const tools = await svc.buildAgentTools('u1', 't1', 'w1');
+    const names = tools.map((t) => t.name);
+    expect(names.some((n) => n.includes('sql'))).toBe(false);
+    await tools.find((t) => t.name === 'query_posts')!.invoke({ workspaceId: 'w2' } as any);
+    expect(postRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tenantId: 't1', workspaceId: expect.objectContaining({ value: ['w1'] }) }) }),
+    );
   });
 });
