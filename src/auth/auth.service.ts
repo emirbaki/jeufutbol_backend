@@ -342,6 +342,18 @@ export class AuthService {
     };
   }
 
+  /** The current user with the relations that the "me" query shows. */
+  async getMe(userId: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['tenant', 'tenant.subscription', 'activeWorkspace'],
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    return user;
+  }
+
   async validateUser(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id: userId },

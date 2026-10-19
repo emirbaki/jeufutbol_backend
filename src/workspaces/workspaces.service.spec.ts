@@ -22,6 +22,7 @@ describe('WorkspacesService', () => {
   let profileRepo: { update: jest.Mock; count: jest.Mock };
   let insightRepo: { update: jest.Mock; count: jest.Mock };
   let chatRepo: { update: jest.Mock; count: jest.Mock };
+  let userRepo: { update: jest.Mock };
   let svc: WorkspacesService;
 
   beforeEach(() => {
@@ -39,6 +40,7 @@ describe('WorkspacesService', () => {
     profileRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
     insightRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
     chatRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
+    userRepo = { update: jest.fn() };
     svc = new WorkspacesService(
       wsRepo,
       credRepo as any,
@@ -46,6 +48,7 @@ describe('WorkspacesService', () => {
       profileRepo as any,
       insightRepo as any,
       chatRepo as any,
+      userRepo as any,
     );
   });
 
@@ -225,5 +228,57 @@ describe('WorkspacesService', () => {
     wsRepo.find.mockResolvedValue([DEFAULT]);
     await expect(svc.list('t1')).resolves.toEqual([DEFAULT]);
     expect(wsRepo.find).toHaveBeenCalledWith({ where: { tenantId: 't1' }, order: { isDefault: 'DESC', name: 'ASC' } });
+  });
+
+  describe('resolveActive', () => {
+    const W2 = { id: 'w2', tenantId: 't1', slug: 'football' };
+    const W5 = { id: 'w5', tenantId: 't1', slug: 'cinema' };
+
+    it('prefers the header', async () => {
+      wsRepo.findOne.mockResolvedValue(W2);
+      const out = await svc.resolveActive('t1', { headerRef: 'football', user: { activeWorkspaceId: 'w9' } as any });
+      expect(out).toBe(W2);
+      expect(wsRepo.findOne).toHaveBeenCalledWith({ where: { slug: 'football', tenantId: 't1' } });
+    });
+
+    it('rejects a header from another tenant', async () => {
+      wsRepo.findOne.mockResolvedValue(null);
+      wsRepo.find.mockResolvedValue([{ slug: 'general' }]);
+      await expect(svc.resolveActive('t1', { headerRef: UUID })).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('uses the API key default before the user', async () => {
+      wsRepo.findOne.mockImplementation(async ({ where }) => (where.id === 'w5' ? W5 : null));
+      const out = await svc.resolveActive('t1', {
+        apiKey: { defaultWorkspaceId: 'w5' } as any,
+        user: { activeWorkspaceId: 'w2' } as any,
+      });
+      expect(out).toBe(W5);
+    });
+
+    it('uses the stored user workspace', async () => {
+      wsRepo.findOne.mockImplementation(async ({ where }) => (where.id === 'w2' ? W2 : null));
+      await expect(svc.resolveActive('t1', { user: { activeWorkspaceId: 'w2' } as any })).resolves.toBe(W2);
+      expect(wsRepo.findOne).toHaveBeenCalledWith({ where: { id: 'w2', tenantId: 't1' } });
+    });
+
+    it('falls back when the stored workspace is gone', async () => {
+      wsRepo.findOne.mockImplementation(async ({ where }) => (where.isDefault ? DEFAULT : null));
+      await expect(svc.resolveActive('t1', { user: { activeWorkspaceId: 'w2' } as any })).resolves.toBe(DEFAULT);
+    });
+
+    it('with nothing uses the default', async () => {
+      wsRepo.findOne.mockResolvedValue(DEFAULT);
+      await expect(svc.resolveActive('t1', {})).resolves.toBe(DEFAULT);
+    });
+  });
+
+  it('setActive saves the resolved id', async () => {
+    wsRepo.findOne.mockResolvedValue({ id: 'w2', tenantId: 't1', slug: 'football' });
+    const user = { id: 'u1', tenantId: 't1' } as any;
+    const out = await svc.setActive(user, 'football');
+    expect(userRepo.update).toHaveBeenCalledWith({ id: 'u1' }, { activeWorkspaceId: 'w2' });
+    expect(out.activeWorkspaceId).toBe('w2');
+    expect(out.activeWorkspace).toMatchObject({ id: 'w2' });
   });
 });

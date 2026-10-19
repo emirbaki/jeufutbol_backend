@@ -12,6 +12,7 @@ import { ChatSession } from '../insights/entities/chat-session.entity';
 import { AuthModule } from '../auth/auth.module';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesResolver } from './workspaces.resolver';
+import { ActiveWorkspacePipe } from './active-workspace.decorator';
 
 @Module({
   imports: [TypeOrmModule.forFeature([
@@ -25,7 +26,7 @@ import { WorkspacesResolver } from './workspaces.resolver';
       ApiKey,
       Tenant,
     ]), AuthModule],
-  providers: [WorkspacesService, WorkspacesResolver],
-  exports: [WorkspacesService],
+  providers: [WorkspacesService, WorkspacesResolver, ActiveWorkspacePipe],
+  exports: [WorkspacesService, ActiveWorkspacePipe],
 })
 export class WorkspacesModule {}

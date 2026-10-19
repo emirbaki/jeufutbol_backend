@@ -4,6 +4,7 @@ import { Workspace } from '../entities/workspace.entity';
 import { User } from '../entities/user.entity';
 import { ApiKey } from '../entities/api-key.entity';
 import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
+import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { ApiKeyScopeGuard } from '../auth/guards/api-key-scope.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -56,6 +57,16 @@ export class WorkspacesResolver {
   ): Promise<boolean> {
     this.assertAdmin(user);
     return this.workspacesService.remove(this.tenantOf(user, apiKey), id);
+  }
+
+  /** JWT users only: an API key has no stored workspace. */
+  @Mutation(() => User)
+  @UseGuards(GqlAuthGuard)
+  async setActiveWorkspace(
+    @CurrentUser() user: User,
+    @Args('workspaceId', { type: () => ID }) workspaceId: string,
+  ): Promise<User> {
+    return this.workspacesService.setActive(user, workspaceId);
   }
 
   private tenantOf(user?: User, apiKey?: ApiKey): string {

@@ -32,7 +32,7 @@ async function bootstrap() {
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Subdomain', 'jeu-api-key'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Subdomain', 'X-Workspace-Id', 'jeu-api-key'],
     exposedHeaders: ['X-Tenant-Subdomain'],
     maxAge: 3600, // Cache preflight for 1 hour
   });

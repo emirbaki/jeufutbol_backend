@@ -106,7 +106,6 @@ export class AuthResolver {
   @Query(() => User)
   @UseGuards(GqlAuthGuard)
   async me(@CurrentUser() user: User): Promise<User> {
-    await this.authService.validateUser(user.id);
-    return user;
+    return this.authService.getMe(user.id);
   }
 }

@@ -7,6 +7,8 @@ import { Post, PostStatus } from '../entities/post.entity';
 import { MonitoredProfile } from '../entities/monitored-profile.entity';
 import { Insight } from '../entities/insight.entity';
 import { ChatSession } from '../insights/entities/chat-session.entity';
+import { User } from '../entities/user.entity';
+import { ApiKey } from '../entities/api-key.entity';
 import {
   DEFAULT_WORKSPACE_NAME,
   DEFAULT_WORKSPACE_SLUG,
@@ -17,6 +19,13 @@ import {
 } from './workspace.utils';
 
 const NAME_MAX = 60;
+
+/** What the request says about the active workspace. */
+export interface ActiveWorkspaceRequest {
+  headerRef?: string | null;
+  user?: User | null;
+  apiKey?: ApiKey | null;
+}
 
 export interface WorkspaceInput {
   name?: string;
@@ -38,6 +47,8 @@ export class WorkspacesService {
     private readonly insightRepository: Repository<Insight>,
     @InjectRepository(ChatSession)
     private readonly chatSessionRepository: Repository<ChatSession>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async list(tenantId: string): Promise<Workspace[]> {
@@ -98,6 +109,34 @@ export class WorkspacesService {
     throw new NotFoundException(
       `Workspace "${value}" not found. Use one of: ${known.map((w) => w.slug).join(', ')}.`,
     );
+  }
+
+  /**
+   * The workspace that a request works in. Order: the X-Workspace-Id header,
+   * the API key default, the user's stored workspace, the tenant default.
+   * A header that does not resolve is an error. A stored ID that no longer
+   * resolves falls through to the next step.
+   */
+  async resolveActive(tenantId: string, req: ActiveWorkspaceRequest): Promise<Workspace> {
+    if (req.headerRef?.trim()) return this.resolve(tenantId, req.headerRef);
+
+    // defaultWorkspaceId comes with the tenant merge (Task M2). Read it only when present.
+    const stored = [(req.apiKey as { defaultWorkspaceId?: string | null } | null | undefined)?.defaultWorkspaceId, req.user?.activeWorkspaceId];
+    for (const id of stored) {
+      if (!id) continue;
+      const workspace = await this.workspaceRepository.findOne({ where: { id, tenantId } });
+      if (workspace) return workspace;
+    }
+    return this.ensureDefault(tenantId);
+  }
+
+  /** Saves the workspace that opens for this user after login. */
+  async setActive(user: User, workspaceRef: string): Promise<User> {
+    const workspace = await this.resolve(user.tenantId, workspaceRef);
+    await this.userRepository.update({ id: user.id }, { activeWorkspaceId: workspace.id });
+    user.activeWorkspaceId = workspace.id;
+    user.activeWorkspace = workspace;
+    return user;
   }
 
   async create(tenantId: string, input: WorkspaceInput & { name: string }): Promise<Workspace> {
