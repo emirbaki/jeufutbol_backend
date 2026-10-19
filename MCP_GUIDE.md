@@ -57,9 +57,9 @@ For other clients, use these values:
 | Posts | `list_posts` | `posts:read` | `limit?`, `offset?`, `status?`, `workspace?` | A page of posts, each with its `workspace` |
 | Posts | `delete_post` | `posts:delete` | `postId` | `deleted: true` |
 | AI | `generate_post_text` | `insights:generate` | `insights[]`, `platform`, `tone?`, `llmProvider?`, `credentialId?` | `jobId` |
-| AI | `generate_insights` | `insights:generate` | `topic?`, `llmProvider?`, `credentialId?` | `jobId` |
-| AI | `get_insights` | `insights:read` | `limit?` | The saved insights for the tenant |
-| AI | `analyze_trends` | `insights:read` | `topic?`, `timeRange?` | Trend data for your tenant (synchronous) |
+| AI | `generate_insights` | `insights:generate` | `topic?`, `llmProvider?`, `credentialId?`, `workspace?` | `jobId` |
+| AI | `get_insights` | `insights:read` | `limit?`, `workspace?` | The saved insights of the workspace |
+| AI | `analyze_trends` | `insights:read` | `topic?`, `timeRange?`, `workspace?` | Trend data of the workspace (synchronous) |
 | Jobs | `get_job` | any valid caller | `jobId` | `status`, `progress`, `result` when the job is complete |
 
 Use the tools in this sequence: `list_workspaces`, then `list_connected_accounts`, then `create_upload` or `import_media_from_url`, then `create_post`, then `publish_post`, then `get_post`.
