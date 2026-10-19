@@ -1,5 +1,7 @@
 import { CacheInterceptor } from '@nestjs/cache-manager';
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import { CallHandler, ExecutionContext, Inject, Injectable } from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { WorkspaceAccessService, reaches } from '../workspaces/workspace-access.service';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { isUuid } from '../workspaces/workspace.utils';
 import { readWorkspaceHeader } from '../workspaces/active-workspace.decorator';
@@ -35,6 +37,23 @@ export function graphqlCacheKey(tenantId: string, workspaceId: string, fieldName
 
 @Injectable()
 export class GraphqlCacheInterceptor extends CacheInterceptor {
+  @Inject(WorkspaceAccessService)
+  private readonly accessService!: WorkspaceAccessService;
+
+  /**
+   * Pipes run after interceptors, so a cache hit would skip the branch check of
+   * ActiveWorkspacePipe. A caller who cannot reach the header branch skips the
+   * cache, and the pipe then rejects the request.
+   */
+  async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
+    if (this.trackBy(context)) {
+      const req = GqlExecutionContext.create(context).getContext().req;
+      const access = await this.accessService.accessFor(req?.user, req?.apiKey);
+      if (!reaches(access, readWorkspaceHeader(req))) return next.handle();
+    }
+    return super.intercept(context, next);
+  }
+
   trackBy(context: ExecutionContext): string | undefined {
     const gqlContext = GqlExecutionContext.create(context);
     const info = gqlContext.getInfo();

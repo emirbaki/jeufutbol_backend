@@ -10,11 +10,13 @@ const member = { id: 'u1', role: UserRole.USER } as any;
 
 describe('WorkspaceAccessService', () => {
   let members: { find: jest.Mock; findOne: jest.Mock };
+  let users: { findOne: jest.Mock };
   let svc: WorkspaceAccessService;
 
   beforeEach(() => {
     members = { find: jest.fn().mockResolvedValue([]), findOne: jest.fn().mockResolvedValue(null) };
-    svc = new WorkspaceAccessService(members as any);
+    users = { findOne: jest.fn().mockResolvedValue(null) };
+    svc = new WorkspaceAccessService(members as any, users as any);
   });
 
   describe('accessFor', () => {
@@ -28,6 +30,26 @@ describe('WorkspaceAccessService', () => {
 
     it('a key with a list reaches only the list (the user is ignored)', async () => {
       await expect(svc.accessFor(admin, { workspaceIds: ['w2'] } as any)).resolves.toEqual(['w2']);
+    });
+
+    it('a key never reaches more than its creator: an all-branch key of a member', async () => {
+      users.findOne.mockResolvedValue(member);
+      members.find.mockResolvedValue([{ workspaceId: 'w1' }]);
+      await expect(svc.accessFor(null, { workspaceIds: [], createdByUserId: 'u1' } as any)).resolves.toEqual(['w1']);
+      expect(users.findOne).toHaveBeenCalledWith({ where: { id: 'u1' } });
+    });
+
+    it('a key list is cut to the branches of its creator', async () => {
+      users.findOne.mockResolvedValue(member);
+      members.find.mockResolvedValue([{ workspaceId: 'w1' }]);
+      await expect(
+        svc.accessFor(null, { workspaceIds: ['w1', 'w2'], createdByUserId: 'u1' } as any),
+      ).resolves.toEqual(['w1']);
+    });
+
+    it('a key of an admin keeps its own list', async () => {
+      users.findOne.mockResolvedValue(admin);
+      await expect(svc.accessFor(null, { workspaceIds: ['w2'], createdByUserId: 'a1' } as any)).resolves.toEqual(['w2']);
     });
 
     it('a member reaches only their branches', async () => {

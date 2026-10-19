@@ -177,10 +177,18 @@ describe('PostToolsGroup', () => {
   });
 
   it('update_post with no platform or workspace change does not check accounts', async () => {
+    posts.getPost.mockResolvedValue(postRow());
     posts.updatePost.mockResolvedValue(postRow());
     await tool('update_post').handler({ postId: UUID, content: 'New' }, ctx);
-    expect(posts.getPost).not.toHaveBeenCalled();
     expect(creds.listCredentials).not.toHaveBeenCalled();
+  });
+
+  it('update_post of a post in another branch is not found, also for a text-only change', async () => {
+    posts.getPost.mockResolvedValue(postRow({ workspaceId: 'w-other' }));
+    await expect(
+      tool('update_post').handler({ postId: UUID, content: 'New' }, { ...ctx, access: ['w1'] }),
+    ).rejects.toThrow('Post not found');
+    expect(posts.updatePost).not.toHaveBeenCalled();
   });
 
   it('list_posts filters by workspace and shows it', async () => {

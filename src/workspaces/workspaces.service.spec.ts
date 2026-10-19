@@ -15,7 +15,7 @@ const UUID = '123e4567-e89b-42d3-a456-426614174000';
 const DEFAULT = { id: 'w1', tenantId: 't1', name: 'General', slug: 'general', isDefault: true };
 
 describe('WorkspacesService', () => {
-  let em: { update: jest.Mock; delete: jest.Mock };
+  let em: { update: jest.Mock; delete: jest.Mock; query: jest.Mock };
   let wsRepo: any;
   let credRepo: { update: jest.Mock; count: jest.Mock };
   let postRepo: { update: jest.Mock; count: jest.Mock };
@@ -26,7 +26,7 @@ describe('WorkspacesService', () => {
   let svc: WorkspacesService;
 
   beforeEach(() => {
-    em = { update: jest.fn(), delete: jest.fn() };
+    em = { update: jest.fn(), delete: jest.fn(), query: jest.fn() };
     wsRepo = {
       findOne: jest.fn(),
       find: jest.fn().mockResolvedValue([]),
@@ -212,6 +212,16 @@ describe('WorkspacesService', () => {
         { workspaceId: 'w9', isActive: false },
         { workspaceId: 'w1' },
       );
+    });
+
+    it('gives members whose only branch this is a membership of the default branch', async () => {
+      wsRepo.findOne.mockResolvedValueOnce(target).mockResolvedValueOnce(DEFAULT);
+      await svc.remove('t1', 'w9');
+      const [sql, params] = em.query.mock.calls[0];
+      expect(sql).toContain('INSERT INTO "workspace_members"');
+      expect(sql).toContain('ON CONFLICT DO NOTHING');
+      expect(params).toEqual(['w1', 'w9']);
+      expect(em.query.mock.invocationCallOrder[0]).toBeLessThan(em.delete.mock.invocationCallOrder[0]);
     });
 
     it('moves old rows to the default and deletes', async () => {

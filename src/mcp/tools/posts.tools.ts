@@ -137,9 +137,10 @@ export class PostToolsGroup implements McpToolGroup {
   private async updatePost(args: UpdatePostArgs, ctx: McpAuthContext) {
     const { postId, scheduledFor, workspace: workspaceRef, ...fields } = args;
     let workspace: Workspace | undefined;
+    // Also a text-only change must not reach a post of another branch.
+    const current = await this.loadPost(postId, ctx);
     // Check the final pair of workspace and platforms when either one changes.
     if (fields.targetPlatforms || workspaceRef) {
-      const current = await this.loadPost(postId, ctx);
       workspace = workspaceRef
         ? await this.workspacesService.resolve(ctx.tenantId, workspaceRef, ctx.access)
         : (current.workspace ?? (await this.workspacesService.resolve(ctx.tenantId, current.workspaceId, ctx.access)));

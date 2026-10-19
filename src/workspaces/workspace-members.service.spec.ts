@@ -104,6 +104,15 @@ describe('WorkspaceMembersService', () => {
     );
   });
 
+  it('removing the admin role from a person with no branch is blocked', async () => {
+    users.findOne.mockResolvedValue({ id: 'a2', tenantId: 't1', role: UserRole.ADMIN });
+    members.findOne.mockResolvedValue(null);
+    await expect(svc.setAdmin(admin, 'a2', false)).rejects.toThrow(
+      new BadRequestException('Add this person to a branch first. Without a branch, they cannot see any data.'),
+    );
+    expect(users.save).not.toHaveBeenCalled();
+  });
+
   it('removing the admin role restores the oldest branch role', async () => {
     users.findOne.mockResolvedValue({ id: 'a2', tenantId: 't1', role: UserRole.ADMIN });
     members.findOne.mockResolvedValue({ role: WorkspaceRole.MANAGER });

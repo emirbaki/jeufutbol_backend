@@ -13,7 +13,7 @@ import { ApiKeyScope } from '../auth/api-key-scopes.enum';
 import { UserRole } from '../auth/user-role.enum';
 import { WorkspacesService } from './workspaces.service';
 import { CreateWorkspaceInput, UpdateWorkspaceInput } from './workspace.inputs';
-import { WorkspaceAccessService } from './workspace-access.service';
+import { MANAGE_WORKSPACES, WorkspaceAccessService } from './workspace-access.service';
 
 @Resolver(() => Workspace)
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
@@ -36,7 +36,7 @@ export class WorkspacesResolver {
     @CurrentApiKey() apiKey: ApiKey | undefined,
     @Args('input') input: CreateWorkspaceInput,
   ): Promise<Workspace> {
-    this.assertAdmin(user);
+    await this.assertAdmin(user, apiKey);
     return this.workspacesService.create(this.tenantOf(user, apiKey), input);
   }
 
@@ -48,7 +48,7 @@ export class WorkspacesResolver {
     @Args('id', { type: () => ID }) id: string,
     @Args('input') input: UpdateWorkspaceInput,
   ): Promise<Workspace> {
-    this.assertAdmin(user);
+    await this.assertAdmin(user, apiKey);
     return this.workspacesService.update(this.tenantOf(user, apiKey), id, input);
   }
 
@@ -59,7 +59,7 @@ export class WorkspacesResolver {
     @CurrentApiKey() apiKey: ApiKey | undefined,
     @Args('id', { type: () => ID }) id: string,
   ): Promise<boolean> {
-    this.assertAdmin(user);
+    await this.assertAdmin(user, apiKey);
     return this.workspacesService.remove(this.tenantOf(user, apiKey), id);
   }
 
@@ -79,10 +79,11 @@ export class WorkspacesResolver {
     return tenantId;
   }
 
-  /** An API key passes here: the guard already checked the admin scope. */
-  private assertAdmin(user?: User): void {
-    if (user && user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Only an admin can manage workspaces.');
-    }
+  /** An admin, or an API key that reaches all branches (the guard already checked its admin scope). */
+  private async assertAdmin(user?: User, apiKey?: ApiKey): Promise<void> {
+    const allowed = user
+      ? user.role === UserRole.ADMIN
+      : (await this.accessService.accessFor(undefined, apiKey)) === 'all';
+    if (!allowed) throw new ForbiddenException(MANAGE_WORKSPACES);
   }
 }

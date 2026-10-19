@@ -37,6 +37,16 @@ export class WorkspaceRoles1792368300000 implements MigrationInterface {
             FROM "users" u
             JOIN "workspaces" w ON w."isDefault" = true AND w."tenantId"::text = u."tenantId"::text
             WHERE u."role"::text IN ('MANAGER', 'USER')`);
+
+        // Open invitations of non-admins get the default branch, so the new person has a branch
+        // and a manager of that branch can see and revoke the invitation.
+        await queryRunner.query(`
+            UPDATE "user_invitations" i
+            SET "workspaceId" = w."id", "workspaceRole" = i."role"::text::"workspace_role_enum"
+            FROM "workspaces" w
+            WHERE w."isDefault" = true AND w."tenantId"::text = i."tenantId"::text
+              AND i."workspaceId" IS NULL AND i."status"::text = 'PENDING'
+              AND i."role"::text IN ('MANAGER', 'USER')`);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {

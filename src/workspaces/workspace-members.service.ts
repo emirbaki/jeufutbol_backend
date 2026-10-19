@@ -81,6 +81,9 @@ export class WorkspaceMembersService {
       if (admins <= 1) throw new BadRequestException('The organization needs at least one admin.');
     }
     const oldest = await this.memberRepository.findOne({ where: { userId }, order: { createdAt: 'ASC' } });
+    if (!oldest) {
+      throw new BadRequestException('Add this person to a branch first. Without a branch, they cannot see any data.');
+    }
     person.role = oldest?.role === WorkspaceRole.MANAGER ? UserRole.MANAGER : UserRole.USER;
     return this.userRepository.save(person);
   }

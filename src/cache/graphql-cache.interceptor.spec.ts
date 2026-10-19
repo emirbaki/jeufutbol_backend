@@ -20,6 +20,38 @@ describe('GraphqlCacheInterceptor', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  describe('intercept', () => {
+    const next = { handle: jest.fn(() => 'fresh') };
+    let limited: GraphqlCacheInterceptor;
+    let accessFor: jest.Mock;
+
+    beforeEach(() => {
+      accessFor = jest.fn().mockResolvedValue(['w-own']);
+      limited = new GraphqlCacheInterceptor({} as any, {} as any);
+      (limited as any).accessService = { accessFor };
+      next.handle.mockClear();
+    });
+
+    it('skips the cache when the caller cannot reach the header branch', async () => {
+      const req = { user: { tenantId: 't1', role: 'USER' }, headers: { 'x-workspace-id': UUID } };
+      const ctx = contextWith(req);
+      const superIntercept = jest.spyOn(Object.getPrototypeOf(GraphqlCacheInterceptor.prototype), 'intercept');
+      await expect(limited.intercept(ctx, next as any)).resolves.toBe('fresh');
+      expect(accessFor).toHaveBeenCalledWith(req.user, undefined);
+      expect(superIntercept).not.toHaveBeenCalled();
+    });
+
+    it('uses the cache when the caller reaches the header branch', async () => {
+      accessFor.mockResolvedValue([UUID]);
+      const ctx = contextWith({ user: { tenantId: 't1' }, headers: { 'x-workspace-id': UUID } });
+      const superIntercept = jest
+        .spyOn(Object.getPrototypeOf(GraphqlCacheInterceptor.prototype), 'intercept')
+        .mockResolvedValue('from-cache' as any);
+      await expect(limited.intercept(ctx, next as any)).resolves.toBe('from-cache');
+      expect(superIntercept).toHaveBeenCalled();
+    });
+  });
+
   it('key includes the workspace header', () => {
     const ctx = contextWith({ user: { tenantId: 't1' }, headers: { 'x-workspace-id': UUID } });
     expect(interceptor.trackBy(ctx)).toBe(`t1:${UUID}:getTimelineTweets:{}`);

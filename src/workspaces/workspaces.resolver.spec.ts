@@ -22,6 +22,27 @@ describe('WorkspacesResolver', () => {
     resolver = new WorkspacesResolver(service as any, { accessFor: jest.fn().mockResolvedValue('all') } as any);
   });
 
+  it.each(['updateWorkspace', 'deleteWorkspace', 'createWorkspace'] as const)(
+    '%s rejects an API key that does not reach all branches',
+    async (name) => {
+      const access = { accessFor: jest.fn().mockResolvedValue(['w1']) };
+      resolver = new WorkspacesResolver(service as any, access as any);
+      const call =
+        name === 'createWorkspace'
+          ? resolver.createWorkspace(undefined, apiKey, { name: 'x' })
+          : name === 'updateWorkspace'
+            ? resolver.updateWorkspace(undefined, apiKey, 'w9', { name: 'x' })
+            : resolver.deleteWorkspace(undefined, apiKey, 'w9');
+      await expect(call).rejects.toThrow(
+        new ForbiddenException('Only an admin, or an API key for all branches, can manage workspaces.'),
+      );
+      expect(access.accessFor).toHaveBeenCalledWith(undefined, apiKey);
+      expect(service.create).not.toHaveBeenCalled();
+      expect(service.update).not.toHaveBeenCalled();
+      expect(service.remove).not.toHaveBeenCalled();
+    },
+  );
+
   it('workspaces lists for the tenant of the user', async () => {
     await resolver.workspaces(user(UserRole.USER), undefined);
     expect(service.list).toHaveBeenCalledWith('t1', 'all');

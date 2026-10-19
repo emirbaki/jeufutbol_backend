@@ -23,6 +23,7 @@ import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKeyScope } from '../auth/api-key-scopes.enum';
 import { UserRole } from '../auth/user-role.enum';
 import { UploadService } from '../upload/upload.service';
+import { MANAGE_WORKSPACES, WorkspaceAccessService } from './workspace-access.service';
 import { imageFileName, imageMulterOptions, validateImageUpload } from '../upload/image-upload';
 
 @Controller('workspaces/:id/image')
@@ -33,6 +34,7 @@ export class WorkspaceImageController {
     @InjectRepository(Workspace)
     private readonly workspaceRepository: Repository<Workspace>,
     private readonly uploadService: UploadService,
+    private readonly accessService: WorkspaceAccessService,
   ) {}
 
   @Post()
@@ -66,11 +68,12 @@ export class WorkspaceImageController {
     return saved;
   }
 
-  /** An API key passes here: the guard already checked the admin scope. */
+  /** An admin, or an API key that reaches all branches (the guard already checked its admin scope). */
   private async findManageable(id: string, user?: User, apiKey?: ApiKey): Promise<Workspace> {
-    if (user && user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Only an admin can manage workspaces.');
-    }
+    const allowed = user
+      ? user.role === UserRole.ADMIN
+      : (await this.accessService.accessFor(undefined, apiKey)) === 'all';
+    if (!allowed) throw new ForbiddenException(MANAGE_WORKSPACES);
     const tenantId = user?.tenantId || apiKey?.tenantId;
     if (!tenantId) throw new ForbiddenException('Tenant context required.');
     const workspace = await this.workspaceRepository.findOne({ where: { id, tenantId } });

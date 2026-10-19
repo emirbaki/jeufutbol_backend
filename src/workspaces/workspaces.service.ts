@@ -204,6 +204,15 @@ export class WorkspacesService {
       await em.update(MonitoredProfile, { workspaceId: id, isActive: false }, moveTo);
       await em.update(Insight, { workspaceId: id }, moveTo);
       await em.update(ChatSession, { workspaceId: id }, moveTo);
+      // A person whose only branch this is moves to the default branch with the same role.
+      await em.query(
+        `INSERT INTO "workspace_members" ("workspaceId", "userId", "role")
+         SELECT $1, m."userId", m."role" FROM "workspace_members" m
+         WHERE m."workspaceId" = $2
+           AND NOT EXISTS (SELECT 1 FROM "workspace_members" o WHERE o."userId" = m."userId" AND o."workspaceId" <> $2)
+         ON CONFLICT DO NOTHING`,
+        [fallback.id, id],
+      );
       await em.delete(Workspace, { id, tenantId });
     });
     return true;

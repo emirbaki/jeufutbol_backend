@@ -13,11 +13,22 @@ describe('WorkspaceImageController', () => {
   let repo: { findOne: jest.Mock; save: jest.Mock };
   let upload: { saveFile: jest.Mock; deleteFileByUrl: jest.Mock };
   let controller: WorkspaceImageController;
+  let access: { accessFor: jest.Mock };
 
   beforeEach(() => {
     repo = { findOne: jest.fn(), save: jest.fn(async (x) => x) };
     upload = { saveFile: jest.fn().mockResolvedValue('https://x/uploads/new.png'), deleteFileByUrl: jest.fn() };
-    controller = new WorkspaceImageController(repo as any, upload as any);
+    access = { accessFor: jest.fn().mockResolvedValue('all') };
+    controller = new WorkspaceImageController(repo as any, upload as any, access as any);
+  });
+
+  it('an API key that does not reach all branches gets Forbidden', async () => {
+    access.accessFor.mockResolvedValue(['w1']);
+    repo.findOne.mockResolvedValue({ id: 'w1', tenantId: 't2', imageUrl: null });
+    await expect(controller.upload('w1', pngFile, undefined, { tenantId: 't2' } as any)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(upload.saveFile).not.toHaveBeenCalled();
   });
 
   it('USER role gets Forbidden', async () => {
