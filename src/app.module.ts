@@ -35,6 +35,9 @@ import { SubscriptionModule } from './subscription/subscription.module';
 import { McpModule } from './mcp/mcp.module';
 
 
+import { WorkspaceAccessService } from './workspaces/workspace-access.service';
+import { DataSource } from 'typeorm';
+import { User } from './entities/user.entity';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -42,16 +45,16 @@ import { McpModule } from './mcp/mcp.module';
     }),
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
-      imports: [AuthModule],
-      inject: [JwtService],
-      useFactory: (jwtService: JwtService) => ({
+      imports: [AuthModule, WorkspacesModule],
+      inject: [JwtService, WorkspaceAccessService, DataSource],
+      useFactory: (jwtService: JwtService, accessService: WorkspaceAccessService, dataSource: DataSource) => ({
         autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
         playground: false,
         allowBatchedHttpRequests: false,
         introspection: process.env.NODE_ENV !== 'production',
         subscriptions: {
           'graphql-ws': {
-            onConnect: (context: any) => {
+            onConnect: async (context: any) => {
               const { connectionParams, extra } = context;
               const token = connectionParams?.Authorization?.replace('Bearer ', '') ||
                 connectionParams?.authorization?.replace('Bearer ', '');
@@ -60,6 +63,13 @@ import { McpModule } from './mcp/mcp.module';
                   const user = jwtService.verify(token);
                   extra.user = user;
                   extra.token = token;
+                  // The tenant and branch access of the connection, for the subscription filters.
+                  // The access stays fixed for the life of the connection.
+                  const dbUser = await dataSource.getRepository(User).findOne({ where: { id: user.sub } });
+                  if (dbUser) {
+                    extra.tenantId = dbUser.tenantId;
+                    extra.workspaceAccess = await accessService.accessFor(dbUser, null);
+                  }
                 } catch (err) {
                   console.error('WebSocket auth failed:', err.message);
                 }
@@ -73,6 +83,8 @@ import { McpModule } from './mcp/mcp.module';
               req: {
                 ...req,
                 user: extra.user,
+                tenantId: extra.tenantId,
+                workspaceAccess: extra.workspaceAccess,
                 headers: {
                   ...req?.headers,
                   authorization: extra.token ? `Bearer ${extra.token}` : undefined,

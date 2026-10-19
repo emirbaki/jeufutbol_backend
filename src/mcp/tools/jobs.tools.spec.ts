@@ -8,6 +8,7 @@ const ctx: McpAuthContext = {
   grant: { isUser: false, scopes: [] },
   keyPrefix: 'jeu_ab',
   apiBaseUrl: 'https://x/api',
+  access: 'all',
 };
 
 describe('JobToolsGroup', () => {

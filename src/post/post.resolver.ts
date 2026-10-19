@@ -16,6 +16,7 @@ import { ApiKey } from '../entities/api-key.entity';
 import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
+import { canReachFromContext } from '../workspaces/subscription-access';
 import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
 import { Workspace } from '../entities/workspace.entity';
 import { PostListFilter } from 'src/graphql/inputs/post-list.input';
@@ -116,7 +117,7 @@ export class PostsResolver {
   ): Promise<Post> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
-    return this.postsService.getPost(postId, userId, tenantId);
+    return this.loadPost(postId, user, apiKey);
   }
 
   @Mutation(() => Post)
@@ -129,6 +130,7 @@ export class PostsResolver {
   ): Promise<Post> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
+    await this.loadPost(postId, user, apiKey);
     const workspaceId = input.workspaceId
       ? (await this.workspacesService.resolve(tenantId, input.workspaceId, await this.accessService.accessFor(user, apiKey))).id
       : undefined;
@@ -149,6 +151,7 @@ export class PostsResolver {
   ): Promise<boolean> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
+    await this.loadPost(postId, user, apiKey);
     return this.postsService.deletePost(postId, userId, tenantId);
   }
 
@@ -161,6 +164,7 @@ export class PostsResolver {
   ): Promise<Post> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
+    await this.loadPost(postId, user, apiKey);
     return this.postsService.publishPost(postId, userId, tenantId);
   }
 
@@ -173,6 +177,7 @@ export class PostsResolver {
   ): Promise<Post> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
+    await this.loadPost(postId, user, apiKey);
     return this.postsService.retryPublishPost(postId, userId, tenantId);
   }
 
@@ -201,7 +206,11 @@ export class PostsResolver {
     return true;
   }
 
-  @Subscription(() => Post)
+  // Each connection gets only the posts of its tenant and its branches.
+  @Subscription(() => Post, {
+    filter: (payload: { postUpdated: Post }, _variables: unknown, context: any) =>
+      canReachFromContext(context, payload.postUpdated),
+  })
   postUpdated() {
     return this.pubSub.asyncIterableIterator('postUpdated');
   }
@@ -230,5 +239,14 @@ export class PostsResolver {
       ? (await this.workspacesService.resolve(tenantId, workspaceRef, await this.accessService.accessFor(user, apiKey))).id
       : workspace?.id;
     return this.postsService.getTikTokCreatorInfo(userId, tenantId, tiktokWorkspace);
+  }
+
+  /** Loads a post of the tenant and checks that the caller reaches its branch. */
+  private async loadPost(postId: string, user: User, apiKey: ApiKey): Promise<Post> {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    const userId = user?.id || apiKey?.createdByUserId;
+    const post = await this.postsService.getPost(postId, userId, tenantId);
+    this.accessService.assertRow(await this.accessService.accessFor(user, apiKey), post.workspaceId, 'Post');
+    return post;
   }
 }

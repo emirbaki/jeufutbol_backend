@@ -10,6 +10,7 @@ describe('buildMcpAuthContext', () => {
       grant: { isUser: true, scopes: [] },
       keyPrefix: 'user',
       apiBaseUrl: 'https://x/api',
+      access: 'all',
     });
   });
 

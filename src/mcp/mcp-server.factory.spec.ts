@@ -22,6 +22,7 @@ const ctxWith = (isUser: boolean, scopes: string[]): McpAuthContext => ({
   grant: { isUser, scopes },
   keyPrefix: 'jeu_ab',
   apiBaseUrl: 'https://x/api',
+  access: 'all',
 });
 
 const groups = [

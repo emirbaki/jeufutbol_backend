@@ -48,6 +48,8 @@ export interface PostTemplateDto {
   credentialId?: number;
 }
 
+import { WorkspaceAccess, reaches } from '../workspaces/workspace-access.service';
+
 @Injectable()
 export class AIInsightsService {
   private readonly logger = new Logger(AIInsightsService.name);
@@ -849,12 +851,13 @@ Return as a JSON array of strings, no additional formatting.`;
   /**
    * Mark an insight as read
    */
-  async markInsightAsRead(insightId: string, tenantId: string): Promise<Insight> {
+  async markInsightAsRead(insightId: string, tenantId: string, access: WorkspaceAccess = 'all'): Promise<Insight> {
     const insight = await this.insightRepository.findOne({
       where: { id: insightId, tenantId },
     });
 
-    if (!insight) {
+    // An insight of a branch without access is "not found"
+    if (!insight || !reaches(access, insight.workspaceId)) {
       throw new Error('Insight not found or unauthorized');
     }
 

@@ -220,6 +220,7 @@ export class CredentialsController {
 
     if (!tenantId) throw new Error('Tenant context required');
 
+    await this.loadReachable(credentialId, tenantId, user, apiKey);
     const isValid = await this.credentialsService.testConnection(
       credentialId,
       tenantId,
@@ -239,6 +240,7 @@ export class CredentialsController {
 
     if (!tenantId) throw new Error('Tenant context required');
 
+    await this.loadReachable(credentialId, tenantId, user, apiKey);
     try {
       await this.credentialsService.refreshAccessToken(credentialId, tenantId);
 
@@ -273,11 +275,18 @@ export class CredentialsController {
 
     if (!tenantId) throw new Error('Tenant context required');
 
-    const credential = await this.credentialsService.getCredential(credentialId, tenantId);
-    if (!credential) throw new NotFoundException('Account not found.');
+    const credential = await this.loadReachable(credentialId, tenantId, user, apiKey);
     assertCanManageCredential(user, credential);
 
     await this.credentialsService.deleteCredential(credentialId, tenantId);
     return { success: true };
+  }
+
+  /** Loads an account of the tenant and checks that the caller reaches its branch. */
+  private async loadReachable(credentialId: string, tenantId: string, user?: User, apiKey?: ApiKey) {
+    const credential = await this.credentialsService.getCredential(credentialId, tenantId);
+    if (!credential) throw new NotFoundException('Account not found.');
+    this.accessService.assertRow(await this.accessService.accessFor(user, apiKey), credential.workspaceId, 'Account');
+    return credential;
   }
 }

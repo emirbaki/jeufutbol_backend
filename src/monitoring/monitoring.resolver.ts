@@ -9,6 +9,7 @@ import { Cache } from 'cache-manager';
 import { GraphqlCacheInterceptor, graphqlCacheKey } from '../cache/graphql-cache.interceptor';
 import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
 import { Workspace } from '../entities/workspace.entity';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 import { MonitoringService } from './monitoring.service';
 import { TweetsService } from '../tweets/tweets.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -32,6 +33,7 @@ export class MonitoringResolver {
     private monitoringService: MonitoringService,
     private tweetsService: TweetsService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private accessService: WorkspaceAccessService,
   ) { }
 
   @Query(() => [MonitoredProfile])
@@ -59,7 +61,7 @@ export class MonitoringResolver {
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
-    return this.monitoringService.getProfile(profileId, userId, tenantId);
+    return this.loadProfile(profileId, user, apiKey);
   }
 
   @Query(() => [Tweet])
@@ -75,8 +77,8 @@ export class MonitoringResolver {
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
-    // Verify user owns this profile
-    await this.monitoringService.getProfile(profileId, userId, tenantId);
+    // Verify the caller reaches the profile's branch
+    await this.loadProfile(profileId, user, apiKey);
 
     return this.tweetsService.getTweetsByProfile(profileId, limit, offset);
   }
@@ -108,6 +110,7 @@ export class MonitoringResolver {
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
+    await this.loadProfile(profileId, user, apiKey);
     return this.monitoringService.getProfileWithStats(
       profileId,
       userId,
@@ -154,7 +157,7 @@ export class MonitoringResolver {
     if (!userId) throw new Error('User context required');
 
     // Read the workspace before the profile goes away
-    const { workspaceId } = await this.monitoringService.getProfile(profileId, userId, tenantId);
+    const { workspaceId } = await this.loadProfile(profileId, user, apiKey);
     const result = await this.monitoringService.removeProfile(
       userId,
       tenantId,
@@ -181,9 +184,18 @@ export class MonitoringResolver {
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
-    // Verify user owns this profile
-    await this.monitoringService.getProfile(profileId, userId, tenantId);
+    // Verify the caller reaches the profile's branch
+    await this.loadProfile(profileId, user, apiKey);
 
     return this.monitoringService.fetchAndStoreTweets(profileId);
+  }
+
+  /** Loads a profile of the tenant and checks that the caller reaches its branch. */
+  private async loadProfile(profileId: string, user: User, apiKey: ApiKey): Promise<MonitoredProfile> {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    const userId = user?.id || apiKey?.createdByUserId;
+    const profile = await this.monitoringService.getProfile(profileId, userId, tenantId);
+    this.accessService.assertRow(await this.accessService.accessFor(user, apiKey), profile.workspaceId, 'Monitored profile');
+    return profile;
   }
 }

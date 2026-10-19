@@ -2,6 +2,7 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { ScopeGrant } from '../auth/scope.utils';
 import { User } from '../entities/user.entity';
 import { ApiKey } from '../entities/api-key.entity';
+import { WorkspaceAccess } from '../workspaces/workspace-access.service';
 
 export interface McpAuthContext {
   userId: string;
@@ -9,6 +10,8 @@ export interface McpAuthContext {
   grant: ScopeGrant;
   keyPrefix: string;
   apiBaseUrl: string;
+  /** The branches the caller can reach (Phase 3). */
+  access: WorkspaceAccess;
 }
 
 /**
@@ -32,6 +35,7 @@ export function buildMcpAuthContext(
       grant: { isUser: false, scopes: apiKey.scopes ?? [] },
       keyPrefix: apiKey.keyPrefix,
       apiBaseUrl,
+      access: 'all',
     };
   }
 
@@ -42,6 +46,7 @@ export function buildMcpAuthContext(
       grant: { isUser: true, scopes: [] },
       keyPrefix: 'user',
       apiBaseUrl,
+      access: 'all',
     };
   }
 

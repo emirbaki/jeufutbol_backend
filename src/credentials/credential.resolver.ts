@@ -60,7 +60,7 @@ export class CredentialsResolver {
     @Args('credentialId') credentialId: string,
   ) {
     const tenantId = this.tenantOf(user, apiKey);
-    await this.loadManageable(credentialId, tenantId, user);
+    await this.loadManageable(credentialId, tenantId, user, apiKey);
     await this.credentialsService.deleteCredential(credentialId, tenantId);
     return true;
   }
@@ -74,7 +74,7 @@ export class CredentialsResolver {
     @Args('workspaceId', { type: () => ID }) workspaceId: string,
   ) {
     const tenantId = this.tenantOf(user, apiKey);
-    const credential = await this.loadManageable(credentialId, tenantId, user);
+    const credential = await this.loadManageable(credentialId, tenantId, user, apiKey);
     // The target branch must be one the caller can reach.
     const access = await this.accessService.accessFor(user, apiKey);
     const target = await this.workspacesService.resolve(tenantId, workspaceId, access);
@@ -88,10 +88,9 @@ export class CredentialsResolver {
     @CurrentApiKey() apiKey: ApiKey,
     @Args('credentialId') credentialId: string,
   ) {
-    return this.credentialsService.testConnection(
-      credentialId,
-      this.tenantOf(user, apiKey),
-    );
+    const tenantId = this.tenantOf(user, apiKey);
+    await this.loadReachable(credentialId, tenantId, user, apiKey);
+    return this.credentialsService.testConnection(credentialId, tenantId);
   }
 
   /**
@@ -118,9 +117,16 @@ export class CredentialsResolver {
     return tenantId;
   }
 
-  private async loadManageable(credentialId: string, tenantId: string, user?: User): Promise<Credential> {
+  /** Loads an account of the tenant and checks that the caller reaches its branch. */
+  private async loadReachable(credentialId: string, tenantId: string, user?: User, apiKey?: ApiKey): Promise<Credential> {
     const credential = await this.credentialsService.getCredential(credentialId, tenantId);
     if (!credential) throw new NotFoundException('Account not found.');
+    this.accessService.assertRow(await this.accessService.accessFor(user, apiKey), credential.workspaceId, 'Account');
+    return credential;
+  }
+
+  private async loadManageable(credentialId: string, tenantId: string, user?: User, apiKey?: ApiKey): Promise<Credential> {
+    const credential = await this.loadReachable(credentialId, tenantId, user, apiKey);
     assertCanManageCredential(user, credential);
     return credential;
   }

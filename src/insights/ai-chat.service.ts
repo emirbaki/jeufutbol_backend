@@ -35,6 +35,8 @@ import { AssistantTool, AssistantCommentaryTool } from './tools/assistant.tool';
 import { SearchTool } from './tools/search.tool';
 import { VisitPageTool } from './tools/visit-page.tool';
 
+import { WorkspaceAccess, reaches } from '../workspaces/workspace-access.service';
+
 @Injectable()
 export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
@@ -82,17 +84,24 @@ export class AiChatService {
     });
   }
 
-  async getChatSessionHistory(
-    sessionId: string,
-    userId: string,
-  ): Promise<ChatMessage[]> {
-    // Verify ownership
+  /** A session of this user in a branch the caller reaches, else an error. */
+  async assertSession(sessionId: string, userId: string, access: WorkspaceAccess = 'all'): Promise<ChatSession> {
     const session = await this.chatSessionRepo.findOne({
       where: { id: sessionId, userId },
     });
-    if (!session) {
+    if (!session || !reaches(access, session.workspaceId)) {
       throw new Error('Session not found or unauthorized');
     }
+    return session;
+  }
+
+  async getChatSessionHistory(
+    sessionId: string,
+    userId: string,
+    access: WorkspaceAccess = 'all',
+  ): Promise<ChatMessage[]> {
+    // Verify ownership and branch access
+    await this.assertSession(sessionId, userId, access);
 
     return this.chatMessageRepo.find({
       where: { sessionId },
@@ -355,7 +364,8 @@ ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = 
     }
   }
 
-  async deleteChatSession(sessionId: string, userId: string): Promise<boolean> {
+  async deleteChatSession(sessionId: string, userId: string, access: WorkspaceAccess = 'all'): Promise<boolean> {
+    await this.assertSession(sessionId, userId, access);
     const result = await this.chatSessionRepo.delete({ id: sessionId, userId });
     return (result.affected ?? 0) > 0;
   }

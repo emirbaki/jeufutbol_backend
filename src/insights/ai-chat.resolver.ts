@@ -21,6 +21,7 @@ class ChatResponse {
 
 import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
 import { Workspace } from '../entities/workspace.entity';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 
 @Resolver()
 @UseGuards(GqlAuthGuard)
@@ -28,6 +29,7 @@ export class AiChatResolver {
   constructor(
     private aiChatService: AiChatService,
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
+    private accessService: WorkspaceAccessService,
   ) { }
 
   @Mutation(() => ChatSession)
@@ -49,7 +51,7 @@ export class AiChatResolver {
     @CurrentUser() user: User,
     @Args('sessionId') sessionId: string,
   ) {
-    return this.aiChatService.getChatSessionHistory(sessionId, user.id);
+    return this.aiChatService.getChatSessionHistory(sessionId, user.id, await this.accessService.accessFor(user, null));
   }
 
   @Mutation(() => ChatResponse)
@@ -61,6 +63,7 @@ export class AiChatResolver {
     @Args('credentialId', { nullable: true, type: () => Int }) credentialId?: number,
     @ActiveWorkspace() workspace?: Workspace,
   ) {
+    if (sessionId) await this.aiChatService.assertSession(sessionId, user.id, await this.accessService.accessFor(user, null));
     return this.aiChatService.chatWithAI(
       user.id,
       user.tenantId,
@@ -85,7 +88,8 @@ export class AiChatResolver {
     @Args('credentialId', { nullable: true, type: () => Int }) credentialId?: number,
     @ActiveWorkspace() workspace?: Workspace,
   ): Promise<ChatStreamStart> {
-    // Create session if not provided
+    // Create session if not provided. An existing session must be the user's own, in a branch they reach.
+    if (sessionId) await this.aiChatService.assertSession(sessionId, user.id, await this.accessService.accessFor(user, null));
     let currentSessionId = sessionId;
     if (!currentSessionId) {
       const newSession = await this.aiChatService.createChatSession(
@@ -132,6 +136,6 @@ export class AiChatResolver {
     @CurrentUser() user: User,
     @Args('sessionId') sessionId: string,
   ) {
-    return this.aiChatService.deleteChatSession(sessionId, user.id);
+    return this.aiChatService.deleteChatSession(sessionId, user.id, await this.accessService.accessFor(user, null));
   }
 }

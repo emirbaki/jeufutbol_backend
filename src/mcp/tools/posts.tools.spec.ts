@@ -11,6 +11,7 @@ const ctx: McpAuthContext = {
   grant: { isUser: false, scopes: [] },
   keyPrefix: 'jeu_ab',
   apiBaseUrl: 'https://x/api',
+  access: 'all',
 };
 const validYoutubeArgs = {
   content: 'Hi',
@@ -95,6 +96,7 @@ describe('PostToolsGroup', () => {
   });
 
   it('publish_post queues the publish', async () => {
+    posts.getPost.mockResolvedValue(postRow());
     posts.enqueuePublish.mockResolvedValue({ postId: 'p1', jobState: 'waiting' });
     const out: any = await tool('publish_post').handler({ postId: UUID }, ctx);
     expect(posts.enqueuePublish).toHaveBeenCalledWith(UUID, 'u1', 't1', 'publish');
@@ -102,6 +104,7 @@ describe('PostToolsGroup', () => {
   });
 
   it('retry_publish_post uses mode retry', async () => {
+    posts.getPost.mockResolvedValue(postRow());
     posts.enqueuePublish.mockResolvedValue({ postId: 'p1', jobState: 'waiting' });
     const out: any = await tool('retry_publish_post').handler({ postId: UUID }, ctx);
     expect(posts.enqueuePublish).toHaveBeenCalledWith(UUID, 'u1', 't1', 'retry');
@@ -194,6 +197,7 @@ describe('PostToolsGroup', () => {
   });
 
   it('delete_post deletes the post', async () => {
+    posts.getPost.mockResolvedValue(postRow());
     posts.deletePost.mockResolvedValue(true);
     await expect(tool('delete_post').handler({ postId: UUID }, ctx)).resolves.toEqual({ deleted: true });
     expect(posts.deletePost).toHaveBeenCalledWith(UUID, 'u1', 't1');

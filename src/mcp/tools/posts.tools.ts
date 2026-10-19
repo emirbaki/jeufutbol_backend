@@ -7,6 +7,7 @@ import { CreatePostInput } from '../../graphql/inputs/post.input';
 import { PostsService, PublishMode } from '../../post/post.service';
 import { Workspace } from '../../entities/workspace.entity';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
+import { reaches } from '../../workspaces/workspace-access.service';
 import { McpToolDef, McpToolError, McpToolGroup } from '../mcp-tool';
 import { McpAuthContext } from '../mcp-auth.context';
 import { createPostSchema, summarizePost, updatePostSchema, workspaceRefSchema } from '../schemas/post.schemas';
@@ -134,7 +135,7 @@ export class PostToolsGroup implements McpToolGroup {
     let workspace: Workspace | undefined;
     // Check the final pair of workspace and platforms when either one changes.
     if (fields.targetPlatforms || workspaceRef) {
-      const current = await this.postsService.getPost(postId, ctx.userId, ctx.tenantId);
+      const current = await this.loadPost(postId, ctx);
       workspace = workspaceRef
         ? await this.workspacesService.resolve(ctx.tenantId, workspaceRef)
         : (current.workspace ?? (await this.workspacesService.resolve(ctx.tenantId, current.workspaceId)));
@@ -153,12 +154,13 @@ export class PostToolsGroup implements McpToolGroup {
   }
 
   private async enqueue(postId: string, mode: PublishMode, ctx: McpAuthContext) {
+    await this.loadPost(postId, ctx);
     const out = await this.postsService.enqueuePublish(postId, ctx.userId, ctx.tenantId, mode);
     return { ...out, next: PUBLISH_NEXT };
   }
 
   private async getPost(postId: string, ctx: McpAuthContext) {
-    const post = await this.postsService.getPost(postId, ctx.userId, ctx.tenantId);
+    const post = await this.loadPost(postId, ctx);
     const jobState = await this.postsService.getPublishJobState(post.id);
     return summarizePost(post, jobState);
   }
@@ -188,7 +190,17 @@ export class PostToolsGroup implements McpToolGroup {
   }
 
   private async deletePost(postId: string, ctx: McpAuthContext) {
+    await this.loadPost(postId, ctx);
     const deleted = await this.postsService.deletePost(postId, ctx.userId, ctx.tenantId);
     return { deleted };
+  }
+
+  /** Loads a post of the tenant. A post of a branch without access is "not found". */
+  private async loadPost(postId: string, ctx: McpAuthContext): Promise<Post> {
+    const post = await this.postsService.getPost(postId, ctx.userId, ctx.tenantId);
+    if (!reaches(ctx.access ?? 'all', post.workspaceId)) {
+      throw new McpToolError('Post not found. The postId is wrong or belongs to another branch. Call list_posts to see your posts.');
+    }
+    return post;
   }
 }

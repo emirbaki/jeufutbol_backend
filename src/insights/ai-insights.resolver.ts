@@ -9,6 +9,7 @@ import { Cache } from 'cache-manager';
 import { GraphqlCacheInterceptor, graphqlCacheKey } from '../cache/graphql-cache.interceptor';
 import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
 import { Workspace } from '../entities/workspace.entity';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 import { AIInsightsService } from './ai-insights.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -32,6 +33,7 @@ export class AIInsightsResolver {
     private aiInsightsService: AIInsightsService,
     private monitoringService: MonitoringService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private accessService: WorkspaceAccessService,
   ) { }
 
   @Mutation(() => JobIdResponse, {
@@ -134,7 +136,8 @@ export class AIInsightsResolver {
     if (!userId) throw new Error('User context required');
 
     // Verify user owns this profile before allowing indexing
-    await this.monitoringService.getProfile(profileId, userId, tenantId);
+    const profile = await this.monitoringService.getProfile(profileId, userId, tenantId);
+    this.accessService.assertRow(await this.accessService.accessFor(user, apiKey), profile.workspaceId, 'Monitored profile');
 
     return this.aiInsightsService.queueIndexTweets(profileId);
   }
@@ -188,6 +191,7 @@ export class AIInsightsResolver {
     const result = await this.aiInsightsService.markInsightAsRead(
       insightId,
       tenantId,
+      await this.accessService.accessFor(user, apiKey),
     );
 
     // Invalidate getInsights cache for the workspace of the insight
