@@ -27,6 +27,12 @@ export class CreatePostInput {
   @IsArray()
   targetPlatforms: string[];
 
+  /** Workspace reference: an ID or a slug. Empty means the default workspace. */
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+
   @Field(() => GraphQLJSON, { nullable: true })
   @IsOptional()
   platformSpecificContent: Record<string, any>;

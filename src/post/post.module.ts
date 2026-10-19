@@ -33,6 +33,8 @@ import { QUEUE_NAMES } from 'src/queue/queue.config';
 import { AuthModule } from '../auth/auth.module';
 import { Tenant } from '../entities/tenant.entity';
 
+import { WorkspacesModule } from '../workspaces/workspaces.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -50,6 +52,7 @@ import { Tenant } from '../entities/tenant.entity';
     UploadModule,
     TweetsModule,
     AuthModule,
+    WorkspacesModule,
     BullModule.registerQueue(
       {
         name: QUEUE_NAMES.TIKTOK_POLLING, // Deprecated - keeping for backward compatibility

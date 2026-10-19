@@ -12,6 +12,7 @@ import { PostGatewayFactory } from './post-gateway.factory';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { UploadService } from 'src/upload/upload.service';
 import { TiktokPostGateway } from './gateways/tiktok.gateway';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 
 describe('PostsService.enqueuePublish', () => {
   let svc: PostsService;
@@ -39,6 +40,7 @@ describe('PostsService.enqueuePublish', () => {
         { provide: CredentialsService, useValue: {} },
         { provide: UploadService, useValue: {} },
         { provide: TiktokPostGateway, useValue: {} },
+        { provide: WorkspacesService, useValue: {} },
       ],
     }).compile();
     svc = moduleRef.get(PostsService);

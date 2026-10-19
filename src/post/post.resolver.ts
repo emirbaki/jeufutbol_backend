@@ -14,6 +14,7 @@ import { ApiKeyScope } from '../auth/api-key-scopes.enum';
 import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
 import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
@@ -21,6 +22,7 @@ export class PostsResolver {
   constructor(
     private postsService: PostsService,
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
+    private workspacesService: WorkspacesService,
   ) { }
 
 
@@ -55,6 +57,7 @@ export class PostsResolver {
     @CurrentApiKey() apiKey: ApiKey,
     @Args('limit', { type: () => Int, nullable: true }) limit?: number,
     @Args('offset', { type: () => Int, nullable: true }) offset?: number,
+    @Args('workspaceId', { type: () => String, nullable: true }) workspaceRef?: string,
   ): Promise<Post[]> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -63,7 +66,10 @@ export class PostsResolver {
       throw new Error('User context required');
     }
 
-    return this.postsService.getUserPosts(userId, tenantId, limit, offset);
+    const workspaceId = workspaceRef
+      ? (await this.workspacesService.resolve(tenantId, workspaceRef)).id
+      : undefined;
+    return this.postsService.getUserPosts(userId, tenantId, limit, offset, undefined, workspaceId);
   }
 
   @Query(() => Post)
@@ -171,6 +177,7 @@ export class PostsResolver {
   async getTikTokCreatorInfo(
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
+    @Args('workspaceId', { type: () => String, nullable: true }) workspaceRef?: string,
   ): Promise<TikTokCreatorInfo> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -179,6 +186,6 @@ export class PostsResolver {
       throw new Error('User context required');
     }
 
-    return this.postsService.getTikTokCreatorInfo(userId, tenantId);
+    return this.postsService.getTikTokCreatorInfo(userId, tenantId, workspaceRef);
   }
 }

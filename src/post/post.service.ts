@@ -9,7 +9,8 @@ import { PublishedPost } from '../entities/published-post.entity';
 import { PlatformType } from '../enums/platform-type.enum';
 import { PostGatewayFactory } from './post-gateway.factory';
 import { CredentialsService } from 'src/credentials/credential.service';
-import { PlatformName } from '../entities/credential.entity';
+import { Credential, PlatformName } from '../entities/credential.entity';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
 import { QUEUE_NAMES, ASYNC_POLLING_JOBS, SCHEDULED_POST_JOBS } from 'src/queue/queue.config';
@@ -40,6 +41,7 @@ export class PostsService {
     private readonly credentialsService: CredentialsService,
     private readonly uploadService: UploadService,
     private readonly tiktokGateway: TiktokPostGateway,
+    private readonly workspacesService: WorkspacesService,
   ) { }
 
 
@@ -48,9 +50,11 @@ export class PostsService {
     tenantId: string,
     dto: CreatePostInput,
   ): Promise<Post> {
+    const workspace = await this.workspacesService.resolve(tenantId, dto.workspaceId);
     const post = this.postRepository.create({
       userId,
       tenantId,
+      workspaceId: workspace.id,
       content: dto.content,
       mediaUrls: dto.mediaUrls || [],
       targetPlatforms: dto.targetPlatforms,
@@ -223,14 +227,18 @@ export class PostsService {
     limit = 50,
     offset = 0,
     status?: PostStatus,
+    workspaceId?: string,
   ): Promise<Post[]> {
     // Get ALL posts from the organization (not just the user's posts)
+    const where: any = { tenantId };
+    if (status) where.status = status;
+    if (workspaceId) where.workspaceId = workspaceId;
     return this.postRepository.find({
-      where: status ? { tenantId, status } : { tenantId },
+      where,
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
-      relations: ['publishedPosts', 'user'], // Include user relation to show who created each post
+      relations: ['publishedPosts', 'user', 'workspace'], // Include user relation to show who created each post
     });
   }
 
@@ -239,9 +247,10 @@ export class PostsService {
     userId: string,
     tenantId: string,
   ): Promise<Post> {
+    // Any member of the tenant can reach any post of the tenant.
     const post = await this.postRepository.findOne({
-      where: { id: postId, userId, tenantId },
-      relations: ['publishedPosts', 'tenant', 'user'],
+      where: { id: postId, tenantId },
+      relations: ['publishedPosts', 'tenant', 'user', 'workspace'],
     });
 
     if (!post) throw new NotFoundException('Post not found');
@@ -260,8 +269,15 @@ export class PostsService {
     if (post.status === PostStatus.PUBLISHED)
       throw new Error('Cannot update a published post');
 
-    // Allow editing DRAFT, SCHEDULED, and FAILED posts
-    Object.assign(post, updates);
+    // Allow editing DRAFT, SCHEDULED, and FAILED posts.
+    // updates.workspaceId is a reference (ID or slug): resolve it, never assign it as is.
+    const { workspaceId: workspaceRef, ...rest } = updates;
+    if (workspaceRef !== undefined) {
+      const workspace = await this.workspacesService.resolve(tenantId, workspaceRef);
+      post.workspaceId = workspace.id;
+      post.workspace = workspace;
+    }
+    Object.assign(post, rest);
 
     // Update status based on scheduledFor
     if (post.scheduledFor) {
@@ -289,7 +305,7 @@ export class PostsService {
     // Reload with relations for subscription
     const postWithRelations = await this.postRepository.findOne({
       where: { id: savedPost.id },
-      relations: ['user', 'tenant', 'publishedPosts'],
+      relations: ['user', 'tenant', 'publishedPosts', 'workspace'],
     });
 
     if (postWithRelations) {
@@ -339,21 +355,8 @@ export class PostsService {
 
         try {
           // 1️⃣ Get credential for platform
-          const credentials = await this.credentialsService.listCredentials(
-            tenantId,
-            { platform: platform as unknown as PlatformName },
-          );
-
-          if (credentials.length === 0) {
-            throw new Error(`No credentials found for ${platform}`);
-          }
-
-          // Use first available credential
-          const credential = credentials[0];
-          const access_token = await this.credentialsService.getAccessToken(
-            credential.id,
-            tenantId,
-          );
+          const { credential, accessToken: access_token } =
+            await this.getPublishAccess(post, platform);
 
           // 2️⃣ Let the gateway handle posting logic
           const contentToPublish =
@@ -510,6 +513,29 @@ export class PostsService {
   }
 
   /**
+   * The account and token that publish this post on the platform.
+   * A post with no workspace (made before workspaces) uses the default workspace.
+   */
+  async getPublishAccess(
+    post: Post,
+    platform: PlatformType,
+  ): Promise<{ credential: Credential; accessToken: string }> {
+    const workspace =
+      post.workspace ??
+      (await this.workspacesService.resolve(post.tenantId, post.workspaceId));
+    const credential = await this.credentialsService.pickPublishCredential(
+      post.tenantId,
+      workspace,
+      platform as unknown as PlatformName,
+    );
+    const accessToken = await this.credentialsService.getAccessToken(
+      credential.id,
+      post.tenantId,
+    );
+    return { credential, accessToken };
+  }
+
+  /**
    * Retry publishing a failed post
    * Only retries platforms that failed (keeps successful platforms)
    */
@@ -574,20 +600,17 @@ export class PostsService {
   async getTikTokCreatorInfo(
     userId: string,
     tenantId: string,
+    workspaceRef?: string | null,
   ): Promise<TikTokCreatorInfo> {
-    // Get TikTok credentials for the user
-    const credentials = await this.credentialsService.listCredentials(
+    // Get the TikTok account of the workspace
+    const workspace = await this.workspacesService.resolve(tenantId, workspaceRef);
+    const credential = await this.credentialsService.pickPublishCredential(
       tenantId,
-      { platform: PlatformName.TIKTOK },
+      workspace,
+      PlatformName.TIKTOK,
     );
-
-    if (credentials.length === 0) {
-      throw new Error('No TikTok credentials found. Please connect your TikTok account first.');
-    }
-
-    // Get access token from first available credential
     const access_token = await this.credentialsService.getAccessToken(
-      credentials[0].id,
+      credential.id,
       tenantId,
     );
 
