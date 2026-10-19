@@ -59,3 +59,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 RATE_LIMIT_HANDLING.md
 GRAPHQL_JOB_QUERIES.md
 GRAPHQL_SUBSCRIPTIONS_PLAN.md
+# Local test passwords of dev seed scripts
+*.local.json
