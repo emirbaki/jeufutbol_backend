@@ -6,9 +6,14 @@ import { Tenant } from '../entities/tenant.entity';
 import { UserResolver } from './user.resolver';
 import { EmailModule } from '../email/email.module';
 import { EmailService } from '../email/email.service';
+import { ApiKey } from '../entities/api-key.entity';
+import { AuthModule } from '../auth/auth.module';
+import { UploadModule } from '../upload/upload.module';
+import { UserAvatarController } from './user-avatar.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, UserInvitation, Tenant]), EmailModule],
+  imports: [TypeOrmModule.forFeature([User, UserInvitation, Tenant, ApiKey]), EmailModule, AuthModule, UploadModule],
+  controllers: [UserAvatarController],
   providers: [UserResolver, EmailService],
   exports: [],
 })

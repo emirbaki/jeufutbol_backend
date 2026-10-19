@@ -13,6 +13,8 @@ import { AuthModule } from '../auth/auth.module';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesResolver } from './workspaces.resolver';
 import { ActiveWorkspacePipe } from './active-workspace.decorator';
+import { WorkspaceImageController } from './workspace-image.controller';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([
@@ -25,7 +27,8 @@ import { ActiveWorkspacePipe } from './active-workspace.decorator';
       User,
       ApiKey,
       Tenant,
-    ]), AuthModule],
+    ]), AuthModule, UploadModule],
+  controllers: [WorkspaceImageController],
   providers: [WorkspacesService, WorkspacesResolver, ActiveWorkspacePipe],
   exports: [WorkspacesService, ActiveWorkspacePipe],
 })
