@@ -141,6 +141,7 @@ type User {
   notifyOnFail: Boolean!
   notifyWeeklyReport: Boolean!
   notifyNewInsights: Boolean!
+  workspaceMemberships: [WorkspaceMember!]!
 }
 
 enum UserRole {
@@ -247,6 +248,18 @@ type ChatSession {
   workspaceId: String
 }
 
+type WorkspaceMember {
+  id: ID!
+  workspace: Workspace!
+  role: WorkspaceRole!
+  createdAt: DateTime!
+}
+
+enum WorkspaceRole {
+  MANAGER
+  USER
+}
+
 type TikTokCreatorInfo {
   creator_nickname: String!
   creator_avatar_url: String!
@@ -270,6 +283,8 @@ type ApiKey {
   metadata: String
   createdAt: DateTime!
   updatedAt: DateTime!
+  workspaceIds: [String!]!
+  defaultWorkspaceId: String
 }
 
 type PostPage {
@@ -342,6 +357,9 @@ type UserInvitation {
   expiresAt: DateTime!
   createdAt: DateTime!
   updatedAt: DateTime!
+  workspaceId: String
+  workspace: Workspace
+  workspaceRole: WorkspaceRole
 }
 
 enum InvitationStatus {
@@ -438,6 +456,7 @@ type Query {
   verifyEmail(token: String!): MessageResponse!
   me: User!
   listApiKeys: [ApiKey!]!
+  workspaces: [Workspace!]!
   getUserPosts(limit: Int, offset: Int, workspaceId: String): [Post!]!
   postList(filter: PostListFilter): PostPage!
   postStatusCounts(filter: PostListFilter): PostStatusCounts!
@@ -448,7 +467,6 @@ type Query {
   getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [Credential!]!
   currentTenant: Tenant!
-  workspaces: [Workspace!]!
   getMonitoredProfiles: [MonitoredProfile!]!
   getMonitoredProfile(profileId: String!): MonitoredProfile!
   getProfileTweets(profileId: String!, limit: Int, offset: Int): [Tweet!]!
@@ -502,6 +520,15 @@ type Mutation {
   createApiKey(input: CreateApiKeyInput!): CreateApiKeyResponse!
   revokeApiKey(apiKeyId: ID!): Boolean!
   updateApiKeyScopes(apiKeyId: ID!, scopes: [String!]!): ApiKey!
+  updateApiKeyWorkspaces(apiKeyId: ID!, workspaceIds: [ID!]!, defaultWorkspaceId: ID): ApiKey!
+  createWorkspace(input: CreateWorkspaceInput!): Workspace!
+  updateWorkspace(id: ID!, input: UpdateWorkspaceInput!): Workspace!
+  deleteWorkspace(id: ID!): Boolean!
+  setActiveWorkspace(workspaceId: ID!): User!
+  addWorkspaceMember(workspaceId: ID!, userId: ID!, role: WorkspaceRole!): WorkspaceMember!
+  updateWorkspaceMember(workspaceId: ID!, userId: ID!, role: WorkspaceRole!): WorkspaceMember!
+  removeWorkspaceMember(workspaceId: ID!, userId: ID!): Boolean!
+  setUserAdmin(userId: ID!, isAdmin: Boolean!): User!
   createPost(input: CreatePostInput!): Post!
   updatePost(postId: String!, input: UpdatePostInput!): Post!
   deletePost(postId: String!): Boolean!
@@ -515,10 +542,6 @@ type Mutation {
   testCredential(credentialId: String!): Boolean!
   updateTenant(name: String!): Tenant!
   regenerateClientSecret: String!
-  createWorkspace(input: CreateWorkspaceInput!): Workspace!
-  updateWorkspace(id: ID!, input: UpdateWorkspaceInput!): Workspace!
-  deleteWorkspace(id: ID!): Boolean!
-  setActiveWorkspace(workspaceId: ID!): User!
   addMonitoredProfile(xUsername: String!): MonitoredProfile!
   removeMonitoredProfile(profileId: String!): Boolean!
   refreshProfileTweets(profileId: String!): JobIdResponse!
@@ -562,6 +585,18 @@ input CreateApiKeyInput {
   name: String!
   scopes: [String!]!
   expiresAt: String
+  workspaceIds: [ID!]
+  defaultWorkspaceId: ID
+}
+
+input CreateWorkspaceInput {
+  name: String!
+  slug: String
+}
+
+input UpdateWorkspaceInput {
+  name: String
+  slug: String
 }
 
 input CreatePostInput {
@@ -614,19 +649,11 @@ input UpdatePostInput {
   instagramSettings: InstagramPostSettingsInput
 }
 
-input CreateWorkspaceInput {
-  name: String!
-  slug: String
-}
-
-input UpdateWorkspaceInput {
-  name: String
-  slug: String
-}
-
 input InviteUserInput {
   email: String!
   role: UserRole!
+  workspaceId: ID
+  workspaceRole: WorkspaceRole
 }
 
 input UpdateProfileInput {
