@@ -15,6 +15,7 @@ import { JwtService } from '@nestjs/jwt';
 import { StaticFilesModule } from './staticfiles/staticfiles.module';
 import { UploadModule } from './upload/upload.module';
 import { CredentialsModule } from './credentials/credential.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { TweetsModule } from './tweets/tweets.module';
 import { AIInsightsModule } from './insights/ai-insights.module';
@@ -113,6 +114,7 @@ import { McpModule } from './mcp/mcp.module';
     StaticFilesModule,
     UploadModule,
     CredentialsModule,
+    WorkspacesModule,
     TweetsModule,
     MonitoringModule,
     AIInsightsModule,
