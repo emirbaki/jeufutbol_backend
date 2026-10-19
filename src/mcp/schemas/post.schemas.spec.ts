@@ -1,4 +1,4 @@
-import { createPostSchema, updatePostSchema } from './post.schemas';
+import { createPostSchema, summarizePost, updatePostSchema } from './post.schemas';
 
 const UUID = '3f2b8c1e-4d5a-4b6c-8e7f-9a0b1c2d3e4f';
 const base = {
@@ -71,5 +71,19 @@ describe('updatePostSchema', () => {
 
   it('needs a UUID', () => {
     expect(updatePostSchema.safeParse({ postId: 'nope' }).success).toBe(false);
+  });
+});
+
+describe('workspace field', () => {
+  it('createPostSchema accepts workspace and rejects an empty one', () => {
+    expect(createPostSchema.safeParse({ ...base, workspace: 'football' }).success).toBe(true);
+    expect(createPostSchema.safeParse({ ...base, workspace: '' }).success).toBe(false);
+    expect(createPostSchema.safeParse({ ...base, workspace: '   ' }).success).toBe(false);
+  });
+
+  it('summarizePost gives the workspace slug', () => {
+    const post = { id: 'p1', status: 'draft', content: 'Hi', targetPlatforms: [], mediaUrls: [] } as any;
+    expect(summarizePost({ ...post, workspace: { slug: 'cinema' } }, 'none').workspace).toBe('cinema');
+    expect(summarizePost(post, 'none').workspace).toBeNull();
   });
 });

@@ -5,9 +5,11 @@ import { PlatformName } from '../../entities/credential.entity';
 import { Post, PostStatus } from '../../entities/post.entity';
 import { CreatePostInput } from '../../graphql/inputs/post.input';
 import { PostsService, PublishMode } from '../../post/post.service';
+import { Workspace } from '../../entities/workspace.entity';
+import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { McpToolDef, McpToolError, McpToolGroup } from '../mcp-tool';
 import { McpAuthContext } from '../mcp-auth.context';
-import { createPostSchema, summarizePost, updatePostSchema } from '../schemas/post.schemas';
+import { createPostSchema, summarizePost, updatePostSchema, workspaceRefSchema } from '../schemas/post.schemas';
 
 type CreatePostArgs = z.infer<typeof createPostSchema>;
 type UpdatePostArgs = z.infer<typeof updatePostSchema>;
@@ -17,6 +19,7 @@ const listPostsSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
   offset: z.number().int().min(0).default(0),
   status: z.enum(PostStatus).optional(),
+  workspace: workspaceRefSchema.optional(),
 });
 const PUBLISH_NEXT = 'Call get_post until status is published or failed.';
 
@@ -31,6 +34,7 @@ export class PostToolsGroup implements McpToolGroup {
   constructor(
     private readonly postsService: PostsService,
     private readonly credentialsService: CredentialsService,
+    private readonly workspacesService: WorkspacesService,
   ) {}
 
   tools(): McpToolDef[] {
@@ -81,7 +85,7 @@ export class PostToolsGroup implements McpToolGroup {
       {
         name: 'list_posts',
         title: 'List posts',
-        description: 'List the posts of the account, newest first. Filter by status if necessary.',
+        description: 'List the posts of the account, newest first. Filter by status or workspace if necessary.',
         scopes: ['posts:read'],
         inputSchema: listPostsSchema,
         handler: (args: z.infer<typeof listPostsSchema>, ctx: McpAuthContext) => this.listPosts(args, ctx),
@@ -97,37 +101,55 @@ export class PostToolsGroup implements McpToolGroup {
     ];
   }
 
-  private async checkAccounts(platforms: string[], ctx: McpAuthContext): Promise<void> {
+  private async checkAccounts(platforms: string[], workspace: Workspace, ctx: McpAuthContext): Promise<void> {
     for (const platform of platforms) {
       const found = await this.credentialsService.listCredentials(ctx.tenantId, {
+        workspaceId: workspace.id,
         platform: platform as PlatformName,
       });
       if (!found.length) {
         throw new McpToolError(
-          `No ${platform} account is connected. Connect it in JeuHub Settings, then call list_connected_accounts.`,
+          `No ${platform} account is connected in workspace "${workspace.slug}". Connect it in JeuHub Settings, or call list_connected_accounts to see the accounts of each workspace.`,
         );
       }
     }
   }
 
   private async createPost(args: CreatePostArgs, ctx: McpAuthContext) {
-    await this.checkAccounts(args.targetPlatforms, ctx);
+    const { workspace: workspaceRef, ...rest } = args;
+    const workspace = await this.workspacesService.resolve(ctx.tenantId, workspaceRef);
+    await this.checkAccounts(rest.targetPlatforms, workspace, ctx);
     const input = {
-      ...args,
-      mediaUrls: args.mediaUrls ?? [],
-      scheduledFor: args.scheduledFor ? new Date(args.scheduledFor) : null,
+      ...rest,
+      workspaceId: workspace.id,
+      mediaUrls: rest.mediaUrls ?? [],
+      scheduledFor: rest.scheduledFor ? new Date(rest.scheduledFor) : null,
     } as CreatePostInput;
     const post = await this.postsService.createPost(ctx.userId, ctx.tenantId, input);
-    return { postId: post.id, status: post.status, next: saveNext(post) };
+    return { postId: post.id, status: post.status, workspace: workspace.slug, next: saveNext(post) };
   }
 
   private async updatePost(args: UpdatePostArgs, ctx: McpAuthContext) {
-    const { postId, scheduledFor, ...fields } = args;
-    if (fields.targetPlatforms) await this.checkAccounts(fields.targetPlatforms, ctx);
+    const { postId, scheduledFor, workspace: workspaceRef, ...fields } = args;
+    let workspace: Workspace | undefined;
+    // Check the final pair of workspace and platforms when either one changes.
+    if (fields.targetPlatforms || workspaceRef) {
+      const current = await this.postsService.getPost(postId, ctx.userId, ctx.tenantId);
+      workspace = workspaceRef
+        ? await this.workspacesService.resolve(ctx.tenantId, workspaceRef)
+        : (current.workspace ?? (await this.workspacesService.resolve(ctx.tenantId, current.workspaceId)));
+      await this.checkAccounts(fields.targetPlatforms ?? current.targetPlatforms, workspace, ctx);
+    }
     const updates: Partial<CreatePostInput> = { ...(fields as Partial<CreatePostInput>) };
     if (scheduledFor !== undefined) updates.scheduledFor = new Date(scheduledFor);
+    if (workspaceRef && workspace) updates.workspaceId = workspace.id;
     const post = await this.postsService.updatePost(postId, ctx.userId, ctx.tenantId, updates);
-    return { postId: post.id, status: post.status, next: saveNext(post) };
+    return {
+      postId: post.id,
+      status: post.status,
+      workspace: workspace?.slug ?? post.workspace?.slug ?? null,
+      next: saveNext(post),
+    };
   }
 
   private async enqueue(postId: string, mode: PublishMode, ctx: McpAuthContext) {
@@ -142,11 +164,22 @@ export class PostToolsGroup implements McpToolGroup {
   }
 
   private async listPosts(args: z.infer<typeof listPostsSchema>, ctx: McpAuthContext) {
-    const posts = await this.postsService.getUserPosts(ctx.userId, ctx.tenantId, args.limit, args.offset, args.status);
+    const workspaceId = args.workspace
+      ? (await this.workspacesService.resolve(ctx.tenantId, args.workspace)).id
+      : undefined;
+    const posts = await this.postsService.getUserPosts(
+      ctx.userId,
+      ctx.tenantId,
+      args.limit,
+      args.offset,
+      args.status,
+      workspaceId,
+    );
     return {
       posts: posts.map((p) => ({
         postId: p.id,
         status: p.status,
+        workspace: p.workspace?.slug ?? null,
         content: p.content,
         targetPlatforms: p.targetPlatforms,
         scheduledFor: p.scheduledFor ? new Date(p.scheduledFor).toISOString() : null,

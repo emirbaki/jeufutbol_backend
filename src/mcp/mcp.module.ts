@@ -11,6 +11,8 @@ import { Tenant } from '../entities/tenant.entity';
 import { MCP_CONTROLLERS, MCP_PROVIDERS } from './mcp.providers';
 
 // QueueModule is global, so JobService needs no import here.
+import { WorkspacesModule } from '../workspaces/workspaces.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, ApiKey, Tenant]),
@@ -19,6 +21,7 @@ import { MCP_CONTROLLERS, MCP_PROVIDERS } from './mcp.providers';
     CredentialsModule,
     UploadModule,
     AIInsightsModule,
+    WorkspacesModule,
   ],
   controllers: MCP_CONTROLLERS,
   providers: MCP_PROVIDERS,

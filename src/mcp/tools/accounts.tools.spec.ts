@@ -11,47 +11,84 @@ const ctx: McpAuthContext = {
   keyPrefix: 'jeu_ab',
   apiBaseUrl: 'https://x/api',
 };
+const WORKSPACES = [
+  { id: 'w1', slug: 'general', name: 'General', isDefault: true },
+  { id: 'w2', slug: 'football', name: 'Football', isDefault: false },
+];
 
 describe('AccountToolsGroup', () => {
   let creds: { listCredentials: jest.Mock };
   let posts: { getTikTokCreatorInfo: jest.Mock };
+  let workspaces: { list: jest.Mock; resolve: jest.Mock };
   let group: AccountToolsGroup;
   const tool = (name: string) => group.tools().find((t) => t.name === name)!;
 
   beforeEach(() => {
     creds = { listCredentials: jest.fn() };
     posts = { getTikTokCreatorInfo: jest.fn() };
-    group = new AccountToolsGroup(creds as any, posts as any);
+    workspaces = {
+      list: jest.fn().mockResolvedValue(WORKSPACES),
+      resolve: jest.fn().mockResolvedValue(WORKSPACES[1]),
+    };
+    group = new AccountToolsGroup(creds as any, posts as any, workspaces as any);
   });
 
-  it('maps the token state', async () => {
+  it('maps the token state and the workspace', async () => {
     creds.listCredentials.mockResolvedValue([
-      { id: 'c1', platform: 'youtube', accountName: 'A', tokenExpiresAt: null },
-      { id: 'c2', platform: 'tiktok', accountName: 'B', tokenExpiresAt: new Date(Date.now() - 1000) },
-      { id: 'c3', platform: 'x', accountName: 'C', tokenExpiresAt: new Date(Date.now() + 60000) },
+      { id: 'c1', platform: 'youtube', accountName: 'A', tokenExpiresAt: null, workspaceId: 'w1' },
+      { id: 'c2', platform: 'tiktok', accountName: 'B', tokenExpiresAt: new Date(Date.now() - 1000), workspaceId: 'w2' },
+      { id: 'c3', platform: 'x', accountName: 'C', tokenExpiresAt: new Date(Date.now() + 60000), workspaceId: null },
     ]);
     const out: any = await tool('list_connected_accounts').handler({}, ctx);
     expect(out.accounts.map((a) => a.tokenState)).toEqual(['unknown', 'expired', 'valid']);
-    expect(out.accounts[0]).toEqual({ credentialId: 'c1', platform: 'youtube', accountName: 'A', tokenState: 'unknown' });
-    expect(out.next).toBe('Use these platform names in create_post targetPlatforms.');
+    expect(out.accounts.map((a) => a.workspace)).toEqual(['general', 'football', 'general']);
+    expect(out.accounts[0]).toEqual({
+      credentialId: 'c1',
+      platform: 'youtube',
+      accountName: 'A',
+      workspace: 'general',
+      tokenState: 'unknown',
+    });
+    expect(out.next).toBe(
+      'Use these platform names in create_post targetPlatforms, and the workspace value in create_post workspace.',
+    );
   });
 
   it('passes the platform filter and says how to connect an account', async () => {
     creds.listCredentials.mockResolvedValue([]);
     const out: any = await tool('list_connected_accounts').handler({ platform: 'x' }, ctx);
-    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { platform: 'x' });
+    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { workspaceId: undefined, platform: 'x' });
     expect(out).toEqual({ accounts: [], next: 'No accounts are connected. Connect one in JeuHub Settings.' });
   });
 
-  it('get_tiktok_creator_info gives the service result', async () => {
+  it('list_connected_accounts filters by workspace', async () => {
+    creds.listCredentials.mockResolvedValue([]);
+    await tool('list_connected_accounts').handler({ workspace: 'football' }, ctx);
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football');
+    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { workspaceId: 'w2', platform: undefined });
+  });
+
+  it('list_workspaces counts accounts per workspace', async () => {
+    creds.listCredentials.mockResolvedValue([{ workspaceId: 'w2' }, { workspaceId: 'w2' }]);
+    const out: any = await tool('list_workspaces').handler({}, ctx);
+    expect(creds.listCredentials).toHaveBeenCalledTimes(1);
+    expect(out.workspaces).toEqual([
+      { workspace: 'general', name: 'General', isDefault: true, accountCount: 0 },
+      { workspace: 'football', name: 'Football', isDefault: false, accountCount: 2 },
+    ]);
+    expect(out.next).toBe('Pass the workspace value to list_connected_accounts and create_post.');
+  });
+
+  it('get_tiktok_creator_info passes the workspace', async () => {
     posts.getTikTokCreatorInfo.mockResolvedValue({ privacy_level_options: ['SELF_ONLY'] });
-    await expect(tool('get_tiktok_creator_info').handler({}, ctx)).resolves.toEqual({
+    await expect(tool('get_tiktok_creator_info').handler({ workspace: 'football' }, ctx)).resolves.toEqual({
       privacy_level_options: ['SELF_ONLY'],
     });
-    expect(posts.getTikTokCreatorInfo).toHaveBeenCalledWith('u1', 't1');
+    expect(posts.getTikTokCreatorInfo).toHaveBeenCalledWith('u1', 't1', 'football');
   });
 
   it('has the correct scopes', () => {
+    expect(tool('list_workspaces').scopes).toEqual(['credentials:read']);
     expect(tool('list_connected_accounts').scopes).toEqual(['credentials:read']);
     expect(tool('get_tiktok_creator_info').scopes).toEqual(['posts:read']);
   });

@@ -4,6 +4,13 @@ import type { PublishJobState } from '../../post/post.service';
 
 export const platformSchema = z.enum(['instagram', 'facebook', 'x', 'tiktok', 'youtube']);
 
+export const workspaceRefSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .describe('Workspace slug or ID from list_workspaces. Leave it out to use the default workspace.');
+
 const youtubeSettingsSchema = z.object({
   title: z.string().min(1).max(100),
   privacy_status: z.enum(['public', 'private', 'unlisted']).default('public'),
@@ -43,6 +50,7 @@ const postFields = {
   tiktokSettings: tiktokSettingsSchema.optional(),
   instagramSettings: instagramSettingsSchema.optional(),
   platformSpecificContent: z.record(z.string(), z.any()).optional(),
+  workspace: workspaceRefSchema.optional(),
 };
 
 interface PostRuleInput {
@@ -108,6 +116,7 @@ export interface PostSummary {
   failureReasons: Record<string, string> | null;
   publishedPosts: { platform: string; url: string | null; status: string | null }[];
   jobState: PublishJobState;
+  workspace: string | null;
   next: string;
 }
 
@@ -140,6 +149,7 @@ export function summarizePost(post: Post, jobState: PublishJobState): PostSummar
       status: p.publishStatus ?? null,
     })),
     jobState,
+    workspace: post.workspace?.slug ?? null,
     next: summaryNext(post.status, jobState),
   };
 }

@@ -22,6 +22,7 @@ import { CombinedAuthGuard } from '../src/auth/guards/combined-auth.guard';
 import { UploadService } from '../src/upload/upload.service';
 import { PostsService } from '../src/post/post.service';
 import { CredentialsService } from '../src/credentials/credential.service';
+import { WorkspacesService } from '../src/workspaces/workspaces.service';
 import { AIInsightsService } from '../src/insights/ai-insights.service';
 import { JobService } from '../src/queue/job.service';
 import { QUEUE_NAMES } from '../src/queue/queue.config';
@@ -55,6 +56,10 @@ describe('MCP endpoint (e2e)', () => {
     getPublishJobState: jest.fn(),
   };
   const credentials = { listCredentials: jest.fn() };
+  const workspaces = {
+    list: jest.fn().mockResolvedValue([{ id: 'w1', slug: 'general', name: 'General', isDefault: true }]),
+    resolve: jest.fn().mockResolvedValue({ id: 'w1', slug: 'general' }),
+  };
 
   beforeAll(async () => {
     uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-e2e-'));
@@ -73,6 +78,7 @@ describe('MCP endpoint (e2e)', () => {
         },
         { provide: PostsService, useValue: posts },
         { provide: CredentialsService, useValue: credentials },
+        { provide: WorkspacesService, useValue: workspaces },
         { provide: AIInsightsService, useValue: {} },
         { provide: JobService, useValue: {} },
         {
@@ -128,6 +134,8 @@ describe('MCP endpoint (e2e)', () => {
       ]),
     );
     expect(names).not.toContain('delete_post');
+    // list_workspaces needs credentials:read, which this key does not have.
+    expect(names).not.toContain('list_workspaces');
     expect(names).not.toContain('generate_post_text');
   });
 
@@ -174,6 +182,7 @@ describe('MCP endpoint (e2e)', () => {
         },
       }),
     );
+    expect(post.workspace).toBe('general');
     posts.enqueuePublish.mockResolvedValue({
       postId: post.postId,
       jobState: 'waiting',

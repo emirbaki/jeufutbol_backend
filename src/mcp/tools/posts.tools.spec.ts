@@ -33,6 +33,7 @@ const postRow = (over: Record<string, unknown> = {}) => ({
 describe('PostToolsGroup', () => {
   let creds: { listCredentials: jest.Mock };
   let posts: Record<string, jest.Mock>;
+  let workspaces: { resolve: jest.Mock };
   let group: PostToolsGroup;
   const tool = (name: string) => group.tools().find((t) => t.name === name)!;
 
@@ -47,15 +48,16 @@ describe('PostToolsGroup', () => {
       enqueuePublish: jest.fn(),
       getPublishJobState: jest.fn(),
     };
-    group = new PostToolsGroup(posts as any, creds as any);
+    workspaces = { resolve: jest.fn().mockResolvedValue({ id: 'w1', slug: 'general' }) };
+    group = new PostToolsGroup(posts as any, creds as any, workspaces as any);
   });
 
   it('create_post rejects a platform with no account', async () => {
     creds.listCredentials.mockResolvedValue([]);
     await expect(tool('create_post').handler(validYoutubeArgs, ctx)).rejects.toThrow(
-      'No youtube account is connected. Connect it in JeuHub Settings, then call list_connected_accounts.',
+      'No youtube account is connected in workspace "general". Connect it in JeuHub Settings, or call list_connected_accounts to see the accounts of each workspace.',
     );
-    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { platform: 'youtube' });
+    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { workspaceId: 'w1', platform: 'youtube' });
     expect(posts.createPost).not.toHaveBeenCalled();
   });
 
@@ -84,9 +86,10 @@ describe('PostToolsGroup', () => {
 
   it('update_post checks the new platforms, then updates', async () => {
     creds.listCredentials.mockResolvedValue([{ id: 'c1' }]);
+    posts.getPost.mockResolvedValue(postRow({ workspace: { id: 'w1', slug: 'general' } }));
     posts.updatePost.mockResolvedValue(postRow());
     const out: any = await tool('update_post').handler({ postId: UUID, targetPlatforms: ['x'], content: 'New' }, ctx);
-    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { platform: 'x' });
+    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { workspaceId: 'w1', platform: 'x' });
     expect(posts.updatePost).toHaveBeenCalledWith(UUID, 'u1', 't1', { targetPlatforms: ['x'], content: 'New' });
     expect(out.next).toBe('Call publish_post with this postId.');
   });
@@ -135,7 +138,54 @@ describe('PostToolsGroup', () => {
   it('list_posts passes the status filter', async () => {
     posts.getUserPosts.mockResolvedValue([]);
     await tool('list_posts').handler({ limit: 10, offset: 0, status: 'scheduled' }, ctx);
-    expect(posts.getUserPosts).toHaveBeenCalledWith('u1', 't1', 10, 0, 'scheduled');
+    expect(posts.getUserPosts).toHaveBeenCalledWith('u1', 't1', 10, 0, 'scheduled', undefined);
+  });
+
+  it('create_post checks accounts inside the workspace', async () => {
+    workspaces.resolve.mockResolvedValue({ id: 'w2', slug: 'football' });
+    creds.listCredentials.mockResolvedValue([]);
+    await expect(tool('create_post').handler({ ...validYoutubeArgs, workspace: 'football' }, ctx)).rejects.toThrow(
+      'No youtube account is connected in workspace "football".',
+    );
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football');
+    expect(posts.createPost).not.toHaveBeenCalled();
+  });
+
+  it('create_post passes the resolved id and not the slug', async () => {
+    workspaces.resolve.mockResolvedValue({ id: 'w2', slug: 'football' });
+    creds.listCredentials.mockResolvedValue([{ id: 'c1' }]);
+    posts.createPost.mockResolvedValue(postRow());
+    const out: any = await tool('create_post').handler({ ...validYoutubeArgs, workspace: 'football' }, ctx);
+    const input = posts.createPost.mock.calls[0][2];
+    expect(input.workspaceId).toBe('w2');
+    expect(input).not.toHaveProperty('workspace');
+    expect(out.workspace).toBe('football');
+  });
+
+  it('update_post with only workspace checks the current platforms', async () => {
+    workspaces.resolve.mockResolvedValue({ id: 'w2', slug: 'football' });
+    creds.listCredentials.mockResolvedValue([{ id: 'c1' }]);
+    posts.getPost.mockResolvedValue(postRow({ targetPlatforms: ['x'], workspace: { id: 'w1', slug: 'general' } }));
+    posts.updatePost.mockResolvedValue(postRow());
+    const out: any = await tool('update_post').handler({ postId: UUID, workspace: 'football' }, ctx);
+    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { workspaceId: 'w2', platform: 'x' });
+    expect(posts.updatePost).toHaveBeenCalledWith(UUID, 'u1', 't1', { workspaceId: 'w2' });
+    expect(out.workspace).toBe('football');
+  });
+
+  it('update_post with no platform or workspace change does not check accounts', async () => {
+    posts.updatePost.mockResolvedValue(postRow());
+    await tool('update_post').handler({ postId: UUID, content: 'New' }, ctx);
+    expect(posts.getPost).not.toHaveBeenCalled();
+    expect(creds.listCredentials).not.toHaveBeenCalled();
+  });
+
+  it('list_posts filters by workspace and shows it', async () => {
+    workspaces.resolve.mockResolvedValue({ id: 'w2', slug: 'football' });
+    posts.getUserPosts.mockResolvedValue([postRow({ workspace: { slug: 'football' } })]);
+    const out: any = await tool('list_posts').handler({ limit: 20, offset: 0, workspace: 'football' }, ctx);
+    expect(posts.getUserPosts).toHaveBeenCalledWith('u1', 't1', 20, 0, undefined, 'w2');
+    expect(out.posts[0].workspace).toBe('football');
   });
 
   it('list_posts has the default limit and offset', () => {

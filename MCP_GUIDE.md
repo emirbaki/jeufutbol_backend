@@ -43,17 +43,18 @@ For other clients, use these values:
 
 | Group | Tool | Scope | Input | Output |
 |---|---|---|---|---|
-| Accounts | `list_connected_accounts` | `credentials:read` | `platform?` | Each account: `credentialId`, `platform`, `accountName`, `tokenState` |
-| Accounts | `get_tiktok_creator_info` | `posts:read` | none | Privacy options, posting limits, interaction settings |
+| Accounts | `list_workspaces` | `credentials:read` | none | Each workspace: `workspace` (slug), `name`, `isDefault`, `accountCount` |
+| Accounts | `list_connected_accounts` | `credentials:read` | `platform?`, `workspace?` | Each account: `credentialId`, `platform`, `accountName`, `workspace`, `tokenState` |
+| Accounts | `get_tiktok_creator_info` | `posts:read` | `workspace?` | Privacy options, posting limits, interaction settings of the TikTok account in the workspace |
 | Media | `create_upload` | `posts:write` | `filename`, `sizeBytes`, `mimeType` | `uploadId`, `uploadToken`, `chunkSize`, `totalChunks`, `expiresAt`, `commands` |
 | Media | `complete_upload` | `posts:write` | `uploadId` | `mediaUrl`, `size` |
 | Media | `import_media_from_url` | `posts:write` | `url` | `jobId` |
-| Posts | `create_post` | `posts:write` | `content`, `targetPlatforms`, `mediaUrls?`, `scheduledFor?`, `youtubeSettings?`, `tiktokSettings?`, `instagramSettings?`, `platformSpecificContent?` | The post |
+| Posts | `create_post` | `posts:write` | `content`, `targetPlatforms`, `mediaUrls?`, `scheduledFor?`, `youtubeSettings?`, `tiktokSettings?`, `instagramSettings?`, `platformSpecificContent?`, `workspace?` | `postId`, `status`, `workspace` |
 | Posts | `update_post` | `posts:write` | `postId` and the fields of `create_post` | The post |
 | Posts | `publish_post` | `posts:write` | `postId` | `postId`, `jobState: 'waiting'` |
 | Posts | `retry_publish_post` | `posts:write` | `postId` | `postId`, `jobState: 'waiting'` |
-| Posts | `get_post` | `posts:read` | `postId` | `status`, `failureReasons`, `publishedPosts` (platform and URL), `jobState` |
-| Posts | `list_posts` | `posts:read` | `limit?`, `offset?`, `status?` | A page of posts |
+| Posts | `get_post` | `posts:read` | `postId` | `status`, `failureReasons`, `publishedPosts` (platform and URL), `jobState`, `workspace` |
+| Posts | `list_posts` | `posts:read` | `limit?`, `offset?`, `status?`, `workspace?` | A page of posts, each with its `workspace` |
 | Posts | `delete_post` | `posts:delete` | `postId` | `deleted: true` |
 | AI | `generate_post_text` | `insights:generate` | `insights[]`, `platform`, `tone?`, `llmProvider?`, `credentialId?` | `jobId` |
 | AI | `generate_insights` | `insights:generate` | `topic?`, `llmProvider?`, `credentialId?` | `jobId` |
@@ -61,9 +62,18 @@ For other clients, use these values:
 | AI | `analyze_trends` | `insights:read` | `topic?`, `timeRange?` | Trend data for your tenant (synchronous) |
 | Jobs | `get_job` | any valid caller | `jobId` | `status`, `progress`, `result` when the job is complete |
 
-Use the tools in this sequence: `list_connected_accounts`, then `create_upload` or `import_media_from_url`, then `create_post`, then `publish_post`, then `get_post`.
+Use the tools in this sequence: `list_workspaces`, then `list_connected_accounts`, then `create_upload` or `import_media_from_url`, then `create_post`, then `publish_post`, then `get_post`.
 
 Call `get_tiktok_creator_info` before each TikTok post. The TikTok content rules need this step.
+
+### Workspaces
+
+A workspace is one branch of your organization, for example Football or Cinema. Each social account belongs to one workspace.
+
+- `workspace` takes the slug from `list_workspaces` (for example `football`) or the workspace ID.
+- When you do not give `workspace`, the tool uses the default workspace.
+- `create_post` publishes with the accounts of its workspace. For each platform, it uses the newest active account in that workspace.
+- One API key reaches all workspaces of your organization.
 
 ## 5. Upload a local file
 
@@ -90,19 +100,21 @@ For a file that is on the web, call `import_media_from_url` with an `https` URL.
 
 ## 6. Example run
 
-1. Call `list_connected_accounts`. Make sure that a `youtube` account is in the result.
-2. Call `create_upload`:
+1. Call `list_workspaces`. Find the slug of the branch, for example `football`.
+2. Call `list_connected_accounts` with `{ "workspace": "football" }`. Make sure that a `youtube` account is in the result.
+3. Call `create_upload`:
 
    ```json
    { "filename": "match.mp4", "sizeBytes": 73400320, "mimeType": "video/mp4" }
    ```
 
-3. Run the 4 commands from the result in bash.
-4. Call `complete_upload` with the `uploadId`. Keep the `mediaUrl`.
-5. Call `create_post`:
+4. Run the 4 commands from the result in bash.
+5. Call `complete_upload` with the `uploadId`. Keep the `mediaUrl`.
+6. Call `create_post`:
 
    ```json
    {
+     "workspace": "football",
      "content": "Match highlights",
      "targetPlatforms": ["youtube"],
      "mediaUrls": ["<mediaUrl>"],
@@ -110,8 +122,8 @@ For a file that is on the web, call `import_media_from_url` with an `https` URL.
    }
    ```
 
-6. Call `publish_post` with the `postId`. The result has `jobState: 'waiting'`.
-7. Call `get_post` with the `postId` until `status` is `published` or `failed`. When the status is `published`, `publishedPosts` has the YouTube URL.
+7. Call `publish_post` with the `postId`. The result has `jobState: 'waiting'`.
+8. Call `get_post` with the `postId` until `status` is `published` or `failed`. When the status is `published`, `publishedPosts` has the YouTube URL.
 
 ## 7. Errors and limits
 
