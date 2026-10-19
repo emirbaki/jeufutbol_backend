@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { Tenant } from './tenant.entity';
+import { Workspace } from './workspace.entity';
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 
 export enum CredentialType {
@@ -107,4 +108,13 @@ export class Credential {
   @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId: string | null;
+
+  @Field(() => Workspace, { nullable: true })
+  @ManyToOne(() => Workspace, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace?: Workspace;
 }

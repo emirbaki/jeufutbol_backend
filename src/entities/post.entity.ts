@@ -11,6 +11,7 @@ import {
 import { User } from './user.entity';
 import { PublishedPost } from './published-post.entity';
 import { Tenant } from './tenant.entity';
+import { Workspace } from './workspace.entity';
 import {
   Field,
   GraphQLISODateTime,
@@ -93,6 +94,15 @@ export class Post {
 
   @Column({ nullable: true })
   tenantId: string;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId: string | null;
+
+  @Field(() => Workspace, { nullable: true })
+  @ManyToOne(() => Workspace, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace?: Workspace;
 
   @Field(() => GraphQLJSON, { nullable: true })
   @Column({ type: 'jsonb', nullable: true })
