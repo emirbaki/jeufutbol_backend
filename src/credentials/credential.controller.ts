@@ -276,7 +276,11 @@ export class CredentialsController {
     if (!tenantId) throw new Error('Tenant context required');
 
     const credential = await this.loadReachable(credentialId, tenantId, user, apiKey);
-    assertCanManageCredential(user, credential);
+    assertCanManageCredential(
+      await this.accessService.roleIn(user, credential.workspaceId ?? ''),
+      user,
+      credential,
+    );
 
     await this.credentialsService.deleteCredential(credentialId, tenantId);
     return { success: true };

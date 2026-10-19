@@ -127,7 +127,11 @@ export class CredentialsResolver {
 
   private async loadManageable(credentialId: string, tenantId: string, user?: User, apiKey?: ApiKey): Promise<Credential> {
     const credential = await this.loadReachable(credentialId, tenantId, user, apiKey);
-    assertCanManageCredential(user, credential);
+    assertCanManageCredential(
+      await this.accessService.roleIn(user, credential.workspaceId ?? ''),
+      user,
+      credential,
+    );
     return credential;
   }
 }
