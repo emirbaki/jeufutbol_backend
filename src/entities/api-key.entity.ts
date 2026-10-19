@@ -10,6 +10,7 @@ import {
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { Tenant } from './tenant.entity';
 import { User } from './user.entity';
+import { Workspace } from './workspace.entity';
 
 @ObjectType()
 @Entity('api_keys')
@@ -73,4 +74,18 @@ export class ApiKey {
     @Field()
     @UpdateDateColumn()
     updatedAt: Date;
+
+    /** The branches this key can reach. Empty means all branches. */
+    @Field(() => [String])
+    @Column('uuid', { array: true, default: () => "'{}'" })
+    workspaceIds: string[];
+
+    /** The branch for a call that names none. */
+    @Field(() => String, { nullable: true })
+    @Column({ type: 'uuid', nullable: true })
+    defaultWorkspaceId: string | null;
+
+    @ManyToOne(() => Workspace, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'defaultWorkspaceId' })
+    defaultWorkspace?: Workspace | null;
 }

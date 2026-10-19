@@ -10,6 +10,8 @@ import {
 import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Tenant } from './tenant.entity';
 import { User } from './user.entity';
+import { Workspace } from './workspace.entity';
+import { WorkspaceRole } from './workspace-member.entity';
 import { UserRole } from '../auth/user-role.enum';
 
 export enum InvitationStatus {
@@ -80,4 +82,18 @@ export class UserInvitation {
     @Field()
     @UpdateDateColumn()
     updatedAt: Date;
+
+    /** The branch of a non-admin invitation. An admin invitation has none. */
+    @Field(() => String, { nullable: true })
+    @Column({ type: 'uuid', nullable: true })
+    workspaceId: string | null;
+
+    @Field(() => Workspace, { nullable: true })
+    @ManyToOne(() => Workspace, { nullable: true, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspaceId' })
+    workspace?: Workspace | null;
+
+    @Field(() => WorkspaceRole, { nullable: true })
+    @Column({ type: 'enum', enum: WorkspaceRole, enumName: 'workspace_role_enum', nullable: true })
+    workspaceRole: WorkspaceRole | null;
 }
