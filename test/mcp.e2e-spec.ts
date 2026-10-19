@@ -54,7 +54,7 @@ describe('MCP endpoint (e2e)', () => {
     getPost: jest.fn(),
     getPublishJobState: jest.fn(),
   };
-  const credentials = { getUserCredentials: jest.fn() };
+  const credentials = { listCredentials: jest.fn() };
 
   beforeAll(async () => {
     uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-e2e-'));
@@ -161,7 +161,7 @@ describe('MCP endpoint (e2e)', () => {
     );
     expect(done.size).toBe(52428801);
 
-    credentials.getUserCredentials.mockResolvedValue([{ id: 'c1' }]);
+    credentials.listCredentials.mockResolvedValue([{ id: 'c1' }]);
     posts.createPost.mockResolvedValue(postRow({ mediaUrls: [done.mediaUrl] }));
     const post = parse(
       await client.callTool({

@@ -17,6 +17,7 @@ import { TenancyModule } from 'src/tenancy/tenancy.module';
 
 import { Tenant } from '../entities/tenant.entity';
 import { TenancyService } from 'src/tenancy/tenancy.service';
+import { WorkspacesModule } from '../workspaces/workspaces.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TenancyService } from 'src/tenancy/tenancy.service';
     ScheduleModule.forRoot(),
     AuthModule,
     TenancyModule,
+    WorkspacesModule,
   ],
   controllers: [CredentialsController],
   providers: [

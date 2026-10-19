@@ -99,11 +99,9 @@ export class PostToolsGroup implements McpToolGroup {
 
   private async checkAccounts(platforms: string[], ctx: McpAuthContext): Promise<void> {
     for (const platform of platforms) {
-      const found = await this.credentialsService.getUserCredentials(
-        ctx.userId,
-        ctx.tenantId,
-        platform as PlatformName,
-      );
+      const found = await this.credentialsService.listCredentials(ctx.tenantId, {
+        platform: platform as PlatformName,
+      });
       if (!found.length) {
         throw new McpToolError(
           `No ${platform} account is connected. Connect it in JeuHub Settings, then call list_connected_accounts.`,

@@ -31,13 +31,13 @@ const postRow = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('PostToolsGroup', () => {
-  let creds: { getUserCredentials: jest.Mock };
+  let creds: { listCredentials: jest.Mock };
   let posts: Record<string, jest.Mock>;
   let group: PostToolsGroup;
   const tool = (name: string) => group.tools().find((t) => t.name === name)!;
 
   beforeEach(() => {
-    creds = { getUserCredentials: jest.fn() };
+    creds = { listCredentials: jest.fn() };
     posts = {
       createPost: jest.fn(),
       updatePost: jest.fn(),
@@ -51,16 +51,16 @@ describe('PostToolsGroup', () => {
   });
 
   it('create_post rejects a platform with no account', async () => {
-    creds.getUserCredentials.mockResolvedValue([]);
+    creds.listCredentials.mockResolvedValue([]);
     await expect(tool('create_post').handler(validYoutubeArgs, ctx)).rejects.toThrow(
       'No youtube account is connected. Connect it in JeuHub Settings, then call list_connected_accounts.',
     );
-    expect(creds.getUserCredentials).toHaveBeenCalledWith('u1', 't1', 'youtube');
+    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { platform: 'youtube' });
     expect(posts.createPost).not.toHaveBeenCalled();
   });
 
   it('create_post passes a Date for scheduledFor', async () => {
-    creds.getUserCredentials.mockResolvedValue([{ id: 'c1' }]);
+    creds.listCredentials.mockResolvedValue([{ id: 'c1' }]);
     posts.createPost.mockResolvedValue(postRow({ status: 'scheduled', scheduledFor: new Date('2099-01-01T07:00:00Z') }));
     const out: any = await tool('create_post').handler(
       { ...validYoutubeArgs, scheduledFor: '2099-01-01T10:00:00+03:00' },
@@ -75,7 +75,7 @@ describe('PostToolsGroup', () => {
   });
 
   it('create_post with no date says to publish', async () => {
-    creds.getUserCredentials.mockResolvedValue([{ id: 'c1' }]);
+    creds.listCredentials.mockResolvedValue([{ id: 'c1' }]);
     posts.createPost.mockResolvedValue(postRow());
     const out: any = await tool('create_post').handler(validYoutubeArgs, ctx);
     expect(posts.createPost).toHaveBeenCalledWith('u1', 't1', expect.objectContaining({ scheduledFor: null }));
@@ -83,10 +83,10 @@ describe('PostToolsGroup', () => {
   });
 
   it('update_post checks the new platforms, then updates', async () => {
-    creds.getUserCredentials.mockResolvedValue([{ id: 'c1' }]);
+    creds.listCredentials.mockResolvedValue([{ id: 'c1' }]);
     posts.updatePost.mockResolvedValue(postRow());
     const out: any = await tool('update_post').handler({ postId: UUID, targetPlatforms: ['x'], content: 'New' }, ctx);
-    expect(creds.getUserCredentials).toHaveBeenCalledWith('u1', 't1', 'x');
+    expect(creds.listCredentials).toHaveBeenCalledWith('t1', { platform: 'x' });
     expect(posts.updatePost).toHaveBeenCalledWith(UUID, 'u1', 't1', { targetPlatforms: ['x'], content: 'New' });
     expect(out.next).toBe('Call publish_post with this postId.');
   });

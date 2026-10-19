@@ -1,5 +1,5 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
+import { NotFoundException, UseGuards } from '@nestjs/common';
 import { CredentialsService } from './credential.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
@@ -10,6 +10,7 @@ import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { ApiKeyScope } from '../auth/api-key-scopes.enum';
 import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
+import { assertCanManageCredential } from './credential-access';
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
@@ -23,15 +24,10 @@ export class CredentialsResolver {
     @CurrentApiKey() apiKey: ApiKey,
     @Args('platform', { nullable: true }) platform?: string,
   ) {
-    const tenantId = user?.tenantId || apiKey?.tenantId;
-    const userId = user?.id || apiKey?.createdByUserId;
-    if (!userId) throw new Error('User context required');
-
-    return this.credentialsService.getUserCredentials(
-      userId,
-      tenantId,
-      platform as any,
-    );
+    const tenantId = this.tenantOf(user, apiKey);
+    return this.credentialsService.listCredentials(tenantId, {
+      platform: platform as any,
+    });
   }
 
   @Query(() => [Credential])
@@ -40,11 +36,7 @@ export class CredentialsResolver {
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
   ) {
-    const tenantId = user?.tenantId || apiKey?.tenantId;
-    const userId = user?.id || apiKey?.createdByUserId;
-    if (!userId) throw new Error('User context required');
-
-    return this.credentialsService.getUserCredentials(userId, tenantId);
+    return this.credentialsService.listCredentials(this.tenantOf(user, apiKey));
   }
 
   @Mutation(() => Boolean)
@@ -54,16 +46,23 @@ export class CredentialsResolver {
     @CurrentApiKey() apiKey: ApiKey,
     @Args('credentialId') credentialId: string,
   ) {
-    const tenantId = user?.tenantId || apiKey?.tenantId;
-    const userId = user?.id || apiKey?.createdByUserId;
-    if (!userId) throw new Error('User context required');
-
-    await this.credentialsService.deleteCredential(
-      credentialId,
-      userId,
-      tenantId,
-    );
+    const tenantId = this.tenantOf(user, apiKey);
+    await this.loadManageable(credentialId, tenantId, user);
+    await this.credentialsService.deleteCredential(credentialId, tenantId);
     return true;
+  }
+
+  @Mutation(() => Credential)
+  @RequireScopes(ApiKeyScope.CREDENTIALS_WRITE)
+  async moveCredentialToWorkspace(
+    @CurrentUser() user: User,
+    @CurrentApiKey() apiKey: ApiKey,
+    @Args('credentialId', { type: () => ID }) credentialId: string,
+    @Args('workspaceId', { type: () => ID }) workspaceId: string,
+  ) {
+    const tenantId = this.tenantOf(user, apiKey);
+    const credential = await this.loadManageable(credentialId, tenantId, user);
+    return this.credentialsService.moveCredential(credential, workspaceId);
   }
 
   @Mutation(() => Boolean)
@@ -73,14 +72,22 @@ export class CredentialsResolver {
     @CurrentApiKey() apiKey: ApiKey,
     @Args('credentialId') credentialId: string,
   ) {
-    const tenantId = user?.tenantId || apiKey?.tenantId;
-    const userId = user?.id || apiKey?.createdByUserId;
-    if (!userId) throw new Error('User context required');
-
     return this.credentialsService.testConnection(
       credentialId,
-      userId,
-      tenantId,
+      this.tenantOf(user, apiKey),
     );
+  }
+
+  private tenantOf(user?: User, apiKey?: ApiKey): string {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    if (!tenantId) throw new Error('Tenant context required');
+    return tenantId;
+  }
+
+  private async loadManageable(credentialId: string, tenantId: string, user?: User): Promise<Credential> {
+    const credential = await this.credentialsService.getCredential(credentialId, tenantId);
+    if (!credential) throw new NotFoundException('Account not found.');
+    assertCanManageCredential(user, credential);
+    return credential;
   }
 }

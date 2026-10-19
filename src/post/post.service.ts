@@ -339,10 +339,9 @@ export class PostsService {
 
         try {
           // 1️⃣ Get credential for platform
-          const credentials = await this.credentialsService.getUserCredentials(
-            userId,
+          const credentials = await this.credentialsService.listCredentials(
             tenantId,
-            platform as unknown as PlatformName,
+            { platform: platform as unknown as PlatformName },
           );
 
           if (credentials.length === 0) {
@@ -353,7 +352,6 @@ export class PostsService {
           const credential = credentials[0];
           const access_token = await this.credentialsService.getAccessToken(
             credential.id,
-            userId,
             tenantId,
           );
 
@@ -578,10 +576,9 @@ export class PostsService {
     tenantId: string,
   ): Promise<TikTokCreatorInfo> {
     // Get TikTok credentials for the user
-    const credentials = await this.credentialsService.getUserCredentials(
-      userId,
+    const credentials = await this.credentialsService.listCredentials(
       tenantId,
-      PlatformName.TIKTOK,
+      { platform: PlatformName.TIKTOK },
     );
 
     if (credentials.length === 0) {
@@ -591,7 +588,6 @@ export class PostsService {
     // Get access token from first available credential
     const access_token = await this.credentialsService.getAccessToken(
       credentials[0].id,
-      userId,
       tenantId,
     );
 

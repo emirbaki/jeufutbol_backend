@@ -8,6 +8,8 @@ import {
 } from '../entities/credential.entity';
 import { EncryptionService } from './token-encryption.service';
 import { TokenRefreshService } from './token-refresher.service';
+import { Workspace } from '../entities/workspace.entity';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
@@ -20,6 +22,7 @@ export class CredentialsService {
     private credentialRepository: Repository<Credential>,
     private encryptionService: EncryptionService,
     private tokenRefreshService: TokenRefreshService,
+    private workspacesService: WorkspacesService,
   ) { }
 
   /**
@@ -28,6 +31,7 @@ export class CredentialsService {
   async saveOAuthCredential(
     userId: string,
     tenantId: string,
+    workspaceId: string,
     platform: PlatformName,
     name: string,
     oauthData: {
@@ -43,6 +47,7 @@ export class CredentialsService {
     const credential = new Credential();
     credential.userId = userId;
     credential.tenantId = tenantId;
+    credential.workspaceId = workspaceId;
     credential.platform = platform;
     credential.type = CredentialType.OAUTH2;
     credential.name = name;
@@ -70,15 +75,14 @@ export class CredentialsService {
   }
 
   /**
-   * Get credential by ID
+   * Get credential by ID. An account belongs to the tenant, not to one user.
    */
   async getCredential(
     credentialId: string,
-    userId: string,
     tenantId: string,
   ): Promise<Credential | null> {
     return this.credentialRepository.findOne({
-      where: { id: credentialId, userId, tenantId },
+      where: { id: credentialId, tenantId },
     });
   }
 
@@ -87,10 +91,9 @@ export class CredentialsService {
    */
   async getAccessToken(
     credentialId: string,
-    userId: string,
     tenantId: string,
   ): Promise<string> {
-    const credential = await this.getCredential(credentialId, userId, tenantId);
+    const credential = await this.getCredential(credentialId, tenantId);
     if (!credential) {
       throw new Error('Credential not found');
     }
@@ -104,9 +107,9 @@ export class CredentialsService {
     }
     // Check if token is expired and refresh if needed
     if (this.isTokenExpired(credential)) {
-      await this.refreshAccessToken(credentialId, userId, tenantId);
+      await this.refreshAccessToken(credentialId, tenantId);
       // Reload credential after refresh
-      return this.getAccessToken(credentialId, userId, tenantId);
+      return this.getAccessToken(credentialId, tenantId);
     }
 
     return this.encryptionService.decrypt(credential.accessToken!);
@@ -128,10 +131,9 @@ export class CredentialsService {
    */
   public async refreshAccessToken(
     credentialId: string,
-    userId: string,
     tenantId: string,
   ): Promise<void> {
-    const credential = await this.getCredential(credentialId, userId, tenantId);
+    const credential = await this.getCredential(credentialId, tenantId);
 
     if (!credential!.refreshToken) {
       throw new Error('No refresh token available');
@@ -213,22 +215,61 @@ export class CredentialsService {
   }
 
   /**
-   * Get all credentials for a user
+   * Get the active accounts of the tenant, newest first.
+   * Filter by workspace and by platform when given.
    */
-  async getUserCredentials(
-    userId: string,
+  async listCredentials(
     tenantId: string,
-    platform?: PlatformName,
+    filter: { workspaceId?: string; platform?: PlatformName } = {},
   ): Promise<Credential[]> {
-    const where: any = { userId, tenantId, isActive: true };
-    if (platform) {
-      where.platform = platform;
+    const where: any = { tenantId, isActive: true };
+    if (filter.workspaceId) {
+      where.workspaceId = filter.workspaceId;
+    }
+    if (filter.platform) {
+      where.platform = filter.platform;
     }
 
     return this.credentialRepository.find({
       where,
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * The account that a post in this workspace uses for the platform: the newest active one.
+   * Throws a plain Error, because publishPost collects it as the failure reason of the platform.
+   */
+  async pickPublishCredential(
+    tenantId: string,
+    workspace: Workspace,
+    platform: PlatformName,
+  ): Promise<Credential> {
+    const [credential] = await this.listCredentials(tenantId, {
+      workspaceId: workspace.id,
+      platform,
+    });
+    if (!credential) {
+      throw new Error(
+        `No ${platform} account is connected in workspace "${workspace.slug}".`,
+      );
+    }
+    return credential;
+  }
+
+  /**
+   * Move an account to another workspace of the same tenant.
+   */
+  async moveCredential(
+    credential: Credential,
+    workspaceRef: string,
+  ): Promise<Credential> {
+    const workspace = await this.workspacesService.resolve(
+      credential.tenantId,
+      workspaceRef,
+    );
+    credential.workspaceId = workspace.id;
+    return this.credentialRepository.save(credential);
   }
 
   /**
@@ -281,12 +322,10 @@ export class CredentialsService {
    */
   async deleteCredential(
     credentialId: string,
-    userId: string,
     tenantId: string,
   ): Promise<void> {
     await this.credentialRepository.delete({
       id: credentialId,
-      userId,
       tenantId,
     });
   }
@@ -336,15 +375,10 @@ export class CredentialsService {
    */
   async testConnection(
     credentialId: string,
-    userId: string,
     tenantId: string,
   ): Promise<boolean> {
-    const credential = await this.getCredential(credentialId, userId, tenantId);
-    const access_token = await this.getAccessToken(
-      credentialId,
-      userId,
-      tenantId,
-    );
+    const credential = await this.getCredential(credentialId, tenantId);
+    const access_token = await this.getAccessToken(credentialId, tenantId);
 
     // Test based on platform
     switch (credential!.platform) {

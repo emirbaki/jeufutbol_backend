@@ -9,6 +9,7 @@ import {
   Body,
   Delete,
   Param,
+  NotFoundException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
@@ -22,12 +23,15 @@ import { ApiKeyScopeGuard } from '../auth/guards/api-key-scope.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
+import { WorkspacesService } from '../workspaces/workspaces.service';
+import { assertCanManageCredential } from './credential-access';
 
 @Controller('credentials')
 export class CredentialsController {
   constructor(
     private credentialsService: CredentialsService,
     private oauthService: OAuthService,
+    private workspacesService: WorkspacesService,
   ) { }
 
   /**
@@ -40,15 +44,18 @@ export class CredentialsController {
     @Req() req: Request,
     @Body('platform') platform: PlatformName,
     @Body('credentialName') credentialName: string,
+    @Body('workspaceId') workspaceRef?: string,
     @CurrentUser() user?: User,
     @CurrentApiKey() apiKey?: ApiKey,
   ): Promise<{ authUrl: string; state: string }> {
     const userId = user?.id || apiKey?.createdByUserId;
     const tenantId = user?.tenantId || apiKey?.tenantId;
 
-    if (!userId) {
+    if (!userId || !tenantId) {
       throw new Error('User context required');
     }
+    // Resolve now, so that a wrong workspace fails before the OAuth popup opens.
+    const workspace = await this.workspacesService.resolve(tenantId, workspaceRef);
     const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
     const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
 
@@ -56,6 +63,7 @@ export class CredentialsController {
       JSON.stringify({
         userId,
         tenantId,
+        workspaceId: workspace.id,
         platform,
         credentialName,
         frontendUrl, // Store origin in state
@@ -81,7 +89,10 @@ export class CredentialsController {
     try {
       // Decode state
       const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-      const { userId, tenantId, platform, credentialName, frontendUrl: storedFrontendUrl } = stateData;
+      const { userId, tenantId, workspaceId, platform, credentialName, frontendUrl: storedFrontendUrl } = stateData;
+
+      // A state from an old tab has no workspaceId. The lookup also checks the tenant.
+      const workspace = await this.workspacesService.resolve(tenantId, workspaceId);
 
       // Exchange code for tokens
       const tokenData = await this.oauthService.exchangeCodeForToken(
@@ -99,6 +110,7 @@ export class CredentialsController {
       await this.credentialsService.saveOAuthCredential(
         userId,
         tenantId,
+        workspace.id,
         platform,
         credentialName || `${platform} - ${accountInfo.name}`,
         {
@@ -146,21 +158,23 @@ export class CredentialsController {
   @Get()
   @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
   @RequireScopes('credentials:read')
-  async getUserCredentials(
+  async listCredentials(
     @Query('platform') platform?: PlatformName,
+    @Query('workspaceId') workspaceRef?: string,
     @CurrentUser() user?: User,
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
-    const userId = user?.id || apiKey?.createdByUserId;
     const tenantId = user?.tenantId || apiKey?.tenantId;
 
-    if (!userId || !tenantId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
-    const credentials = await this.credentialsService.getUserCredentials(
-      userId,
-      tenantId,
+    const workspaceId = workspaceRef
+      ? (await this.workspacesService.resolve(tenantId, workspaceRef)).id
+      : undefined;
+    const credentials = await this.credentialsService.listCredentials(tenantId, {
+      workspaceId,
       platform,
-    );
+    });
 
     // Remove sensitive data before sending to frontend
     return credentials.map((cred) => ({
@@ -173,6 +187,8 @@ export class CredentialsController {
       accountImage: cred.accountImage,
       isActive: cred.isActive,
       tokenExpiresAt: cred.tokenExpiresAt,
+      workspaceId: cred.workspaceId,
+      userId: cred.userId,
       createdAt: cred.createdAt,
     }));
   }
@@ -188,14 +204,12 @@ export class CredentialsController {
     @CurrentUser() user?: User,
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
-    const userId = user?.id || apiKey?.createdByUserId;
     const tenantId = user?.tenantId || apiKey?.tenantId;
 
-    if (!userId || !tenantId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
     const isValid = await this.credentialsService.testConnection(
       credentialId,
-      userId,
       tenantId,
     );
     return { valid: isValid };
@@ -209,22 +223,16 @@ export class CredentialsController {
     @CurrentUser() user?: User,
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
-    const userId = user?.id || apiKey?.createdByUserId;
     const tenantId = user?.tenantId || apiKey?.tenantId;
 
-    if (!userId || !tenantId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
     try {
-      await this.credentialsService.refreshAccessToken(
-        credentialId,
-        userId,
-        tenantId,
-      );
+      await this.credentialsService.refreshAccessToken(credentialId, tenantId);
 
       // Get updated credential to return new expiry info
       const credential = await this.credentialsService.getCredential(
         credentialId,
-        userId,
         tenantId,
       );
 
@@ -249,16 +257,15 @@ export class CredentialsController {
     @CurrentUser() user?: User,
     @CurrentApiKey() apiKey?: ApiKey,
   ) {
-    const userId = user?.id || apiKey?.createdByUserId;
     const tenantId = user?.tenantId || apiKey?.tenantId;
 
-    if (!userId || !tenantId) throw new Error('User context required');
+    if (!tenantId) throw new Error('Tenant context required');
 
-    await this.credentialsService.deleteCredential(
-      credentialId,
-      userId,
-      tenantId,
-    );
+    const credential = await this.credentialsService.getCredential(credentialId, tenantId);
+    if (!credential) throw new NotFoundException('Account not found.');
+    assertCanManageCredential(user, credential);
+
+    await this.credentialsService.deleteCredential(credentialId, tenantId);
     return { success: true };
   }
 }

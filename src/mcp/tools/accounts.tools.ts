@@ -46,11 +46,7 @@ export class AccountToolsGroup implements McpToolGroup {
   }
 
   private async listAccounts(platform: PlatformName | undefined, ctx: McpAuthContext) {
-    const credentials: Credential[] = await this.credentialsService.getUserCredentials(
-      ctx.userId,
-      ctx.tenantId,
-      platform,
-    );
+    const credentials: Credential[] = await this.credentialsService.listCredentials(ctx.tenantId, { platform });
     const accounts = credentials.map((c) => ({
       credentialId: c.id,
       platform: c.platform,
