@@ -13,6 +13,8 @@ import { AuthModule } from '../auth/auth.module';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesResolver } from './workspaces.resolver';
 import { ActiveWorkspacePipe } from './active-workspace.decorator';
+import { WorkspaceAccessService } from './workspace-access.service';
+import { WorkspaceMember } from '../entities/workspace-member.entity';
 import { WorkspaceImageController } from './workspace-image.controller';
 import { UploadModule } from '../upload/upload.module';
 
@@ -24,12 +26,13 @@ import { UploadModule } from '../upload/upload.module';
       MonitoredProfile,
       Insight,
       ChatSession,
+      WorkspaceMember,
       User,
       ApiKey,
       Tenant,
     ]), AuthModule, UploadModule],
   controllers: [WorkspaceImageController],
-  providers: [WorkspacesService, WorkspacesResolver, ActiveWorkspacePipe],
-  exports: [WorkspacesService, ActiveWorkspacePipe],
+  providers: [WorkspacesService, WorkspacesResolver, ActiveWorkspacePipe, WorkspaceAccessService],
+  exports: [WorkspacesService, ActiveWorkspacePipe, WorkspaceAccessService],
 })
 export class WorkspacesModule {}
