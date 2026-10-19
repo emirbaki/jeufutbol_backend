@@ -23,6 +23,8 @@ import { AuthModule } from '../auth/auth.module';
 import { TweetMonitoredProfile } from '../entities/tweet-monitored-profile.entity';
 import { Tenant } from 'src/entities/tenant.entity';
 
+import { WorkspacesModule } from '../workspaces/workspaces.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -40,6 +42,7 @@ import { Tenant } from 'src/entities/tenant.entity';
     PostModule,
     forwardRef(() => MonitoringModule),
     AuthModule,
+    WorkspacesModule,
   ],
   providers: [
     AIInsightsService,

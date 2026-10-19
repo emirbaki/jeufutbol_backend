@@ -27,6 +27,7 @@ import {
 } from './dto/job.dto';
 
 export interface GenerateInsightsDto {
+  workspaceId: string;
   userId: string;
   tenantId: string;
   topic?: string;
@@ -94,10 +95,11 @@ export class AIInsightsService {
    */
   async queueIndexAllTweets(
     tenantId: string,
+    workspaceId: string,
   ): Promise<{ jobIds: string[]; profileCount: number }> {
-    // Get all active profiles for this tenant
+    // Get all active profiles of this workspace
     const profiles = await this.monitoredProfileRepository.find({
-      where: { tenantId, isActive: true },
+      where: { tenantId, workspaceId, isActive: true },
     });
 
     if (profiles.length === 0) {
@@ -291,9 +293,9 @@ export class AIInsightsService {
     try {
       this.logger.log(`Generating insights for user ${userId}`);
 
-      // Get organization's monitored profiles (all profiles in the tenant)
+      // The monitored profiles of the workspace
       const profiles = await this.monitoredProfileRepository.find({
-        where: { tenantId: dto.tenantId, isActive: true },
+        where: { tenantId: dto.tenantId, workspaceId: dto.workspaceId, isActive: true },
       });
 
       if (profiles.length === 0) {
@@ -363,7 +365,8 @@ export class AIInsightsService {
         credentialId
       );
 
-      // Save insights to database
+      // Save insights to database, in the workspace of the profiles
+      for (const insight of insights) insight.workspaceId = dto.workspaceId;
       const savedInsights = await this.insightRepository.save(insights);
 
       this.logger.log(`Generated ${savedInsights.length} insights`);
@@ -696,8 +699,9 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
     minEngagement: number;
     userId?: string;
     tenantId?: string;
+    workspaceId?: string;
   }): Promise<any> {
-    const { topic, timeRange, minEngagement, tenantId } = options;
+    const { topic, timeRange, minEngagement, tenantId, workspaceId } = options;
 
     const hoursMap = { '24h': 24, '7d': 168, '30d': 720 };
     const since = new Date();
@@ -714,6 +718,10 @@ Return ONLY a JSON object with: content, hashtags (array), estimatedReach`;
 
     if (tenantId) {
       query = query.andWhere('profile.tenantId = :tenantId', { tenantId });
+    }
+
+    if (workspaceId) {
+      query = query.andWhere('profile.workspaceId = :workspaceId', { workspaceId });
     }
 
     if (topic) {
@@ -814,11 +822,13 @@ Return as a JSON array of strings, no additional formatting.`;
     userId: string,
     tenantId: string,
     limit = 20,
+    workspaceId?: string,
   ): Promise<Insight[]> {
-    // Get ALL insights from the organization (not just the user's insights)
+    // All insights of the workspace (not just the user's insights)
     // Order by createdAt first (newest) then by relevance as secondary
+    if (!workspaceId) return [];
     return this.insightRepository.find({
-      where: { tenantId },
+      where: { tenantId, workspaceId },
       order: { createdAt: 'DESC', relevanceScore: 'DESC' },
       take: limit,
       relations: ['user'], // Include user relation to show who created each insight

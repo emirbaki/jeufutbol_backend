@@ -79,12 +79,13 @@ export class AIInsightsProcessor extends WorkerHost {
       credentialId,
       useVectorSearch,
       tenantId,
+      workspaceId,
     });
 
     // Invalidate the getInsights cache so fresh data is returned
     // The cache key of GraphqlCacheInterceptor has the tenant and the workspace
     try {
-      if (workspaceId) await this.cacheManager.del(graphqlCacheKey(tenantId, workspaceId, 'getInsights'));
+      await this.cacheManager.del(graphqlCacheKey(tenantId, workspaceId, 'getInsights'));
       this.logger.log('Invalidated getInsights cache for tenant');
     } catch (e) {
       this.logger.warn(`Failed to invalidate cache: ${e.message}`);

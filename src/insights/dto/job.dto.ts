@@ -4,7 +4,7 @@ import { LLMProvider } from '../llm.service';
 export interface GenerateInsightsJobData {
   userId: string;
   tenantId: string;
-  workspaceId?: string;
+  workspaceId: string;
   topic?: string;
   llmProvider?: LLMProvider;
   useVectorSearch?: boolean;

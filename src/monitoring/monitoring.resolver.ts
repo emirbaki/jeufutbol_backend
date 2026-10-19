@@ -7,6 +7,8 @@ import {
 } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { GraphqlCacheInterceptor, graphqlCacheKey } from '../cache/graphql-cache.interceptor';
+import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
+import { Workspace } from '../entities/workspace.entity';
 import { MonitoringService } from './monitoring.service';
 import { TweetsService } from '../tweets/tweets.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -37,12 +39,13 @@ export class MonitoringResolver {
   async getMonitoredProfiles(
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<MonitoredProfile[]> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
-    return this.monitoringService.getMonitoredProfiles(userId, tenantId);
+    return this.monitoringService.getMonitoredProfiles(userId, tenantId, workspace!.id);
   }
 
   @Query(() => MonitoredProfile)
@@ -85,12 +88,13 @@ export class MonitoringResolver {
     @CurrentApiKey() apiKey: ApiKey,
     @Args('limit', { type: () => Int, nullable: true }) limit?: number,
     @Args('offset', { type: () => Int, nullable: true }) offset?: number,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<Tweet[]> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
-    return this.monitoringService.getTimelineTweets(userId, tenantId, limit, offset);
+    return this.monitoringService.getTimelineTweets(userId, tenantId, limit, offset, workspace!.id);
   }
 
   @Query(() => GraphQLJSON)
@@ -117,6 +121,7 @@ export class MonitoringResolver {
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
     @Args('xUsername') xUsername: string,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<MonitoredProfile> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -126,6 +131,7 @@ export class MonitoringResolver {
       userId,
       tenantId,
       { xUsername },
+      workspace!.id,
     );
 
     // Invalidate getMonitoredProfiles cache of the profile's workspace

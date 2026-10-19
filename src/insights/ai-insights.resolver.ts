@@ -7,6 +7,8 @@ import {
 } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { GraphqlCacheInterceptor, graphqlCacheKey } from '../cache/graphql-cache.interceptor';
+import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
+import { Workspace } from '../entities/workspace.entity';
 import { AIInsightsService } from './ai-insights.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -43,6 +45,7 @@ export class AIInsightsResolver {
     @Args('topic', { nullable: true }) topic?: string,
     @Args('llmProvider', { nullable: true }) llmProvider?: string,
     @Args('credentialId', { nullable: true, type: () => Int }) credentialId?: number,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<JobIdResponse> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -52,6 +55,7 @@ export class AIInsightsResolver {
     return this.aiInsightsService.generateInsights({
       userId: userId,
       tenantId: tenantId,
+      workspaceId: workspace!.id,
       topic,
       llmProvider: llmProvider as any,
       credentialId,
@@ -94,11 +98,14 @@ export class AIInsightsResolver {
   async analyzeTrends(
     @Args('topic', { nullable: true }) topic?: string,
     @Args('timeRange', { nullable: true }) timeRange?: string,
+    @ActiveWorkspace() workspace?: Workspace,
   ) {
     return this.aiInsightsService.analyzeTrends({
       topic,
       timeRange: (timeRange as any) || '7d',
       minEngagement: 100,
+      tenantId: workspace!.tenantId,
+      workspaceId: workspace!.id,
     });
   }
 
@@ -140,10 +147,11 @@ export class AIInsightsResolver {
   async indexAllTweetsToVector(
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<BatchIndexResponse> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
-    // Queue indexing for all profiles in the user's tenant
-    return this.aiInsightsService.queueIndexAllTweets(tenantId);
+    // Queue indexing for all profiles of the active workspace
+    return this.aiInsightsService.queueIndexAllTweets(tenantId, workspace!.id);
   }
 
   @CacheTTL(259200000) // 3 days
@@ -153,6 +161,7 @@ export class AIInsightsResolver {
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
     @Args('limit', { nullable: true }) limit?: number,
+    @ActiveWorkspace() workspace?: Workspace,
   ) {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -162,6 +171,7 @@ export class AIInsightsResolver {
       userId,
       tenantId,
       limit,
+      workspace!.id,
     );
   }
 

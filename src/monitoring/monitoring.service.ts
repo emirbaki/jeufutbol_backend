@@ -76,12 +76,13 @@ export class MonitoringService {
     userId: string,
     tenantId: string,
     data: AddProfileDto,
+    workspaceId: string,
   ): Promise<MonitoredProfile> {
     const username = data.xUsername.replace('@', '');
 
-    // Check if profile already exists for this user
+    // Each workspace keeps its own copy of a profile
     const existing = await this.monitoredProfileRepository.findOne({
-      where: { userId, tenantId, xUsername: username },
+      where: { workspaceId, xUsername: username },
     });
 
     if (existing) {
@@ -111,6 +112,7 @@ export class MonitoringService {
       const profile = this.monitoredProfileRepository.create({
         userId,
         tenantId,
+        workspaceId,
         xUsername: username,
         xUserId: profileInfo.id,
         displayName: profileInfo.displayName,
@@ -276,10 +278,11 @@ export class MonitoringService {
   async getMonitoredProfiles(
     userId: string,
     tenantId: string,
+    workspaceId: string,
   ): Promise<MonitoredProfile[]> {
-    // Get ALL profiles from the organization (shared watchlist)
+    // All profiles of the workspace (shared by its team)
     return this.monitoredProfileRepository.find({
-      where: { tenantId, isActive: true },
+      where: { tenantId, workspaceId, isActive: true },
       order: { createdAt: 'DESC' },
       relations: ['user'], // Include user relation to show who added each profile
     });
@@ -411,8 +414,10 @@ export class MonitoringService {
     tenantId: string,
     limit: number = 50,
     offset: number = 0,
+    workspaceId?: string,
   ): Promise<any[]> {
-    const profiles = await this.getMonitoredProfiles(userId, tenantId);
+    if (!workspaceId) return [];
+    const profiles = await this.getMonitoredProfiles(userId, tenantId, workspaceId);
 
     if (profiles.length === 0) {
       return [];

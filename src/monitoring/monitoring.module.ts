@@ -13,6 +13,8 @@ import { MonitoringProcessor } from './monitoring.processor';
 import { AuthModule } from '../auth/auth.module';
 import { Tenant } from '../entities/tenant.entity';
 
+import { WorkspacesModule } from '../workspaces/workspaces.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([MonitoredProfile, User, ApiKey, Tenant]),
@@ -20,6 +22,7 @@ import { Tenant } from '../entities/tenant.entity';
     forwardRef(() => AIInsightsModule),
     ScheduleModule.forRoot(),
     AuthModule,
+    WorkspacesModule,
   ],
   providers: [
     MonitoringService,

@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AIInsightsService } from './ai-insights.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../entities/user.entity';
+import { MonitoredProfile } from '../entities/monitored-profile.entity';
 
 @Injectable()
 export class AIInsightsSchedulerService {
@@ -11,34 +11,44 @@ export class AIInsightsSchedulerService {
 
   constructor(
     private aiInsightsService: AIInsightsService,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    @InjectRepository(MonitoredProfile)
+    private monitoredProfileRepository: Repository<MonitoredProfile>,
   ) {}
 
   /**
-   * Generate insights for all users daily (Now using queues!)
+   * Generate insights daily, one job for each workspace with active
+   * monitored profiles. The job runs as the user of the oldest profile.
    */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleDailyInsights() {
     this.logger.log('Starting daily insights generation (queue-based)');
 
     try {
-      const users = await this.userRepository.find({
+      const profiles = await this.monitoredProfileRepository.find({
         where: { isActive: true },
+        order: { createdAt: 'ASC' },
       });
 
-      for (const user of users) {
+      const workspaces = new Map<string, MonitoredProfile>();
+      for (const profile of profiles) {
+        if (profile.workspaceId && !workspaces.has(profile.workspaceId)) {
+          workspaces.set(profile.workspaceId, profile);
+        }
+      }
+
+      for (const [workspaceId, profile] of workspaces) {
         try {
           // Enqueue job instead of running directly
           const { jobId } = await this.aiInsightsService.generateInsights({
-            userId: user.id,
+            userId: profile.userId,
+            tenantId: profile.tenantId,
+            workspaceId,
             useVectorSearch: false,
-            tenantId: user.tenantId,
           });
-          this.logger.log(`Enqueued insights job ${jobId} for user ${user.id}`);
+          this.logger.log(`Enqueued insights job ${jobId} for workspace ${workspaceId}`);
         } catch (error) {
           this.logger.error(
-            `Failed to enqueue job for user ${user.id}: ${error.message}`,
+            `Failed to enqueue job for workspace ${workspaceId}: ${error.message}`,
           );
         }
 
@@ -46,7 +56,7 @@ export class AIInsightsSchedulerService {
         await this.delay(1000);
       }
 
-      this.logger.log(`Daily insights jobs enqueued for ${users.length} users`);
+      this.logger.log(`Daily insights jobs enqueued for ${workspaces.size} workspaces`);
     } catch (error) {
       this.logger.error(`Daily insights scheduling failed: ${error.message}`);
     }

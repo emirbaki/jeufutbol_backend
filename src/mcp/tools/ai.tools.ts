@@ -3,7 +3,8 @@ import { z } from 'zod/v4';
 import { AIInsightsService, PostTemplateDto } from '../../insights/ai-insights.service';
 import { McpToolDef, McpToolGroup } from '../mcp-tool';
 import { McpAuthContext } from '../mcp-auth.context';
-import { platformSchema } from '../schemas/post.schemas';
+import { platformSchema, workspaceRefSchema } from '../schemas/post.schemas';
+import { WorkspacesService } from '../../workspaces/workspaces.service';
 
 const llmProviderSchema = z.enum(['openai', 'gemini', 'ollama', 'claude']);
 const generatePostTextSchema = z.object({
@@ -17,13 +18,16 @@ const generateInsightsSchema = z.object({
   topic: z.string().min(1).max(200).optional(),
   llmProvider: llmProviderSchema.optional(),
   credentialId: z.number().int().optional(),
+  workspace: workspaceRefSchema.optional(),
 });
 const getInsightsSchema = z.object({
   limit: z.number().int().min(1).max(50).default(10),
+  workspace: workspaceRefSchema.optional(),
 });
 const analyzeTrendsSchema = z.object({
   topic: z.string().min(1).max(200).optional(),
   timeRange: z.enum(['24h', '7d', '30d']).default('7d'),
+  workspace: workspaceRefSchema.optional(),
 });
 const JOB_NEXT = 'Call get_job with this jobId until status is completed.';
 
@@ -34,7 +38,10 @@ type AnalyzeTrendsArgs = z.input<typeof analyzeTrendsSchema>;
 
 @Injectable()
 export class AiToolsGroup implements McpToolGroup {
-  constructor(private readonly aiInsightsService: AIInsightsService) {}
+  constructor(
+    private readonly aiInsightsService: AIInsightsService,
+    private readonly workspacesService: WorkspacesService,
+  ) {}
 
   tools(): McpToolDef[] {
     return [
@@ -62,8 +69,10 @@ export class AiToolsGroup implements McpToolGroup {
         description: 'Get the saved insights for this account.',
         scopes: ['insights:read'],
         inputSchema: getInsightsSchema,
-        handler: (args: GetInsightsArgs, ctx: McpAuthContext) =>
-          this.aiInsightsService.getInsightsForUser(ctx.userId, ctx.tenantId, args.limit ?? 10),
+        handler: async (args: GetInsightsArgs, ctx: McpAuthContext) => {
+          const workspace = await this.workspacesService.resolve(ctx.tenantId, args.workspace);
+          return this.aiInsightsService.getInsightsForUser(ctx.userId, ctx.tenantId, args.limit ?? 10, workspace.id);
+        },
       },
       {
         name: 'analyze_trends',
@@ -71,13 +80,16 @@ export class AiToolsGroup implements McpToolGroup {
         description: 'Get the trending topics and posts for a time range.',
         scopes: ['insights:read'],
         inputSchema: analyzeTrendsSchema,
-        handler: (args: AnalyzeTrendsArgs, ctx: McpAuthContext) =>
-          this.aiInsightsService.analyzeTrends({
+        handler: async (args: AnalyzeTrendsArgs, ctx: McpAuthContext) => {
+          const workspace = await this.workspacesService.resolve(ctx.tenantId, args.workspace);
+          return this.aiInsightsService.analyzeTrends({
             topic: args.topic,
             timeRange: args.timeRange ?? '7d',
             minEngagement: 100,
             tenantId: ctx.tenantId,
-          }),
+            workspaceId: workspace.id,
+          });
+        },
       },
     ];
   }
@@ -99,9 +111,11 @@ export class AiToolsGroup implements McpToolGroup {
   }
 
   private async generateInsights(args: GenerateInsightsArgs, ctx: McpAuthContext) {
+    const workspace = await this.workspacesService.resolve(ctx.tenantId, args.workspace);
     const { jobId } = await this.aiInsightsService.generateInsights({
       userId: ctx.userId,
       tenantId: ctx.tenantId,
+      workspaceId: workspace.id,
       topic: args.topic,
       llmProvider: args.llmProvider,
       credentialId: args.credentialId,
