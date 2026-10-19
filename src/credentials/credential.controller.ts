@@ -25,6 +25,7 @@ import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { assertCanManageCredential } from './credential-access';
+import { readWorkspaceHeader } from '../workspaces/active-workspace.decorator';
 
 @Controller('credentials')
 export class CredentialsController {
@@ -159,6 +160,7 @@ export class CredentialsController {
   @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
   @RequireScopes('credentials:read')
   async listCredentials(
+    @Req() req: Request,
     @Query('platform') platform?: PlatformName,
     @Query('workspaceId') workspaceRef?: string,
     @CurrentUser() user?: User,
@@ -168,9 +170,14 @@ export class CredentialsController {
 
     if (!tenantId) throw new Error('Tenant context required');
 
+    // An explicit workspaceId wins. Else the X-Workspace-Id header filters.
+    // Without both, the list has all accounts (API callers do not change).
+    const headerRef = readWorkspaceHeader(req as any);
     const workspaceId = workspaceRef
       ? (await this.workspacesService.resolve(tenantId, workspaceRef)).id
-      : undefined;
+      : headerRef
+        ? (await this.workspacesService.resolveActive(tenantId, { headerRef })).id
+        : undefined;
     const credentials = await this.credentialsService.listCredentials(tenantId, {
       workspaceId,
       platform,

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { PubSub } from 'graphql-subscriptions';
 import { Post, PostStatus } from '../entities/post.entity';
 import { PublishedPost } from '../entities/published-post.entity';
@@ -11,6 +11,8 @@ import { PostGatewayFactory } from './post-gateway.factory';
 import { CredentialsService } from 'src/credentials/credential.service';
 import { Credential, PlatformName } from '../entities/credential.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { PostListFilter, PostSort } from '../graphql/inputs/post-list.input';
+import { PostStatusCounts } from '../graphql/types/post-page.type';
 import { UploadService } from 'src/upload/upload.service';
 import { CreatePostInput } from 'src/graphql/inputs/post.input';
 import { QUEUE_NAMES, ASYNC_POLLING_JOBS, SCHEDULED_POST_JOBS } from 'src/queue/queue.config';
@@ -240,6 +242,69 @@ export class PostsService {
       skip: offset,
       relations: ['publishedPosts', 'user', 'workspace'], // Include user relation to show who created each post
     });
+  }
+
+  /**
+   * One page of the posts of a workspace, with the total count for the filter.
+   * The filters run in SQL, so they see all posts, not only the loaded page.
+   */
+  async listPosts(
+    tenantId: string,
+    workspaceId: string,
+    filter: PostListFilter,
+  ): Promise<{ items: Post[]; total: number }> {
+    const qb = this.workspacePostsQuery(tenantId, workspaceId)
+      .leftJoinAndSelect('post.publishedPosts', 'publishedPosts')
+      .leftJoinAndSelect('post.user', 'user')
+      .leftJoinAndSelect('post.workspace', 'workspace');
+    this.applyPostFilter(qb, filter);
+    qb.orderBy('post.createdAt', filter.sort === PostSort.OLDEST ? 'ASC' : 'DESC')
+      .take(filter.limit ?? 20)
+      .skip(filter.offset ?? 0);
+    const [items, total] = await qb.getManyAndCount();
+    return { items, total };
+  }
+
+  /** The number of posts for each status. The status of the filter is not used. */
+  async countPostsByStatus(
+    tenantId: string,
+    workspaceId: string,
+    filter: Pick<PostListFilter, 'platform' | 'from' | 'to'>,
+  ): Promise<PostStatusCounts> {
+    const qb = this.workspacePostsQuery(tenantId, workspaceId);
+    this.applyPostFilter(qb, { platform: filter.platform, from: filter.from, to: filter.to });
+    const rows: Array<{ status: PostStatus; count: string }> = await qb
+      .select('post.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('post.status')
+      .getRawMany();
+
+    const counts: PostStatusCounts = { all: 0, published: 0, scheduled: 0, draft: 0, failed: 0 };
+    for (const row of rows) {
+      const n = Number(row.count);
+      counts.all += n;
+      if (row.status in counts) counts[row.status as keyof PostStatusCounts] = n;
+    }
+    return counts;
+  }
+
+  private workspacePostsQuery(tenantId: string, workspaceId: string): SelectQueryBuilder<Post> {
+    return this.postRepository
+      .createQueryBuilder('post')
+      .where('post.tenantId = :tenantId', { tenantId })
+      .andWhere('post.workspaceId = :workspaceId', { workspaceId });
+  }
+
+  private applyPostFilter(qb: SelectQueryBuilder<Post>, filter: PostListFilter): void {
+    if (filter.status) qb.andWhere('post.status = :status', { status: filter.status });
+    // targetPlatforms is a comma list (simple-array): match whole tokens only.
+    if (filter.platform) {
+      qb.andWhere(`(',' || post."targetPlatforms" || ',') LIKE :platform`, {
+        platform: `%,${filter.platform},%`,
+      });
+    }
+    if (filter.from) qb.andWhere('post.createdAt >= :from', { from: filter.from });
+    if (filter.to) qb.andWhere('post.createdAt <= :to', { to: filter.to });
   }
 
   async getPost(

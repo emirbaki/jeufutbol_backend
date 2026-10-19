@@ -11,11 +11,16 @@ import { ApiKeyScope } from '../auth/api-key-scopes.enum';
 import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
 import { assertCanManageCredential } from './credential-access';
+import { ActiveWorkspaceContext, ActiveWorkspaceContextParam } from '../workspaces/active-workspace.decorator';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
 export class CredentialsResolver {
-  constructor(private credentialsService: CredentialsService) { }
+  constructor(
+    private credentialsService: CredentialsService,
+    private workspacesService: WorkspacesService,
+  ) { }
 
   @Query(() => [Credential])
   @RequireScopes(ApiKeyScope.CREDENTIALS_READ)
@@ -23,9 +28,11 @@ export class CredentialsResolver {
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
     @Args('platform', { nullable: true }) platform?: string,
+    @ActiveWorkspaceContextParam() workspaceCtx?: ActiveWorkspaceContext,
   ) {
     const tenantId = this.tenantOf(user, apiKey);
     return this.credentialsService.listCredentials(tenantId, {
+      workspaceId: await this.headerWorkspaceId(tenantId, workspaceCtx),
       platform: platform as any,
     });
   }
@@ -35,8 +42,12 @@ export class CredentialsResolver {
   async getConnectedAccounts(
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
+    @ActiveWorkspaceContextParam() workspaceCtx?: ActiveWorkspaceContext,
   ) {
-    return this.credentialsService.listCredentials(this.tenantOf(user, apiKey));
+    const tenantId = this.tenantOf(user, apiKey);
+    return this.credentialsService.listCredentials(tenantId, {
+      workspaceId: await this.headerWorkspaceId(tenantId, workspaceCtx),
+    });
   }
 
   @Mutation(() => Boolean)
@@ -76,6 +87,12 @@ export class CredentialsResolver {
       credentialId,
       this.tenantOf(user, apiKey),
     );
+  }
+
+  /** The X-Workspace-Id header filters the list. Without it, the list has all accounts. */
+  private async headerWorkspaceId(tenantId: string, ctx?: ActiveWorkspaceContext): Promise<string | undefined> {
+    if (!ctx?.headerRef) return undefined;
+    return (await this.workspacesService.resolveActive(tenantId, { headerRef: ctx.headerRef })).id;
   }
 
   private tenantOf(user?: User, apiKey?: ApiKey): string {

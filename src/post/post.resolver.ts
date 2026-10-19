@@ -15,6 +15,10 @@ import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
 import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
+import { Workspace } from '../entities/workspace.entity';
+import { PostListFilter } from 'src/graphql/inputs/post-list.input';
+import { PostPage, PostStatusCounts } from 'src/graphql/types/post-page.type';
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
@@ -32,6 +36,7 @@ export class PostsResolver {
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
     @Args('input', { type: () => CreatePostInput }) input: CreatePostInput,
+    @ActiveWorkspace() workspace: Workspace,
   ): Promise<Post> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -45,6 +50,7 @@ export class PostsResolver {
       : null;
     return this.postsService.createPost(userId, tenantId, {
       ...input,
+      workspaceId: input.workspaceId ?? workspace.id,
       platformSpecificContent: input.platformSpecificContent,
       scheduledFor: _scheduledFor,
     });
@@ -58,6 +64,7 @@ export class PostsResolver {
     @Args('limit', { type: () => Int, nullable: true }) limit?: number,
     @Args('offset', { type: () => Int, nullable: true }) offset?: number,
     @Args('workspaceId', { type: () => String, nullable: true }) workspaceRef?: string,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<Post[]> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -68,8 +75,32 @@ export class PostsResolver {
 
     const workspaceId = workspaceRef
       ? (await this.workspacesService.resolve(tenantId, workspaceRef)).id
-      : undefined;
+      : workspace?.id;
     return this.postsService.getUserPosts(userId, tenantId, limit, offset, undefined, workspaceId);
+  }
+
+  @Query(() => PostPage)
+  @RequireScopes(ApiKeyScope.POSTS_READ)
+  async postList(
+    @CurrentUser() user: User,
+    @CurrentApiKey() apiKey: ApiKey,
+    @Args('filter', { type: () => PostListFilter, nullable: true }) filter: PostListFilter = {},
+    @ActiveWorkspace() workspace: Workspace,
+  ): Promise<PostPage> {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    return this.postsService.listPosts(tenantId, workspace.id, filter ?? {});
+  }
+
+  @Query(() => PostStatusCounts)
+  @RequireScopes(ApiKeyScope.POSTS_READ)
+  async postStatusCounts(
+    @CurrentUser() user: User,
+    @CurrentApiKey() apiKey: ApiKey,
+    @Args('filter', { type: () => PostListFilter, nullable: true }) filter: PostListFilter = {},
+    @ActiveWorkspace() workspace: Workspace,
+  ): Promise<PostStatusCounts> {
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    return this.postsService.countPostsByStatus(tenantId, workspace.id, filter ?? {});
   }
 
   @Query(() => Post)
@@ -178,6 +209,7 @@ export class PostsResolver {
     @CurrentUser() user: User,
     @CurrentApiKey() apiKey: ApiKey,
     @Args('workspaceId', { type: () => String, nullable: true }) workspaceRef?: string,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<TikTokCreatorInfo> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
@@ -186,6 +218,6 @@ export class PostsResolver {
       throw new Error('User context required');
     }
 
-    return this.postsService.getTikTokCreatorInfo(userId, tenantId, workspaceRef);
+    return this.postsService.getTikTokCreatorInfo(userId, tenantId, workspaceRef ?? workspace?.id);
   }
 }
