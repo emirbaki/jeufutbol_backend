@@ -11,8 +11,10 @@ import { AuthModule } from '../auth/auth.module';
 import { UploadModule } from '../upload/upload.module';
 import { UserAvatarController } from './user-avatar.controller';
 
+import { WorkspacesModule } from '../workspaces/workspaces.module';
+
 @Module({
-  imports: [TypeOrmModule.forFeature([User, UserInvitation, Tenant, ApiKey]), EmailModule, AuthModule, UploadModule],
+  imports: [TypeOrmModule.forFeature([User, UserInvitation, Tenant, ApiKey]), EmailModule, AuthModule, UploadModule, WorkspacesModule],
   controllers: [UserAvatarController],
   providers: [UserResolver, EmailService],
   exports: [],

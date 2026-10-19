@@ -17,9 +17,11 @@ import { ApiKeyResolver } from './api-key.resolver';
 import { AuthController } from './auth.controller';
 import { CombinedAuthGuard } from './guards/combined-auth.guard';
 
+import { WorkspaceMember } from '../entities/workspace-member.entity';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Tenant, UserInvitation, ApiKey]),
+    TypeOrmModule.forFeature([User, Tenant, UserInvitation, ApiKey, WorkspaceMember]),
     PassportModule.register({ defaultStrategy: 'jwt', session: false }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -14,6 +14,8 @@ import { WorkspacesService } from './workspaces.service';
 import { WorkspacesResolver } from './workspaces.resolver';
 import { ActiveWorkspacePipe } from './active-workspace.decorator';
 import { WorkspaceAccessService } from './workspace-access.service';
+import { WorkspaceMembersService } from './workspace-members.service';
+import { WorkspaceMembersResolver } from './workspace-members.resolver';
 import { WorkspaceMember } from '../entities/workspace-member.entity';
 import { WorkspaceImageController } from './workspace-image.controller';
 import { UploadModule } from '../upload/upload.module';
@@ -32,7 +34,14 @@ import { UploadModule } from '../upload/upload.module';
       Tenant,
     ]), AuthModule, UploadModule],
   controllers: [WorkspaceImageController],
-  providers: [WorkspacesService, WorkspacesResolver, ActiveWorkspacePipe, WorkspaceAccessService],
-  exports: [WorkspacesService, ActiveWorkspacePipe, WorkspaceAccessService],
+  providers: [
+    WorkspacesService,
+    WorkspacesResolver,
+    ActiveWorkspacePipe,
+    WorkspaceAccessService,
+    WorkspaceMembersService,
+    WorkspaceMembersResolver,
+  ],
+  exports: [WorkspacesService, ActiveWorkspacePipe, WorkspaceAccessService, WorkspaceMembersService],
 })
 export class WorkspacesModule {}

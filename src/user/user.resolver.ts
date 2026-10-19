@@ -24,6 +24,9 @@ import { Tenant } from '../entities/tenant.entity';
 import { UserRole } from '../auth/user-role.enum';
 import { InvitationStatus } from '../entities/user-invitation.entity';
 import { InviteUserInput } from '../graphql/types/invite-user.input';
+import { WorkspaceMembersService } from '../workspaces/workspace-members.service';
+import { WorkspaceRole } from '../entities/workspace-member.entity';
+import { In } from 'typeorm';
 import {
   UpdateProfileInput,
   ChangePasswordInput,
@@ -43,13 +46,20 @@ export class UserResolver {
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
     private emailService: EmailService,
+    private membersService: WorkspaceMembersService,
   ) { }
 
   @Query(() => [User])
   async getOrganizationUsers(@CurrentUser() user: User): Promise<User[]> {
-    // Get all users in the same tenant/organization
+    // An admin sees everybody. A manager sees the people of the branches they manage.
+    const managed = await this.membersService.managedWorkspaceIds(user);
+    if (managed !== 'all' && !managed.length) {
+      throw new ForbiddenException('Only an admin or a manager of this branch can do this.');
+    }
+    const where: any = { tenantId: user.tenantId, isActive: true };
+    if (managed !== 'all') where.id = In(await this.membersService.userIdsIn(managed));
     return this.userRepository.find({
-      where: { tenantId: user.tenantId, isActive: true },
+      where,
       order: { createdAt: 'ASC' },
       select: [
         'id',
@@ -68,9 +78,18 @@ export class UserResolver {
     @CurrentUser() user: User,
     @Args('input') input: InviteUserInput,
   ): Promise<UserInvitation> {
-    // Only ADMIN and MANAGER can invite users
-    if (user.role !== UserRole.ADMIN && user.role !== UserRole.MANAGER) {
-      throw new ForbiddenException('Only admins and managers can invite users');
+    // An admin invitation needs an admin. Any other invitation needs a branch
+    // and a role, and the inviter must manage that branch.
+    const isAdminInvite = input.role === UserRole.ADMIN;
+    if (isAdminInvite) {
+      if (user.role !== UserRole.ADMIN) {
+        throw new ForbiddenException('Only an admin can give the admin role.');
+      }
+    } else {
+      if (!input.workspaceId || !input.workspaceRole) {
+        throw new BadRequestException('Choose a branch and a role.');
+      }
+      await this.membersService.assertCanManageBranch(user, input.workspaceId, input.workspaceRole);
     }
 
     // Check if user is already part of the organization
@@ -80,7 +99,7 @@ export class UserResolver {
 
     if (existingUser) {
       throw new BadRequestException(
-        'User with this email is already part of your organization',
+        'This person is already in the organization. Add them to the branch instead.',
       );
     }
 
@@ -108,7 +127,14 @@ export class UserResolver {
       email: input.email,
       tenantId: user.tenantId,
       invitedByUserId: user.id,
-      role: input.role,
+      // For a branch invitation, the organization role mirrors the branch role (it grants nothing more).
+      role: isAdminInvite
+        ? UserRole.ADMIN
+        : input.workspaceRole === WorkspaceRole.MANAGER
+          ? UserRole.MANAGER
+          : UserRole.USER,
+      workspaceId: isAdminInvite ? null : input.workspaceId,
+      workspaceRole: isAdminInvite ? null : input.workspaceRole,
       token,
       expiresAt,
       status: InvitationStatus.PENDING,
@@ -137,18 +163,16 @@ export class UserResolver {
   async listPendingInvitations(
     @CurrentUser() user: User,
   ): Promise<UserInvitation[]> {
-    // Only ADMIN and MANAGER can view invitations
-    if (user.role !== UserRole.ADMIN && user.role !== UserRole.MANAGER) {
-      throw new ForbiddenException(
-        'Only admins and managers can view invitations',
-      );
+    // An admin sees all invitations. A manager sees those of the branches they manage.
+    const managed = await this.membersService.managedWorkspaceIds(user);
+    if (managed !== 'all' && !managed.length) {
+      throw new ForbiddenException('Only an admin or a manager of this branch can do this.');
     }
+    const where: any = { tenantId: user.tenantId, status: InvitationStatus.PENDING };
+    if (managed !== 'all') where.workspaceId = In(managed);
 
     return this.invitationRepository.find({
-      where: {
-        tenantId: user.tenantId,
-        status: InvitationStatus.PENDING,
-      },
+      where,
       relations: ['invitedBy'],
       order: { createdAt: 'DESC' },
     });
@@ -159,13 +183,6 @@ export class UserResolver {
     @CurrentUser() user: User,
     @Args('invitationId', { type: () => ID }) invitationId: string,
   ): Promise<boolean> {
-    // Only ADMIN and MANAGER can revoke invitations
-    if (user.role !== UserRole.ADMIN && user.role !== UserRole.MANAGER) {
-      throw new ForbiddenException(
-        'Only admins and managers can revoke invitations',
-      );
-    }
-
     const invitation = await this.invitationRepository.findOne({
       where: { id: invitationId },
     });
@@ -177,6 +194,13 @@ export class UserResolver {
     // Ensure invitation belongs to same tenant
     if (invitation.tenantId !== user.tenantId) {
       throw new ForbiddenException('You can only revoke invitations from your organization');
+    }
+
+    // An admin invitation: admins only. A branch invitation: an admin or a manager of the branch.
+    if (!invitation.workspaceId) {
+      if (user.role !== UserRole.ADMIN) throw new ForbiddenException('Only an admin can give the admin role.');
+    } else {
+      await this.membersService.assertCanManageBranch(user, invitation.workspaceId);
     }
 
     invitation.status = InvitationStatus.REVOKED;

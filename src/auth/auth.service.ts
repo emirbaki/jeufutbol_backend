@@ -18,6 +18,8 @@ import { ApiKey } from '../entities/api-key.entity';
 import * as crypto from 'crypto';
 import { ApiKeyScope } from './api-key-scopes.enum';
 
+import { WorkspaceMember } from '../entities/workspace-member.entity';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -29,6 +31,8 @@ export class AuthService {
     private invitationRepository: Repository<UserInvitation>,
     @InjectRepository(ApiKey)
     private apiKeyRepository: Repository<ApiKey>,
+    @InjectRepository(WorkspaceMember)
+    private memberRepository: Repository<WorkspaceMember>,
     private emailService: EmailService,
     private jwtService: JwtService,
   ) { }
@@ -326,6 +330,15 @@ export class AuthService {
     });
 
     await this.userRepository.save(user);
+
+    // A branch invitation makes the membership in that branch
+    if (invitation.workspaceId && invitation.workspaceRole) {
+      await this.memberRepository.save({
+        workspaceId: invitation.workspaceId,
+        userId: user.id,
+        role: invitation.workspaceRole,
+      });
+    }
 
     // Mark invitation as accepted
     invitation.status = InvitationStatus.ACCEPTED;
