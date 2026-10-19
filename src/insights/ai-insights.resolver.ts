@@ -6,7 +6,7 @@ import {
   CACHE_MANAGER,
 } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { GraphqlCacheInterceptor } from '../cache/graphql-cache.interceptor';
+import { GraphqlCacheInterceptor, graphqlCacheKey } from '../cache/graphql-cache.interceptor';
 import { AIInsightsService } from './ai-insights.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -180,8 +180,10 @@ export class AIInsightsResolver {
       tenantId,
     );
 
-    // Invalidate getInsights cache for the tenant
-    await this.cacheManager.del(`${tenantId}:getInsights:{}`);
+    // Invalidate getInsights cache for the workspace of the insight
+    if (result.workspaceId) {
+      await this.cacheManager.del(graphqlCacheKey(tenantId, result.workspaceId, 'getInsights'));
+    }
 
     return result;
   }

@@ -2,6 +2,7 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { graphqlCacheKey } from '../../cache/graphql-cache.interceptor';
 import { Job } from 'bullmq';
 import { QUEUE_NAMES, AI_INSIGHTS_JOBS } from '../../queue/queue.config';
 import { AIInsightsService } from '../ai-insights.service';
@@ -65,7 +66,7 @@ export class AIInsightsProcessor extends WorkerHost {
   private async handleGenerateInsights(
     job: Job<GenerateInsightsJobData, GenerateInsightsJobResult>,
   ): Promise<GenerateInsightsJobResult> {
-    const { userId, topic, llmProvider, credentialId, useVectorSearch, tenantId } = job.data;
+    const { userId, topic, llmProvider, credentialId, useVectorSearch, tenantId, workspaceId } = job.data;
 
     // Update progress: Starting
     await job.updateProgress(10);
@@ -81,9 +82,9 @@ export class AIInsightsProcessor extends WorkerHost {
     });
 
     // Invalidate the getInsights cache so fresh data is returned
-    // The cache key pattern used by GraphqlCacheInterceptor (uses tenantId)
+    // The cache key of GraphqlCacheInterceptor has the tenant and the workspace
     try {
-      await this.cacheManager.del(`${tenantId}:getInsights:{}`);
+      if (workspaceId) await this.cacheManager.del(graphqlCacheKey(tenantId, workspaceId, 'getInsights'));
       this.logger.log('Invalidated getInsights cache for tenant');
     } catch (e) {
       this.logger.warn(`Failed to invalidate cache: ${e.message}`);

@@ -6,7 +6,7 @@ import {
   CACHE_MANAGER,
 } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { GraphqlCacheInterceptor } from '../cache/graphql-cache.interceptor';
+import { GraphqlCacheInterceptor, graphqlCacheKey } from '../cache/graphql-cache.interceptor';
 import { MonitoringService } from './monitoring.service';
 import { TweetsService } from '../tweets/tweets.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -128,8 +128,10 @@ export class MonitoringResolver {
       { xUsername },
     );
 
-    // Invalidate getMonitoredProfiles cache
-    await this.cacheManager.del(`${tenantId}:getMonitoredProfiles:{}`);
+    // Invalidate getMonitoredProfiles cache of the profile's workspace
+    if (profile.workspaceId) {
+      await this.cacheManager.del(graphqlCacheKey(tenantId, profile.workspaceId, 'getMonitoredProfiles'));
+    }
 
     return profile;
   }
@@ -145,6 +147,8 @@ export class MonitoringResolver {
     const userId = user?.id || apiKey?.createdByUserId;
     if (!userId) throw new Error('User context required');
 
+    // Read the workspace before the profile goes away
+    const { workspaceId } = await this.monitoringService.getProfile(profileId, userId, tenantId);
     const result = await this.monitoringService.removeProfile(
       userId,
       tenantId,
@@ -152,10 +156,10 @@ export class MonitoringResolver {
     );
 
     // Invalidate caches
-    await this.cacheManager.del(`${tenantId}:getMonitoredProfiles:{}`);
-    await this.cacheManager.del(
-      `${tenantId}:getMonitoredProfile:{"profileId":"${profileId}"}`,
-    );
+    if (workspaceId) {
+      await this.cacheManager.del(graphqlCacheKey(tenantId, workspaceId, 'getMonitoredProfiles'));
+      await this.cacheManager.del(graphqlCacheKey(tenantId, workspaceId, 'getMonitoredProfile', { profileId }));
+    }
 
     return result;
   }
