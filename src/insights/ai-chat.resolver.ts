@@ -19,6 +19,9 @@ class ChatResponse {
   sessionId: string;
 }
 
+import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
+import { Workspace } from '../entities/workspace.entity';
+
 @Resolver()
 @UseGuards(GqlAuthGuard)
 export class AiChatResolver {
@@ -31,13 +34,14 @@ export class AiChatResolver {
   async createChatSession(
     @CurrentUser() user: User,
     @Args('title', { nullable: true }) title?: string,
+    @ActiveWorkspace() workspace?: Workspace,
   ) {
-    return this.aiChatService.createChatSession(user.id, user.tenantId, title);
+    return this.aiChatService.createChatSession(user.id, user.tenantId, title, workspace!.id);
   }
 
   @Query(() => [ChatSession])
-  async getUserChatSessions(@CurrentUser() user: User) {
-    return this.aiChatService.getUserChatSessions(user.id, user.tenantId);
+  async getUserChatSessions(@CurrentUser() user: User, @ActiveWorkspace() workspace: Workspace) {
+    return this.aiChatService.getUserChatSessions(user.id, user.tenantId, workspace.id);
   }
 
   @Query(() => [ChatMessage])
@@ -55,6 +59,7 @@ export class AiChatResolver {
     @Args('sessionId', { nullable: true }) sessionId?: string,
     @Args('llmProvider', { nullable: true }) llmProvider?: string,
     @Args('credentialId', { nullable: true, type: () => Int }) credentialId?: number,
+    @ActiveWorkspace() workspace?: Workspace,
   ) {
     return this.aiChatService.chatWithAI(
       user.id,
@@ -63,6 +68,7 @@ export class AiChatResolver {
       message,
       llmProvider as any,
       credentialId,
+      workspace!.id,
     );
   }
 
@@ -77,6 +83,7 @@ export class AiChatResolver {
     @Args('sessionId', { nullable: true }) sessionId?: string,
     @Args('llmProvider', { nullable: true }) llmProvider?: string,
     @Args('credentialId', { nullable: true, type: () => Int }) credentialId?: number,
+    @ActiveWorkspace() workspace?: Workspace,
   ): Promise<ChatStreamStart> {
     // Create session if not provided
     let currentSessionId = sessionId;
@@ -85,6 +92,7 @@ export class AiChatResolver {
         user.id,
         user.tenantId,
         message.substring(0, 30) + '...',
+        workspace!.id,
       );
       currentSessionId = newSession.id;
     }

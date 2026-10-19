@@ -8,6 +8,7 @@ export class CreatePostTool {
     postsService: PostsService,
     userId: string,
     tenantId: string,
+    workspaceId?: string,
   ) {
     return new DynamicStructuredTool({
       name: 'create_post',
@@ -25,6 +26,7 @@ export class CreatePostTool {
       func: async ({ content, platforms, scheduledFor }) => {
         try {
           const post = await postsService.createPost(userId, tenantId, {
+            workspaceId,
             content,
             targetPlatforms: platforms as PlatformType[],
             scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
@@ -53,6 +55,7 @@ export class ListPostsTool {
     postsService: PostsService,
     userId: string,
     tenantId: string,
+    workspaceId?: string,
   ) {
     return new DynamicStructuredTool({
       name: 'list_posts',
@@ -69,6 +72,9 @@ export class ListPostsTool {
             userId,
             tenantId,
             limit || 10,
+            0,
+            undefined,
+            workspaceId,
           );
           return JSON.stringify(
             posts.map((p) => ({

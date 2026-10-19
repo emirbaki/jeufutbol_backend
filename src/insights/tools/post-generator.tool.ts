@@ -60,7 +60,7 @@ export class PostGeneratorTool {
 }
 
 export class TrendAnalysisTool {
-  static createTool(insightsService: any, userId: string, tenantId: string) {
+  static createTool(insightsService: any, userId: string, tenantId: string, workspaceId?: string) {
     return new DynamicStructuredTool({
       name: 'analyze_trends',
       description: 'Analyze current trends from monitored profiles',
@@ -98,6 +98,7 @@ export class TrendAnalysisTool {
             minEngagement: minEngagement || 100,
             userId,
             tenantId,
+            workspaceId,
           });
           return JSON.stringify(trends);
         } catch (error) {

@@ -60,11 +60,13 @@ export class AiChatService {
     userId: string,
     tenantId: string,
     title?: string,
+    workspaceId?: string | null,
   ): Promise<ChatSession> {
     const session = this.chatSessionRepo.create({
       userId,
       tenantId,
       title: title || 'New Chat',
+      workspaceId: workspaceId ?? null,
     });
     return this.chatSessionRepo.save(session);
   }
@@ -72,9 +74,10 @@ export class AiChatService {
   async getUserChatSessions(
     userId: string,
     tenantId: string,
+    workspaceId: string,
   ): Promise<ChatSession[]> {
     return this.chatSessionRepo.find({
-      where: { userId, tenantId },
+      where: { userId, tenantId, workspaceId },
       order: { updatedAt: 'DESC' },
     });
   }
@@ -104,8 +107,11 @@ export class AiChatService {
     message: string,
     llmProvider: LLMProvider = LLMTypes.OPENAI,
     credentialId?: number,
+    workspaceId?: string | null,
   ): Promise<{ response: string; sessionId: string }> {
     let currentSessionId = sessionId;
+    // The tools work in the workspace of the session
+    let promptWorkspaceId = workspaceId ?? null;
 
     // 1. Create session if not exists
     if (!currentSessionId) {
@@ -113,6 +119,7 @@ export class AiChatService {
         userId,
         tenantId,
         message.substring(0, 30) + '...',
+        workspaceId,
       );
       currentSessionId = newSession.id;
     } else {
@@ -123,6 +130,7 @@ export class AiChatService {
       if (!session) {
         throw new Error('Session not found or unauthorized');
       }
+      promptWorkspaceId = session.workspaceId ?? promptWorkspaceId;
       // Update timestamp
       await this.chatSessionRepo.update(currentSessionId, {
         updatedAt: new Date(),
@@ -154,19 +162,7 @@ export class AiChatService {
 
     // 4. Initialize Agent
     const model = await this.llmService.getModel(userId, tenantId, llmProvider, credentialId);
-    const tools = [
-      PostGeneratorTool.createTool(this.aiInsightsService, userId, tenantId),
-      TrendAnalysisTool.createTool(this.aiInsightsService, userId, tenantId),
-      ContentSuggestionTool.createTool(this.aiInsightsService, userId, tenantId),
-      CreatePostTool.createTool(this.postsService, userId, tenantId),
-      ListPostsTool.createTool(this.postsService, userId, tenantId),
-      PublishPostTool.createTool(this.postsService, userId, tenantId),
-      ...(await SqlTools.createTools(this.dataSource, model)),
-      AssistantTool.createTool(),
-      AssistantCommentaryTool.createTool(),
-      SearchTool.createTool(),
-      VisitPageTool.createTool(),
-    ] as StructuredTool[];
+    const tools = await this.buildAgentTools(userId, tenantId, promptWorkspaceId, model);
 
     const memory = new MemorySaver();
 
@@ -308,6 +304,7 @@ Your steps:
 ## DATABASE ACCESS
 You have access to a SQL database with tables: post, tweets, insights, monitored_profiles, tweet_monitored_profiles.
 ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
+ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = '${promptWorkspaceId}'. Use only the data of this workspace.
 
 ## RESPONSE GUIDELINES
 - Respond in the same language the user uses
@@ -366,6 +363,29 @@ ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isol
   /**
    * Streaming chat with AI - publishes events via PubSub for WebSocket delivery
    */
+  /** The agent tools. The post and trend tools work only in the given workspace. */
+  async buildAgentTools(
+    userId: string,
+    tenantId: string,
+    workspaceId: string | null,
+    model: any,
+  ): Promise<StructuredTool[]> {
+    const ws = workspaceId ?? undefined;
+    return [
+      PostGeneratorTool.createTool(this.aiInsightsService, userId, tenantId),
+      TrendAnalysisTool.createTool(this.aiInsightsService, userId, tenantId, ws),
+      ContentSuggestionTool.createTool(this.aiInsightsService, userId, tenantId),
+      CreatePostTool.createTool(this.postsService, userId, tenantId, ws),
+      ListPostsTool.createTool(this.postsService, userId, tenantId, ws),
+      PublishPostTool.createTool(this.postsService, userId, tenantId),
+      ...(await SqlTools.createTools(this.dataSource, model)),
+      AssistantTool.createTool(),
+      AssistantCommentaryTool.createTool(),
+      SearchTool.createTool(),
+      VisitPageTool.createTool(),
+    ] as StructuredTool[];
+  }
+
   async streamChatWithAI(
     userId: string,
     tenantId: string,
@@ -410,19 +430,9 @@ ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isol
 
       // Initialize Agent
       const model = await this.llmService.getModel(userId, tenantId, llmProvider, credentialId);
-      const tools = [
-        PostGeneratorTool.createTool(this.aiInsightsService, userId, tenantId),
-        TrendAnalysisTool.createTool(this.aiInsightsService, userId, tenantId),
-        ContentSuggestionTool.createTool(this.aiInsightsService, userId, tenantId),
-        CreatePostTool.createTool(this.postsService, userId, tenantId),
-        ListPostsTool.createTool(this.postsService, userId, tenantId),
-        PublishPostTool.createTool(this.postsService, userId, tenantId),
-        ...(await SqlTools.createTools(this.dataSource, model)),
-        AssistantTool.createTool(),
-        AssistantCommentaryTool.createTool(),
-        SearchTool.createTool(),
-        VisitPageTool.createTool(),
-      ] as StructuredTool[];
+      const session = await this.chatSessionRepo.findOne({ where: { id: sessionId } });
+      const promptWorkspaceId = session?.workspaceId ?? null;
+      const tools = await this.buildAgentTools(userId, tenantId, promptWorkspaceId, model);
 
       const memory = new MemorySaver();
 
@@ -522,6 +532,7 @@ When users ask about current events, recent news, sports scores, stock prices, w
 ## DATABASE ACCESS
 You have access to a SQL database with tables: post, tweets, insights, monitored_profiles, tweet_monitored_profiles.
 ALWAYS filter your SQL queries by "tenantId" = '${tenantId}' to ensure data isolation.
+ALSO filter the tables post, monitored_profiles and insights by "workspaceId" = '${promptWorkspaceId}'. Use only the data of this workspace.
 
 ## RESPONSE GUIDELINES
 - Respond in the same language the user uses

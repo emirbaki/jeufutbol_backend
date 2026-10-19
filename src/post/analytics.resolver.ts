@@ -7,6 +7,9 @@ import { User } from '../entities/user.entity';
 import { AnalyticsService } from './analytics.service';
 import { RawAnalyticsDataType, AnalyticsSettingsType, PlatformFollowerType } from '../graphql/types/analytics.type';
 
+import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
+import { Workspace } from '../entities/workspace.entity';
+
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
 export class AnalyticsResolver {
@@ -16,8 +19,9 @@ export class AnalyticsResolver {
     async getAnalyticsData(
         @Args('period', { defaultValue: '7days' }) period: string,
         @CurrentUser() user: User,
+        @ActiveWorkspace() workspace: Workspace,
     ): Promise<RawAnalyticsDataType> {
-        const data = await this.analyticsService.getAnalyticsData(user.tenantId, period);
+        const data = await this.analyticsService.getAnalyticsData(user.tenantId, period, workspace.id);
 
         return {
             analytics: data.analytics.map(a => ({
@@ -73,7 +77,10 @@ export class AnalyticsResolver {
     }
 
     @Query(() => [PlatformFollowerType])
-    async getFollowerCounts(@CurrentUser() user: User): Promise<PlatformFollowerType[]> {
-        return this.analyticsService.getFollowerCounts(user.tenantId);
+    async getFollowerCounts(
+        @CurrentUser() user: User,
+        @ActiveWorkspace() workspace: Workspace,
+    ): Promise<PlatformFollowerType[]> {
+        return this.analyticsService.getFollowerCounts(user.tenantId, workspace.id);
     }
 }

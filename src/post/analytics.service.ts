@@ -51,14 +51,16 @@ export class AnalyticsService {
         return this.settingsRepo.save(settings);
     }
 
-    async getAnalyticsData(tenantId: string, period: string): Promise<RawAnalyticsData> {
+    async getAnalyticsData(tenantId: string, period: string, workspaceId: string): Promise<RawAnalyticsData> {
         const settings = await this.getOrCreateSettings(tenantId);
         const startDate = this.calculateStartDate(period);
 
+        // A published post belongs to the workspace of its post
         const publishedPosts = await this.publishedPostRepo.find({
             where: {
                 tenantId,
                 publishedAt: MoreThanOrEqual(startDate),
+                post: { workspaceId },
             },
             relations: ['post'],
             order: { publishedAt: 'DESC' },
@@ -206,7 +208,7 @@ export class AnalyticsService {
     /**
      * Get follower counts for all connected platforms for a tenant
      */
-    async getFollowerCounts(tenantId: string): Promise<{
+    async getFollowerCounts(tenantId: string, workspaceId: string): Promise<{
         platform: string;
         displayName: string;
         followerCount: number;
@@ -231,7 +233,7 @@ export class AnalyticsService {
 
         for (const platformName of platforms) {
             try {
-                const credentials = await this.credentialsService.getTenantCredentials(tenantId, platformName);
+                const credentials = await this.credentialsService.listCredentials(tenantId, { workspaceId, platform: platformName });
                 if (credentials.length === 0) continue;
 
                 const credential = credentials[0];
