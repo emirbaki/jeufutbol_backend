@@ -62,7 +62,7 @@ describe('AiToolsGroup', () => {
     await tool('get_insights').handler({ workspace: 'football' }, ctx);
     await tool('analyze_trends').handler({ workspace: 'football' }, ctx);
     expect(workspaces.resolve).toHaveBeenCalledTimes(3);
-    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football');
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football', 'all');
     expect(ai.generateInsights).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'w2' }));
     expect(ai.getInsightsForUser).toHaveBeenCalledWith('u1', 't1', 10, 'w2');
     expect(ai.analyzeTrends).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'w2' }));

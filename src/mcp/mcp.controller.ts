@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
 import { buildMcpAuthContext } from './mcp-auth.context';
 import { McpServerFactory } from './mcp-server.factory';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 
 /** Stateless MCP endpoint (Streamable HTTP, JSON responses). One server per request. */
 @Controller('mcp')
@@ -13,11 +14,13 @@ export class McpController {
   constructor(
     private readonly serverFactory: McpServerFactory,
     private readonly config: ConfigService,
+    private readonly accessService: WorkspaceAccessService,
   ) {}
 
   @Post()
   async handle(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const ctx = buildMcpAuthContext(req as any, this.apiBaseUrl(req));
+    const access = await this.accessService.accessFor((req as any).user, (req as any).apiKey);
+    const ctx = buildMcpAuthContext(req as any, this.apiBaseUrl(req), access);
     const server = this.serverFactory.create(ctx);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,

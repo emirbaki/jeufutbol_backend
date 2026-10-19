@@ -10,8 +10,10 @@ export interface McpAuthContext {
   grant: ScopeGrant;
   keyPrefix: string;
   apiBaseUrl: string;
-  /** The branches the caller can reach (Phase 3). */
+  /** The branches the caller can reach. */
   access: WorkspaceAccess;
+  /** The branch of an API key for a call that names none. */
+  defaultWorkspaceId?: string | null;
 }
 
 /**
@@ -22,6 +24,7 @@ export interface McpAuthContext {
 export function buildMcpAuthContext(
   req: { user?: User; apiKey?: ApiKey },
   apiBaseUrl: string,
+  access: WorkspaceAccess = 'all',
 ): McpAuthContext {
   const { user, apiKey } = req;
 
@@ -35,7 +38,8 @@ export function buildMcpAuthContext(
       grant: { isUser: false, scopes: apiKey.scopes ?? [] },
       keyPrefix: apiKey.keyPrefix,
       apiBaseUrl,
-      access: 'all',
+      access,
+      defaultWorkspaceId: apiKey.defaultWorkspaceId ?? null,
     };
   }
 
@@ -46,7 +50,7 @@ export function buildMcpAuthContext(
       grant: { isUser: true, scopes: [] },
       keyPrefix: 'user',
       apiBaseUrl,
-      access: 'all',
+      access,
     };
   }
 

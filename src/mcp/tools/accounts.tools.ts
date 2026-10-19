@@ -4,6 +4,7 @@ import { CredentialsService } from '../../credentials/credential.service';
 import { Credential, PlatformName } from '../../entities/credential.entity';
 import { PostsService } from '../../post/post.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
+import { reaches } from '../../workspaces/workspace-access.service';
 import { McpToolDef, McpToolGroup } from '../mcp-tool';
 import { McpAuthContext } from '../mcp-auth.context';
 import { platformSchema, workspaceRefSchema } from '../schemas/post.schemas';
@@ -56,15 +57,21 @@ export class AccountToolsGroup implements McpToolGroup {
           'Get the TikTok privacy options and posting limits of the TikTok account in the workspace. Call this before each TikTok post, and use one of the returned privacy levels.',
         scopes: ['posts:read'],
         inputSchema: workspaceOnlySchema,
-        handler: (args: z.infer<typeof workspaceOnlySchema>, ctx: McpAuthContext) =>
-          this.postsService.getTikTokCreatorInfo(ctx.userId, ctx.tenantId, args.workspace),
+        handler: async (args: z.infer<typeof workspaceOnlySchema>, ctx: McpAuthContext) => {
+          const workspace = await this.workspacesService.resolve(
+            ctx.tenantId,
+            args.workspace ?? ctx.defaultWorkspaceId ?? undefined,
+            ctx.access,
+          );
+          return this.postsService.getTikTokCreatorInfo(ctx.userId, ctx.tenantId, workspace.id);
+        },
       },
     ];
   }
 
   private async listWorkspaces(ctx: McpAuthContext) {
     const [workspaces, credentials] = await Promise.all([
-      this.workspacesService.list(ctx.tenantId),
+      this.workspacesService.list(ctx.tenantId, ctx.access),
       this.credentialsService.listCredentials(ctx.tenantId),
     ]);
     const counts = new Map<string, number>();
@@ -84,17 +91,20 @@ export class AccountToolsGroup implements McpToolGroup {
 
   private async listAccounts(args: z.infer<typeof listAccountsSchema>, ctx: McpAuthContext) {
     const platform = args.platform as PlatformName | undefined;
-    const workspaces = await this.workspacesService.list(ctx.tenantId);
+    const workspaces = await this.workspacesService.list(ctx.tenantId, ctx.access);
     const workspaceId = args.workspace
-      ? (await this.workspacesService.resolve(ctx.tenantId, args.workspace)).id
+      ? (await this.workspacesService.resolve(ctx.tenantId, args.workspace, ctx.access)).id
       : undefined;
     const credentials: Credential[] = await this.credentialsService.listCredentials(ctx.tenantId, {
       workspaceId,
       platform,
     });
     const slugs = new Map(workspaces.map((w) => [w.id, w.slug]));
+    const defaultSlugId = workspaces.find((w) => w.isDefault)?.id;
     const defaultSlug = workspaces.find((w) => w.isDefault)?.slug ?? null;
-    const accounts = credentials.map((c) => ({
+    // Hide the accounts of branches the caller cannot reach.
+    const visible = credentials.filter((c) => reaches(ctx.access, c.workspaceId ?? defaultSlugId));
+    const accounts = visible.map((c) => ({
       credentialId: c.id,
       platform: c.platform,
       accountName: c.accountName,

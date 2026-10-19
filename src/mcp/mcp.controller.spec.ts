@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { McpController } from './mcp.controller';
 import { McpServerFactory } from './mcp-server.factory';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 import { CombinedAuthGuard } from '../auth/guards/combined-auth.guard';
 
 describe('McpController', () => {
@@ -17,6 +18,7 @@ describe('McpController', () => {
       controllers: [McpController],
       providers: [
         { provide: McpServerFactory, useValue: { create: jest.fn() } },
+        { provide: WorkspaceAccessService, useValue: { accessFor: jest.fn().mockResolvedValue('all') } },
         { provide: ConfigService, useValue: { get: () => undefined } },
       ],
     })

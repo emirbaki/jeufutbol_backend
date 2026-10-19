@@ -19,9 +19,10 @@ import { CombinedAuthGuard } from './guards/combined-auth.guard';
 
 import { WorkspaceMember } from '../entities/workspace-member.entity';
 
+import { Workspace } from '../entities/workspace.entity';
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Tenant, UserInvitation, ApiKey, WorkspaceMember]),
+    TypeOrmModule.forFeature([User, Tenant, UserInvitation, ApiKey, WorkspaceMember, Workspace]),
     PassportModule.register({ defaultStrategy: 'jwt', session: false }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

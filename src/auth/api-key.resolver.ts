@@ -22,12 +22,17 @@ import { CreateApiKeyInput } from '../graphql/types/create-api-key.input';
 import { CreateApiKeyResponse } from '../graphql/types/create-api-key-response.type';
 import * as crypto from 'crypto';
 
+import { Workspace } from '../entities/workspace.entity';
+import { In } from 'typeorm';
+
 @Resolver(() => ApiKey)
 @UseGuards(GqlAuthGuard)
 export class ApiKeyResolver {
     constructor(
         @InjectRepository(ApiKey)
         private apiKeyRepository: Repository<ApiKey>,
+        @InjectRepository(Workspace)
+        private workspaceRepository: Repository<Workspace>,
     ) { }
 
     @Mutation(() => CreateApiKeyResponse)
@@ -39,6 +44,8 @@ export class ApiKeyResolver {
         if (user.role !== UserRole.ADMIN) {
             throw new ForbiddenException('Only admins can create API keys');
         }
+
+        const limits = await this.checkWorkspaces(user.tenantId, input.workspaceIds ?? [], input.defaultWorkspaceId);
 
         // Generate API key
         const plainTextKey = this.generateApiKey();
@@ -55,6 +62,8 @@ export class ApiKeyResolver {
             scopes: input.scopes,
             expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
             isActive: true,
+            workspaceIds: limits.workspaceIds,
+            defaultWorkspaceId: limits.defaultWorkspaceId,
         });
 
         await this.apiKeyRepository.save(apiKey);
@@ -143,6 +152,46 @@ export class ApiKeyResolver {
 
         apiKey.scopes = scopes;
         return this.apiKeyRepository.save(apiKey);
+    }
+
+    @Mutation(() => ApiKey)
+    async updateApiKeyWorkspaces(
+        @CurrentUser() user: User,
+        @Args('apiKeyId', { type: () => ID }) apiKeyId: string,
+        @Args('workspaceIds', { type: () => [ID] }) workspaceIds: string[],
+        @Args('defaultWorkspaceId', { type: () => ID, nullable: true }) defaultWorkspaceId?: string,
+    ): Promise<ApiKey> {
+        if (user.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Only admins can update API keys');
+        }
+        const apiKey = await this.apiKeyRepository.findOne({ where: { id: apiKeyId } });
+        if (!apiKey || apiKey.tenantId !== user.tenantId) {
+            throw new NotFoundException('API key not found');
+        }
+        const limits = await this.checkWorkspaces(user.tenantId, workspaceIds, defaultWorkspaceId);
+        apiKey.workspaceIds = limits.workspaceIds;
+        apiKey.defaultWorkspaceId = limits.defaultWorkspaceId;
+        return this.apiKeyRepository.save(apiKey);
+    }
+
+    /** Every branch must belong to the tenant. A default must be in a non-empty list. */
+    private async checkWorkspaces(
+        tenantId: string,
+        workspaceIds: string[],
+        defaultWorkspaceId?: string | null,
+    ): Promise<{ workspaceIds: string[]; defaultWorkspaceId: string | null }> {
+        const ids = [...new Set(workspaceIds)];
+        const wanted = defaultWorkspaceId ? [...new Set([...ids, defaultWorkspaceId])] : ids;
+        if (wanted.length) {
+            const found = await this.workspaceRepository.find({ where: { id: In(wanted), tenantId } });
+            if (found.length !== wanted.length) {
+                throw new NotFoundException('Workspace not found.');
+            }
+        }
+        if (defaultWorkspaceId && ids.length && !ids.includes(defaultWorkspaceId)) {
+            throw new BadRequestException('The default branch must be one of the selected branches.');
+        }
+        return { workspaceIds: ids, defaultWorkspaceId: defaultWorkspaceId ?? null };
     }
 
     // Helper methods

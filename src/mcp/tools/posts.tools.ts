@@ -118,7 +118,11 @@ export class PostToolsGroup implements McpToolGroup {
 
   private async createPost(args: CreatePostArgs, ctx: McpAuthContext) {
     const { workspace: workspaceRef, ...rest } = args;
-    const workspace = await this.workspacesService.resolve(ctx.tenantId, workspaceRef);
+    const workspace = await this.workspacesService.resolve(
+      ctx.tenantId,
+      workspaceRef ?? ctx.defaultWorkspaceId ?? undefined,
+      ctx.access,
+    );
     await this.checkAccounts(rest.targetPlatforms, workspace, ctx);
     const input = {
       ...rest,
@@ -137,8 +141,8 @@ export class PostToolsGroup implements McpToolGroup {
     if (fields.targetPlatforms || workspaceRef) {
       const current = await this.loadPost(postId, ctx);
       workspace = workspaceRef
-        ? await this.workspacesService.resolve(ctx.tenantId, workspaceRef)
-        : (current.workspace ?? (await this.workspacesService.resolve(ctx.tenantId, current.workspaceId)));
+        ? await this.workspacesService.resolve(ctx.tenantId, workspaceRef, ctx.access)
+        : (current.workspace ?? (await this.workspacesService.resolve(ctx.tenantId, current.workspaceId, ctx.access)));
       await this.checkAccounts(fields.targetPlatforms ?? current.targetPlatforms, workspace, ctx);
     }
     const updates: Partial<CreatePostInput> = { ...(fields as Partial<CreatePostInput>) };
@@ -166,9 +170,11 @@ export class PostToolsGroup implements McpToolGroup {
   }
 
   private async listPosts(args: z.infer<typeof listPostsSchema>, ctx: McpAuthContext) {
-    const workspaceId = args.workspace
-      ? (await this.workspacesService.resolve(ctx.tenantId, args.workspace)).id
-      : undefined;
+    // With no branch, a caller with access to all branches lists all posts.
+    // A branch-limited caller gets its default or first branch.
+    const ref = args.workspace ?? ctx.defaultWorkspaceId ?? undefined;
+    const workspaceId =
+      ref || ctx.access !== 'all' ? (await this.workspacesService.resolve(ctx.tenantId, ref, ctx.access)).id : undefined;
     const posts = await this.postsService.getUserPosts(
       ctx.userId,
       ctx.tenantId,

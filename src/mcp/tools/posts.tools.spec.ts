@@ -150,7 +150,7 @@ describe('PostToolsGroup', () => {
     await expect(tool('create_post').handler({ ...validYoutubeArgs, workspace: 'football' }, ctx)).rejects.toThrow(
       'No youtube account is connected in workspace "football".',
     );
-    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football');
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football', 'all');
     expect(posts.createPost).not.toHaveBeenCalled();
   });
 
@@ -210,5 +210,20 @@ describe('PostToolsGroup', () => {
     for (const name of ['create_post', 'update_post', 'publish_post', 'retry_publish_post']) {
       expect(tool(name).scopes).toEqual(['posts:write']);
     }
+  });
+
+  it('create_post with no workspace uses the key default', async () => {
+    creds.listCredentials.mockResolvedValue([{ id: 'c1' }]);
+    posts.createPost.mockResolvedValue(postRow());
+    await tool('create_post').handler(validYoutubeArgs, { ...ctx, defaultWorkspaceId: 'w5', access: ['w5'] });
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'w5', ['w5']);
+  });
+
+  it('create_post into a branch outside the key gives not found', async () => {
+    workspaces.resolve.mockRejectedValue(new Error('Workspace "football" not found. Use one of: cinema.'));
+    await expect(
+      tool('create_post').handler({ ...validYoutubeArgs, workspace: 'football' }, { ...ctx, access: ['w5'] }),
+    ).rejects.toThrow('Workspace "football" not found');
+    expect(posts.createPost).not.toHaveBeenCalled();
   });
 });

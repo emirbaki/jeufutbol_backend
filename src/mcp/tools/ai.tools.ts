@@ -70,7 +70,11 @@ export class AiToolsGroup implements McpToolGroup {
         scopes: ['insights:read'],
         inputSchema: getInsightsSchema,
         handler: async (args: GetInsightsArgs, ctx: McpAuthContext) => {
-          const workspace = await this.workspacesService.resolve(ctx.tenantId, args.workspace);
+          const workspace = await this.workspacesService.resolve(
+            ctx.tenantId,
+            args.workspace ?? ctx.defaultWorkspaceId ?? undefined,
+            ctx.access,
+          );
           return this.aiInsightsService.getInsightsForUser(ctx.userId, ctx.tenantId, args.limit ?? 10, workspace.id);
         },
       },
@@ -81,7 +85,11 @@ export class AiToolsGroup implements McpToolGroup {
         scopes: ['insights:read'],
         inputSchema: analyzeTrendsSchema,
         handler: async (args: AnalyzeTrendsArgs, ctx: McpAuthContext) => {
-          const workspace = await this.workspacesService.resolve(ctx.tenantId, args.workspace);
+          const workspace = await this.workspacesService.resolve(
+            ctx.tenantId,
+            args.workspace ?? ctx.defaultWorkspaceId ?? undefined,
+            ctx.access,
+          );
           return this.aiInsightsService.analyzeTrends({
             topic: args.topic,
             timeRange: args.timeRange ?? '7d',
@@ -111,7 +119,11 @@ export class AiToolsGroup implements McpToolGroup {
   }
 
   private async generateInsights(args: GenerateInsightsArgs, ctx: McpAuthContext) {
-    const workspace = await this.workspacesService.resolve(ctx.tenantId, args.workspace);
+    const workspace = await this.workspacesService.resolve(
+            ctx.tenantId,
+            args.workspace ?? ctx.defaultWorkspaceId ?? undefined,
+            ctx.access,
+          );
     const { jobId } = await this.aiInsightsService.generateInsights({
       userId: ctx.userId,
       tenantId: ctx.tenantId,

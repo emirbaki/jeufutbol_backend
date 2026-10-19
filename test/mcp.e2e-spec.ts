@@ -23,6 +23,7 @@ import { UploadService } from '../src/upload/upload.service';
 import { PostsService } from '../src/post/post.service';
 import { CredentialsService } from '../src/credentials/credential.service';
 import { WorkspacesService } from '../src/workspaces/workspaces.service';
+import { WorkspaceAccessService } from '../src/workspaces/workspace-access.service';
 import { AIInsightsService } from '../src/insights/ai-insights.service';
 import { JobService } from '../src/queue/job.service';
 import { QUEUE_NAMES } from '../src/queue/queue.config';
@@ -79,6 +80,7 @@ describe('MCP endpoint (e2e)', () => {
         { provide: PostsService, useValue: posts },
         { provide: CredentialsService, useValue: credentials },
         { provide: WorkspacesService, useValue: workspaces },
+        { provide: WorkspaceAccessService, useValue: { accessFor: jest.fn().mockResolvedValue('all') } },
         { provide: AIInsightsService, useValue: {} },
         { provide: JobService, useValue: {} },
         {

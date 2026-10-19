@@ -42,4 +42,13 @@ describe('buildMcpAuthContext', () => {
     expect(build).toThrow(ForbiddenException);
     expect(build).toThrow('This API key has no user. Make a new key from a user account.');
   });
+
+  it('copies access and defaultWorkspaceId', () => {
+    const ctx = buildMcpAuthContext(
+      { apiKey: { createdByUserId: 'u1', tenantId: 't1', scopes: [], keyPrefix: 'jeu_ab', defaultWorkspaceId: 'w5' } as any },
+      'https://x/api',
+      ['w5'],
+    );
+    expect(ctx).toMatchObject({ access: ['w5'], defaultWorkspaceId: 'w5' });
+  });
 });

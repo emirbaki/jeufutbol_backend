@@ -65,7 +65,7 @@ describe('AccountToolsGroup', () => {
   it('list_connected_accounts filters by workspace', async () => {
     creds.listCredentials.mockResolvedValue([]);
     await tool('list_connected_accounts').handler({ workspace: 'football' }, ctx);
-    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football');
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football', 'all');
     expect(creds.listCredentials).toHaveBeenCalledWith('t1', { workspaceId: 'w2', platform: undefined });
   });
 
@@ -85,12 +85,28 @@ describe('AccountToolsGroup', () => {
     await expect(tool('get_tiktok_creator_info').handler({ workspace: 'football' }, ctx)).resolves.toEqual({
       privacy_level_options: ['SELF_ONLY'],
     });
-    expect(posts.getTikTokCreatorInfo).toHaveBeenCalledWith('u1', 't1', 'football');
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'football', 'all');
+    expect(posts.getTikTokCreatorInfo).toHaveBeenCalledWith('u1', 't1', 'w2');
   });
 
   it('has the correct scopes', () => {
     expect(tool('list_workspaces').scopes).toEqual(['credentials:read']);
     expect(tool('list_connected_accounts').scopes).toEqual(['credentials:read']);
     expect(tool('get_tiktok_creator_info').scopes).toEqual(['posts:read']);
+  });
+
+  it('list_workspaces shows only the key branches', async () => {
+    creds.listCredentials.mockResolvedValue([]);
+    await tool('list_workspaces').handler({}, { ...ctx, access: ['w2'] });
+    expect(workspaces.list).toHaveBeenCalledWith('t1', ['w2']);
+  });
+
+  it('list_connected_accounts hides accounts of other branches', async () => {
+    creds.listCredentials.mockResolvedValue([
+      { id: 'c1', platform: 'x', workspaceId: 'w1' },
+      { id: 'c2', platform: 'x', workspaceId: 'w2' },
+    ]);
+    const out: any = await tool('list_connected_accounts').handler({}, { ...ctx, access: ['w2'] });
+    expect(out.accounts.map((a) => a.credentialId)).toEqual(['c2']);
   });
 });
