@@ -4,6 +4,9 @@ import { In, IsNull, Repository } from 'typeorm';
 import { Workspace } from '../entities/workspace.entity';
 import { Credential } from '../entities/credential.entity';
 import { Post, PostStatus } from '../entities/post.entity';
+import { MonitoredProfile } from '../entities/monitored-profile.entity';
+import { Insight } from '../entities/insight.entity';
+import { ChatSession } from '../insights/entities/chat-session.entity';
 import {
   DEFAULT_WORKSPACE_NAME,
   DEFAULT_WORKSPACE_SLUG,
@@ -29,6 +32,12 @@ export class WorkspacesService {
     private readonly credentialRepository: Repository<Credential>,
     @InjectRepository(Post)
     private readonly postRepository: Repository<Post>,
+    @InjectRepository(MonitoredProfile)
+    private readonly profileRepository: Repository<MonitoredProfile>,
+    @InjectRepository(Insight)
+    private readonly insightRepository: Repository<Insight>,
+    @InjectRepository(ChatSession)
+    private readonly chatSessionRepository: Repository<ChatSession>,
   ) {}
 
   async list(tenantId: string): Promise<Workspace[]> {
@@ -66,8 +75,13 @@ export class WorkspacesService {
       return winner;
     }
 
-    await this.credentialRepository.update({ tenantId, workspaceId: IsNull() }, { workspaceId: created.id });
-    await this.postRepository.update({ tenantId, workspaceId: IsNull() }, { workspaceId: created.id });
+    const orphans = { tenantId, workspaceId: IsNull() };
+    const target = { workspaceId: created.id };
+    await this.credentialRepository.update(orphans, target);
+    await this.postRepository.update(orphans, target);
+    await this.profileRepository.update(orphans, target);
+    await this.insightRepository.update(orphans, target);
+    await this.chatSessionRepository.update(orphans, target);
     return created;
   }
 
@@ -117,10 +131,19 @@ export class WorkspacesService {
       throw new BadRequestException(`Move or delete the ${openPosts} draft and scheduled posts first.`);
     }
 
+    const profiles = await this.profileRepository.count({ where: { workspaceId: id, isActive: true } });
+    if (profiles > 0) {
+      throw new BadRequestException(`Move or delete the ${profiles} monitored profiles first.`);
+    }
+
     const fallback = await this.ensureDefault(tenantId);
+    const moveTo = { workspaceId: fallback.id };
     await this.workspaceRepository.manager.transaction(async (em) => {
-      await em.update(Credential, { workspaceId: id, isActive: false }, { workspaceId: fallback.id });
-      await em.update(Post, { workspaceId: id }, { workspaceId: fallback.id });
+      await em.update(Credential, { workspaceId: id, isActive: false }, moveTo);
+      await em.update(Post, { workspaceId: id }, moveTo);
+      await em.update(MonitoredProfile, { workspaceId: id, isActive: false }, moveTo);
+      await em.update(Insight, { workspaceId: id }, moveTo);
+      await em.update(ChatSession, { workspaceId: id }, moveTo);
       await em.delete(Workspace, { id, tenantId });
     });
     return true;

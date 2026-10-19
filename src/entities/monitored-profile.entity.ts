@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
+import { Workspace } from './workspace.entity';
 import { TweetMonitoredProfile } from './tweet-monitored-profile.entity';
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import GraphQLJSON from 'graphql-type-json';
@@ -93,4 +94,12 @@ export class MonitoredProfile {
 
   @Column({ nullable: true })
   tenantId: string;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId: string | null;
+
+  @ManyToOne(() => Workspace, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace?: Workspace;
 }

@@ -11,6 +11,7 @@ import {
 import { Field, ObjectType, ID } from '@nestjs/graphql';
 import { User } from '../../entities/user.entity';
 import { ChatMessage } from './chat-message.entity';
+import { Workspace } from '../../entities/workspace.entity';
 
 @ObjectType()
 @Entity('chat_sessions')
@@ -47,4 +48,12 @@ export class ChatSession {
   @Field()
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId: string | null;
+
+  @ManyToOne(() => Workspace, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace?: Workspace;
 }

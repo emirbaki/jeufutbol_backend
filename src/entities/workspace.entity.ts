@@ -40,6 +40,10 @@ export class Workspace {
   @Column({ default: false })
   isDefault: boolean;
 
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'text', nullable: true })
+  imageUrl: string | null;
+
   @Field()
   @CreateDateColumn()
   createdAt: Date;

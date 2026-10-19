@@ -7,6 +7,9 @@ import { WorkspacesService } from './workspaces.service';
 import { Workspace } from '../entities/workspace.entity';
 import { Credential } from '../entities/credential.entity';
 import { Post, PostStatus } from '../entities/post.entity';
+import { MonitoredProfile } from '../entities/monitored-profile.entity';
+import { Insight } from '../entities/insight.entity';
+import { ChatSession } from '../insights/entities/chat-session.entity';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
 const DEFAULT = { id: 'w1', tenantId: 't1', name: 'General', slug: 'general', isDefault: true };
@@ -16,6 +19,9 @@ describe('WorkspacesService', () => {
   let wsRepo: any;
   let credRepo: { update: jest.Mock; count: jest.Mock };
   let postRepo: { update: jest.Mock; count: jest.Mock };
+  let profileRepo: { update: jest.Mock; count: jest.Mock };
+  let insightRepo: { update: jest.Mock; count: jest.Mock };
+  let chatRepo: { update: jest.Mock; count: jest.Mock };
   let svc: WorkspacesService;
 
   beforeEach(() => {
@@ -30,7 +36,17 @@ describe('WorkspacesService', () => {
     };
     credRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
     postRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
-    svc = new WorkspacesService(wsRepo, credRepo as any, postRepo as any);
+    profileRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
+    insightRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
+    chatRepo = { update: jest.fn(), count: jest.fn().mockResolvedValue(0) };
+    svc = new WorkspacesService(
+      wsRepo,
+      credRepo as any,
+      postRepo as any,
+      profileRepo as any,
+      insightRepo as any,
+      chatRepo as any,
+    );
   });
 
   describe('ensureDefault', () => {
@@ -46,6 +62,14 @@ describe('WorkspacesService', () => {
       expect(wsRepo.save).toHaveBeenCalledWith({ tenantId: 't1', name: 'General', slug: 'general', isDefault: true });
       expect(credRepo.update).toHaveBeenCalledWith({ tenantId: 't1', workspaceId: IsNull() }, { workspaceId: 'w-new' });
       expect(postRepo.update).toHaveBeenCalledWith({ tenantId: 't1', workspaceId: IsNull() }, { workspaceId: 'w-new' });
+    });
+
+    it('moves NULL rows of the Phase 2 tables', async () => {
+      wsRepo.findOne.mockResolvedValue(null);
+      await svc.ensureDefault('t1');
+      for (const repo of [profileRepo, insightRepo, chatRepo]) {
+        expect(repo.update).toHaveBeenCalledWith({ tenantId: 't1', workspaceId: IsNull() }, { workspaceId: 'w-new' });
+      }
     });
 
     it('reads the row again after a unique violation', async () => {
@@ -164,6 +188,27 @@ describe('WorkspacesService', () => {
       expect(postRepo.count).toHaveBeenCalledWith({
         where: { workspaceId: 'w9', status: In([PostStatus.DRAFT, PostStatus.SCHEDULED]) },
       });
+    });
+
+    it('blocks a workspace with active monitored profiles', async () => {
+      wsRepo.findOne.mockResolvedValue(target);
+      profileRepo.count.mockResolvedValue(3);
+      const err = await svc.remove('t1', 'w9').catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toBe('Move or delete the 3 monitored profiles first.');
+      expect(profileRepo.count).toHaveBeenCalledWith({ where: { workspaceId: 'w9', isActive: true } });
+    });
+
+    it('moves insights, chat sessions and inactive profiles to the default', async () => {
+      wsRepo.findOne.mockResolvedValueOnce(target).mockResolvedValueOnce(DEFAULT);
+      await svc.remove('t1', 'w9');
+      expect(em.update).toHaveBeenCalledWith(Insight, { workspaceId: 'w9' }, { workspaceId: 'w1' });
+      expect(em.update).toHaveBeenCalledWith(ChatSession, { workspaceId: 'w9' }, { workspaceId: 'w1' });
+      expect(em.update).toHaveBeenCalledWith(
+        MonitoredProfile,
+        { workspaceId: 'w9', isActive: false },
+        { workspaceId: 'w1' },
+      );
     });
 
     it('moves old rows to the default and deletes', async () => {

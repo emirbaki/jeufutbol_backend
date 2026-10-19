@@ -17,6 +17,7 @@ import {
 import { User } from './user.entity';
 import { Tweet } from './tweet.entity';
 import { Tenant } from './tenant.entity';
+import { Workspace } from './workspace.entity';
 import { GraphQLJSON } from 'graphql-type-json';
 
 export enum InsightType {
@@ -98,4 +99,12 @@ export class Insight {
   @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId: string | null;
+
+  @ManyToOne(() => Workspace, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace?: Workspace;
 }

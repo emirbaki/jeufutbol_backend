@@ -10,6 +10,7 @@ import {
 import { Post } from './post.entity';
 import { MonitoredProfile } from './monitored-profile.entity';
 import { Tenant } from './tenant.entity';
+import { Workspace } from './workspace.entity';
 import { ManyToOne, JoinColumn } from 'typeorm';
 import { UserRole } from '../auth/user-role.enum';
 
@@ -79,6 +80,19 @@ export class User {
 
   @Column({ nullable: true })
   tenantId: string;
+
+  /** The workspace that opens after login. */
+  @Column({ type: 'uuid', nullable: true })
+  activeWorkspaceId: string | null;
+
+  @Field(() => Workspace, { nullable: true })
+  @ManyToOne(() => Workspace, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'activeWorkspaceId' })
+  activeWorkspace?: Workspace | null;
+
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'text', nullable: true })
+  avatarUrl: string | null;
 
   @Field(() => UserRole)
   @Column({
