@@ -2,6 +2,10 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type PublicConfig {
+  paymentEnabled: Boolean!
+}
+
 type BillingSubscription {
   id: ID!
   tenant: Tenant!
@@ -35,6 +39,16 @@ type Tenant {
   updatedAt: DateTime!
 }
 
+type Workspace {
+  id: ID!
+  name: String!
+  slug: String!
+  isDefault: Boolean!
+  imageUrl: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
 type Insight {
   id: ID!
   userId: String!
@@ -50,6 +64,7 @@ type Insight {
   user: User!
   sourceTweet: Tweet
   tenantId: String
+  workspaceId: String
 }
 
 """Types of insights generated from analyzed tweets or profiles"""
@@ -104,6 +119,7 @@ type MonitoredProfile {
   updatedAt: DateTime!
   user: User
   tenant: Tenant
+  workspaceId: String
 }
 
 type User {
@@ -118,6 +134,8 @@ type User {
   posts: [Post!]
   monitoredProfiles: [MonitoredProfile!]
   tenant: Tenant
+  activeWorkspace: Workspace
+  avatarUrl: String
   role: UserRole!
   notifyOnPublish: Boolean!
   notifyOnFail: Boolean!
@@ -168,6 +186,8 @@ type Post {
   user: User!
   publishedPosts: [PublishedPost!]
   tenant: Tenant
+  workspaceId: String
+  workspace: Workspace
   failureReasons: JSON
   tiktokSettings: JSON
   youtubeSettings: JSON
@@ -201,6 +221,30 @@ type Credential {
   createdAt: DateTime!
   updatedAt: DateTime!
   tenantId: String
+  workspaceId: String
+  workspace: Workspace
+}
+
+type ChatMessage {
+  id: ID!
+  sessionId: String!
+  role: String!
+  content: String!
+  tokenUsage: JSON
+  session: ChatSession!
+  createdAt: DateTime!
+}
+
+type ChatSession {
+  id: ID!
+  userId: String!
+  tenantId: String!
+  title: String
+  user: User!
+  messages: [ChatMessage]
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  workspaceId: String
 }
 
 type TikTokCreatorInfo {
@@ -226,6 +270,19 @@ type ApiKey {
   metadata: String
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+type PostPage {
+  items: [Post!]!
+  total: Int!
+}
+
+type PostStatusCounts {
+  all: Int!
+  published: Int!
+  scheduled: Int!
+  draft: Int!
+  failed: Int!
 }
 
 type PostAnalyticsType {
@@ -321,27 +378,6 @@ type BatchIndexResponse {
   profileCount: Float!
 }
 
-type ChatMessage {
-  id: ID!
-  sessionId: String!
-  role: String!
-  content: String!
-  tokenUsage: JSON
-  session: ChatSession!
-  createdAt: DateTime!
-}
-
-type ChatSession {
-  id: ID!
-  userId: String!
-  tenantId: String!
-  title: String
-  user: User!
-  messages: [ChatMessage]
-  createdAt: DateTime!
-  updatedAt: DateTime!
-}
-
 type ChatStreamEvent {
   sessionId: String!
   type: ChatStreamEventType!
@@ -398,17 +434,21 @@ type CheckoutSession {
 
 type Query {
   hello: String!
+  publicConfig: PublicConfig!
   verifyEmail(token: String!): MessageResponse!
   me: User!
   listApiKeys: [ApiKey!]!
-  getUserPosts(limit: Int, offset: Int): [Post!]!
+  getUserPosts(limit: Int, offset: Int, workspaceId: String): [Post!]!
+  postList(filter: PostListFilter): PostPage!
+  postStatusCounts(filter: PostListFilter): PostStatusCounts!
   getPost(postId: String!): Post!
-  getTikTokCreatorInfo: TikTokCreatorInfo!
+  getTikTokCreatorInfo(workspaceId: String): TikTokCreatorInfo!
   getAnalyticsData(period: String! = "7days"): RawAnalyticsDataType!
   getFollowerCounts: [PlatformFollowerType!]!
   getCredentials(platform: String): [Credential!]!
   getConnectedAccounts: [Credential!]!
   currentTenant: Tenant!
+  workspaces: [Workspace!]!
   getMonitoredProfiles: [MonitoredProfile!]!
   getMonitoredProfile(profileId: String!): MonitoredProfile!
   getProfileTweets(profileId: String!, limit: Int, offset: Int): [Tweet!]!
@@ -437,6 +477,21 @@ type Query {
   ensureSubscription: BillingSubscription!
 }
 
+input PostListFilter {
+  status: PostStatus
+  platform: String
+  from: DateTime
+  to: DateTime
+  sort: PostSort = NEWEST
+  limit: Int = 20
+  offset: Int = 0
+}
+
+enum PostSort {
+  NEWEST
+  OLDEST
+}
+
 type Mutation {
   register(email: String!, password: String!, firstName: String!, lastName: String!, organizationName: String!): MessageResponse!
   login(email: String!, password: String!): AuthPayload!
@@ -456,9 +511,14 @@ type Mutation {
   refreshAnalytics: Boolean!
   updateAnalyticsRefreshInterval(hours: Float!): AnalyticsSettingsType!
   deleteCredential(credentialId: String!): Boolean!
+  moveCredentialToWorkspace(credentialId: ID!, workspaceId: ID!): Credential!
   testCredential(credentialId: String!): Boolean!
   updateTenant(name: String!): Tenant!
   regenerateClientSecret: String!
+  createWorkspace(input: CreateWorkspaceInput!): Workspace!
+  updateWorkspace(id: ID!, input: UpdateWorkspaceInput!): Workspace!
+  deleteWorkspace(id: ID!): Boolean!
+  setActiveWorkspace(workspaceId: ID!): User!
   addMonitoredProfile(xUsername: String!): MonitoredProfile!
   removeMonitoredProfile(profileId: String!): Boolean!
   refreshProfileTweets(profileId: String!): JobIdResponse!
@@ -508,6 +568,7 @@ input CreatePostInput {
   content: String!
   mediaUrls: [String!]
   targetPlatforms: [String!]!
+  workspaceId: String
   platformSpecificContent: JSON
   scheduledFor: String
   tiktokSettings: TikTokPostSettingsInput
@@ -545,11 +606,22 @@ input UpdatePostInput {
   content: String
   mediaUrls: [String!]
   targetPlatforms: [String!]
+  workspaceId: String
   platformSpecificContent: JSON
   scheduledFor: String
   tiktokSettings: TikTokPostSettingsInput
   youtubeSettings: YouTubePostSettingsInput
   instagramSettings: InstagramPostSettingsInput
+}
+
+input CreateWorkspaceInput {
+  name: String!
+  slug: String
+}
+
+input UpdateWorkspaceInput {
+  name: String
+  slug: String
 }
 
 input InviteUserInput {

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { Workspace } from '../entities/workspace.entity';
@@ -9,6 +9,7 @@ import { Insight } from '../entities/insight.entity';
 import { ChatSession } from '../insights/entities/chat-session.entity';
 import { User } from '../entities/user.entity';
 import { ApiKey } from '../entities/api-key.entity';
+import { WorkspaceAccess, reaches } from './workspace-access.service';
 import {
   DEFAULT_WORKSPACE_NAME,
   DEFAULT_WORKSPACE_SLUG,
@@ -25,6 +26,8 @@ export interface ActiveWorkspaceRequest {
   headerRef?: string | null;
   user?: User | null;
   apiKey?: ApiKey | null;
+  /** The branches the caller can reach. Missing means all (background work). */
+  access?: WorkspaceAccess;
 }
 
 export interface WorkspaceInput {
@@ -51,12 +54,13 @@ export class WorkspacesService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async list(tenantId: string): Promise<Workspace[]> {
+  async list(tenantId: string, access: WorkspaceAccess = 'all'): Promise<Workspace[]> {
     await this.ensureDefault(tenantId);
-    return this.workspaceRepository.find({
+    const all = await this.workspaceRepository.find({
       where: { tenantId },
       order: { isDefault: 'DESC', name: 'ASC' },
     });
+    return all.filter((w) => reaches(access, w.id));
   }
 
   /**
@@ -97,15 +101,18 @@ export class WorkspacesService {
   }
 
   /** Finds a workspace of the tenant by ID or slug. No reference gives the default workspace. */
-  async resolve(tenantId: string, ref?: string | null): Promise<Workspace> {
+  async resolve(tenantId: string, ref?: string | null, access: WorkspaceAccess = 'all'): Promise<Workspace> {
     const value = ref?.trim();
-    if (!value) return this.ensureDefault(tenantId);
+    if (!value) return this.firstReachable(tenantId, access);
 
     const where = isUuid(value) ? { id: value, tenantId } : { slug: value.toLowerCase(), tenantId };
     const workspace = await this.workspaceRepository.findOne({ where });
-    if (workspace) return workspace;
+    // A branch without access is "not found", so that it stays hidden.
+    if (workspace && reaches(access, workspace.id)) return workspace;
 
-    const known = await this.workspaceRepository.find({ where: { tenantId }, order: { name: 'ASC' } });
+    const known = (await this.workspaceRepository.find({ where: { tenantId }, order: { name: 'ASC' } })).filter((w) =>
+      reaches(access, w.id),
+    );
     throw new NotFoundException(
       `Workspace "${value}" not found. Use one of: ${known.map((w) => w.slug).join(', ')}.`,
     );
@@ -118,21 +125,35 @@ export class WorkspacesService {
    * resolves falls through to the next step.
    */
   async resolveActive(tenantId: string, req: ActiveWorkspaceRequest): Promise<Workspace> {
-    if (req.headerRef?.trim()) return this.resolve(tenantId, req.headerRef);
+    const access = req.access ?? 'all';
+    if (req.headerRef?.trim()) return this.resolve(tenantId, req.headerRef, access);
 
-    // defaultWorkspaceId comes with the tenant merge (Task M2). Read it only when present.
-    const stored = [(req.apiKey as { defaultWorkspaceId?: string | null } | null | undefined)?.defaultWorkspaceId, req.user?.activeWorkspaceId];
+    const stored = [req.apiKey?.defaultWorkspaceId, req.user?.activeWorkspaceId];
     for (const id of stored) {
-      if (!id) continue;
+      if (!id || !reaches(access, id)) continue;
       const workspace = await this.workspaceRepository.findOne({ where: { id, tenantId } });
       if (workspace) return workspace;
     }
-    return this.ensureDefault(tenantId);
+    return this.firstReachable(tenantId, access);
+  }
+
+  /**
+   * The branch for a caller who names none. With access to all: the tenant
+   * default. With a list: the first branch of the list (the oldest membership).
+   */
+  private async firstReachable(tenantId: string, access: WorkspaceAccess): Promise<Workspace> {
+    if (access === 'all') return this.ensureDefault(tenantId);
+    const workspaces = await this.workspaceRepository.find({ where: { tenantId } });
+    for (const id of access) {
+      const workspace = workspaces.find((w) => w.id === id);
+      if (workspace) return workspace;
+    }
+    throw new ForbiddenException('You are not a member of any branch. Ask an admin.');
   }
 
   /** Saves the workspace that opens for this user after login. */
-  async setActive(user: User, workspaceRef: string): Promise<User> {
-    const workspace = await this.resolve(user.tenantId, workspaceRef);
+  async setActive(user: User, workspaceRef: string, access: WorkspaceAccess = 'all'): Promise<User> {
+    const workspace = await this.resolve(user.tenantId, workspaceRef, access);
     await this.userRepository.update({ id: user.id }, { activeWorkspaceId: workspace.id });
     user.activeWorkspaceId = workspace.id;
     user.activeWorkspace = workspace;

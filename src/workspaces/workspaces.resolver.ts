@@ -13,16 +13,20 @@ import { ApiKeyScope } from '../auth/api-key-scopes.enum';
 import { UserRole } from '../auth/user-role.enum';
 import { WorkspacesService } from './workspaces.service';
 import { CreateWorkspaceInput, UpdateWorkspaceInput } from './workspace.inputs';
+import { WorkspaceAccessService } from './workspace-access.service';
 
 @Resolver(() => Workspace)
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
 export class WorkspacesResolver {
-  constructor(private readonly workspacesService: WorkspacesService) {}
+  constructor(
+    private readonly workspacesService: WorkspacesService,
+    private readonly accessService: WorkspaceAccessService,
+  ) {}
 
   @Query(() => [Workspace])
   @RequireScopes(ApiKeyScope.CREDENTIALS_READ)
   async workspaces(@CurrentUser() user?: User, @CurrentApiKey() apiKey?: ApiKey): Promise<Workspace[]> {
-    return this.workspacesService.list(this.tenantOf(user, apiKey));
+    return this.workspacesService.list(this.tenantOf(user, apiKey), await this.accessService.accessFor(user, apiKey));
   }
 
   @Mutation(() => Workspace)
@@ -66,7 +70,7 @@ export class WorkspacesResolver {
     @CurrentUser() user: User,
     @Args('workspaceId', { type: () => ID }) workspaceId: string,
   ): Promise<User> {
-    return this.workspacesService.setActive(user, workspaceId);
+    return this.workspacesService.setActive(user, workspaceId, await this.accessService.accessFor(user, null));
   }
 
   private tenantOf(user?: User, apiKey?: ApiKey): string {

@@ -13,6 +13,7 @@ import { ApiKey } from '../entities/api-key.entity';
 import { assertCanManageCredential } from './credential-access';
 import { ActiveWorkspaceContext, ActiveWorkspaceContextParam } from '../workspaces/active-workspace.decorator';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
@@ -20,6 +21,7 @@ export class CredentialsResolver {
   constructor(
     private credentialsService: CredentialsService,
     private workspacesService: WorkspacesService,
+    private accessService: WorkspaceAccessService,
   ) { }
 
   @Query(() => [Credential])
@@ -73,7 +75,10 @@ export class CredentialsResolver {
   ) {
     const tenantId = this.tenantOf(user, apiKey);
     const credential = await this.loadManageable(credentialId, tenantId, user);
-    return this.credentialsService.moveCredential(credential, workspaceId);
+    // The target branch must be one the caller can reach.
+    const access = await this.accessService.accessFor(user, apiKey);
+    const target = await this.workspacesService.resolve(tenantId, workspaceId, access);
+    return this.credentialsService.moveCredential(credential, target.id);
   }
 
   @Mutation(() => Boolean)
@@ -89,10 +94,22 @@ export class CredentialsResolver {
     );
   }
 
-  /** The X-Workspace-Id header filters the list. Without it, the list has all accounts. */
+  /**
+   * The X-Workspace-Id header filters the list. Without it, a caller with
+   * access to all branches gets all accounts, and any other caller gets
+   * the accounts of their active branch.
+   */
   private async headerWorkspaceId(tenantId: string, ctx?: ActiveWorkspaceContext): Promise<string | undefined> {
-    if (!ctx?.headerRef) return undefined;
-    return (await this.workspacesService.resolveActive(tenantId, { headerRef: ctx.headerRef })).id;
+    const access = await this.accessService.accessFor(ctx?.user, ctx?.apiKey);
+    if (!ctx?.headerRef && access === 'all') return undefined;
+    return (
+      await this.workspacesService.resolveActive(tenantId, {
+        headerRef: ctx?.headerRef,
+        user: ctx?.user,
+        apiKey: ctx?.apiKey,
+        access,
+      })
+    ).id;
   }
 
   private tenantOf(user?: User, apiKey?: ApiKey): string {

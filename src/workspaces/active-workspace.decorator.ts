@@ -4,6 +4,7 @@ import { Workspace } from '../entities/workspace.entity';
 import { User } from '../entities/user.entity';
 import { ApiKey } from '../entities/api-key.entity';
 import { WorkspacesService } from './workspaces.service';
+import { WorkspaceAccessService } from './workspace-access.service';
 
 export const WORKSPACE_HEADER = 'x-workspace-id';
 
@@ -42,12 +43,16 @@ export const ActiveWorkspaceContextParam = createParamDecorator(
 
 @Injectable()
 export class ActiveWorkspacePipe implements PipeTransform<ActiveWorkspaceContext, Promise<Workspace>> {
-  constructor(private readonly workspacesService: WorkspacesService) {}
+  constructor(
+    private readonly workspacesService: WorkspacesService,
+    private readonly accessService: WorkspaceAccessService,
+  ) {}
 
   async transform(value: ActiveWorkspaceContext): Promise<Workspace> {
     if (!value?.tenantId) throw new ForbiddenException('Tenant context required.');
     const { headerRef, user, apiKey } = value;
-    return this.workspacesService.resolveActive(value.tenantId, { headerRef, user, apiKey });
+    const access = await this.accessService.accessFor(user, apiKey);
+    return this.workspacesService.resolveActive(value.tenantId, { headerRef, user, apiKey, access });
   }
 }
 

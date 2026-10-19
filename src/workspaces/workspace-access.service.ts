@@ -9,6 +9,12 @@ import { UserRole } from '../auth/user-role.enum';
 /** The branches a caller can reach: all of them, or a list of workspace IDs. */
 export type WorkspaceAccess = 'all' | string[];
 
+/** True when the access list includes the branch. */
+export function reaches(access: WorkspaceAccess, workspaceId: string | null | undefined): boolean {
+  if (access === 'all') return true;
+  return !!workspaceId && access.includes(workspaceId);
+}
+
 @Injectable()
 export class WorkspaceAccessService {
   constructor(
@@ -32,8 +38,7 @@ export class WorkspaceAccessService {
   }
 
   canReach(access: WorkspaceAccess, workspaceId: string | null | undefined): boolean {
-    if (access === 'all') return true;
-    return !!workspaceId && access.includes(workspaceId);
+    return reaches(access, workspaceId);
   }
 
   async roleIn(user: User | null | undefined, workspaceId: string): Promise<'ADMIN' | WorkspaceRole | null> {

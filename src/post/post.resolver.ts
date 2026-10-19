@@ -15,6 +15,7 @@ import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
 import { TikTokCreatorInfo } from 'src/graphql/types/tiktok.type';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
 import { Workspace } from '../entities/workspace.entity';
 import { PostListFilter } from 'src/graphql/inputs/post-list.input';
@@ -27,6 +28,7 @@ export class PostsResolver {
     private postsService: PostsService,
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
     private workspacesService: WorkspacesService,
+    private accessService: WorkspaceAccessService,
   ) { }
 
 
@@ -50,7 +52,9 @@ export class PostsResolver {
       : null;
     return this.postsService.createPost(userId, tenantId, {
       ...input,
-      workspaceId: input.workspaceId ?? workspace.id,
+      workspaceId: input.workspaceId
+        ? (await this.workspacesService.resolve(tenantId, input.workspaceId, await this.accessService.accessFor(user, apiKey))).id
+        : workspace.id,
       platformSpecificContent: input.platformSpecificContent,
       scheduledFor: _scheduledFor,
     });
@@ -74,7 +78,7 @@ export class PostsResolver {
     }
 
     const workspaceId = workspaceRef
-      ? (await this.workspacesService.resolve(tenantId, workspaceRef)).id
+      ? (await this.workspacesService.resolve(tenantId, workspaceRef, await this.accessService.accessFor(user, apiKey))).id
       : workspace?.id;
     return this.postsService.getUserPosts(userId, tenantId, limit, offset, undefined, workspaceId);
   }
@@ -125,8 +129,12 @@ export class PostsResolver {
   ): Promise<Post> {
     const tenantId = user?.tenantId || apiKey?.tenantId;
     const userId = user?.id || apiKey?.createdByUserId;
+    const workspaceId = input.workspaceId
+      ? (await this.workspacesService.resolve(tenantId, input.workspaceId, await this.accessService.accessFor(user, apiKey))).id
+      : undefined;
     return this.postsService.updatePost(postId, userId, tenantId, {
       ...input,
+      workspaceId,
       platformSpecificContent: input.platformSpecificContent,
       scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : input.scheduledFor,
     });
@@ -218,6 +226,9 @@ export class PostsResolver {
       throw new Error('User context required');
     }
 
-    return this.postsService.getTikTokCreatorInfo(userId, tenantId, workspaceRef ?? workspace?.id);
+    const tiktokWorkspace = workspaceRef
+      ? (await this.workspacesService.resolve(tenantId, workspaceRef, await this.accessService.accessFor(user, apiKey))).id
+      : workspace?.id;
+    return this.postsService.getTikTokCreatorInfo(userId, tenantId, tiktokWorkspace);
   }
 }

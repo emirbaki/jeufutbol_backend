@@ -24,6 +24,7 @@ import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { CurrentApiKey } from '../auth/decorators/current-api-key.decorator';
 import { ApiKey } from '../entities/api-key.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 import { assertCanManageCredential } from './credential-access';
 import { readWorkspaceHeader } from '../workspaces/active-workspace.decorator';
 
@@ -33,6 +34,7 @@ export class CredentialsController {
     private credentialsService: CredentialsService,
     private oauthService: OAuthService,
     private workspacesService: WorkspacesService,
+    private accessService: WorkspaceAccessService,
   ) { }
 
   /**
@@ -56,7 +58,8 @@ export class CredentialsController {
       throw new Error('User context required');
     }
     // Resolve now, so that a wrong workspace fails before the OAuth popup opens.
-    const workspace = await this.workspacesService.resolve(tenantId, workspaceRef);
+    const access = await this.accessService.accessFor(user, apiKey);
+    const workspace = await this.workspacesService.resolve(tenantId, workspaceRef, access);
     const origin = req.get('origin') || req.get('referer')?.split('/').slice(0, 3).join('/');
     const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:4200';
 
@@ -171,12 +174,14 @@ export class CredentialsController {
     if (!tenantId) throw new Error('Tenant context required');
 
     // An explicit workspaceId wins. Else the X-Workspace-Id header filters.
-    // Without both, the list has all accounts (API callers do not change).
+    // Without both, a caller with access to all branches gets all accounts
+    // (API callers do not change), and any other caller gets their active branch.
     const headerRef = readWorkspaceHeader(req as any);
+    const access = await this.accessService.accessFor(user, apiKey);
     const workspaceId = workspaceRef
-      ? (await this.workspacesService.resolve(tenantId, workspaceRef)).id
-      : headerRef
-        ? (await this.workspacesService.resolveActive(tenantId, { headerRef })).id
+      ? (await this.workspacesService.resolve(tenantId, workspaceRef, access)).id
+      : headerRef || access !== 'all'
+        ? (await this.workspacesService.resolveActive(tenantId, { headerRef, user, apiKey, access })).id
         : undefined;
     const credentials = await this.credentialsService.listCredentials(tenantId, {
       workspaceId,

@@ -19,7 +19,12 @@ describe('PostsResolver workspaces', () => {
       getTikTokCreatorInfo: jest.fn().mockResolvedValue({}),
     };
     workspaces = { resolve: jest.fn().mockResolvedValue({ id: 'w-explicit' }) };
-    resolver = new PostsResolver(posts as any, { publish: jest.fn() } as any, workspaces as any);
+    resolver = new PostsResolver(
+      posts as any,
+      { publish: jest.fn() } as any,
+      workspaces as any,
+      { accessFor: jest.fn().mockResolvedValue('all') } as any,
+    );
   });
 
   it('createPost uses the active workspace when the input has none', async () => {
@@ -34,7 +39,8 @@ describe('PostsResolver workspaces', () => {
       { content: 'hi', targetPlatforms: ['x'], workspaceId: 'cinema' } as any,
       active,
     );
-    expect(posts.createPost).toHaveBeenCalledWith('u1', 't1', expect.objectContaining({ workspaceId: 'cinema' }));
+    expect(workspaces.resolve).toHaveBeenCalledWith('t1', 'cinema', 'all');
+    expect(posts.createPost).toHaveBeenCalledWith('u1', 't1', expect.objectContaining({ workspaceId: 'w-explicit' }));
   });
 
   it('getUserPosts uses the active workspace without an argument', async () => {

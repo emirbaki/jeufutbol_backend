@@ -18,17 +18,19 @@ describe('readWorkspaceHeader', () => {
 
 describe('ActiveWorkspacePipe', () => {
   it('throws without a tenant', async () => {
-    const pipe = new ActiveWorkspacePipe({ resolveActive: jest.fn() } as any);
+    const pipe = new ActiveWorkspacePipe({ resolveActive: jest.fn() } as any, { accessFor: jest.fn() } as any);
     await expect(pipe.transform({ tenantId: null, headerRef: null })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('passes the context to resolveActive', async () => {
     const resolveActive = jest.fn().mockResolvedValue({ id: 'w2' });
-    const pipe = new ActiveWorkspacePipe({ resolveActive } as any);
+    const accessFor = jest.fn().mockResolvedValue(['w2']);
+    const pipe = new ActiveWorkspacePipe({ resolveActive } as any, { accessFor } as any);
     const user = { id: 'u1' } as any;
     await expect(pipe.transform({ tenantId: 't1', headerRef: 'football', user, apiKey: null })).resolves.toEqual({
       id: 'w2',
     });
-    expect(resolveActive).toHaveBeenCalledWith('t1', { headerRef: 'football', user, apiKey: null });
+    expect(accessFor).toHaveBeenCalledWith(user, null);
+    expect(resolveActive).toHaveBeenCalledWith('t1', { headerRef: 'football', user, apiKey: null, access: ['w2'] });
   });
 });

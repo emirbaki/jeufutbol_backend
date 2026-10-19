@@ -19,17 +19,17 @@ describe('WorkspacesResolver', () => {
       update: jest.fn(),
       remove: jest.fn().mockResolvedValue(true),
     };
-    resolver = new WorkspacesResolver(service as any);
+    resolver = new WorkspacesResolver(service as any, { accessFor: jest.fn().mockResolvedValue('all') } as any);
   });
 
   it('workspaces lists for the tenant of the user', async () => {
     await resolver.workspaces(user(UserRole.USER), undefined);
-    expect(service.list).toHaveBeenCalledWith('t1');
+    expect(service.list).toHaveBeenCalledWith('t1', 'all');
   });
 
   it('workspaces uses the tenant of an API key', async () => {
     await resolver.workspaces(undefined, apiKey);
-    expect(service.list).toHaveBeenCalledWith('t2');
+    expect(service.list).toHaveBeenCalledWith('t2', 'all');
   });
 
   it.each([UserRole.USER, UserRole.MANAGER])('createWorkspace rejects a %s', async (role) => {

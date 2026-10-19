@@ -1,7 +1,7 @@
 // The entities import code that imports the ESM-only uuid package.
 jest.mock('uuid', () => ({ v4: () => require('crypto').randomUUID() }));
 
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { In, IsNull } from 'typeorm';
 import { WorkspacesService } from './workspaces.service';
 import { Workspace } from '../entities/workspace.entity';
@@ -280,5 +280,44 @@ describe('WorkspacesService', () => {
     expect(userRepo.update).toHaveBeenCalledWith({ id: 'u1' }, { activeWorkspaceId: 'w2' });
     expect(out.activeWorkspaceId).toBe('w2');
     expect(out.activeWorkspace).toMatchObject({ id: 'w2' });
+  });
+
+  describe('access', () => {
+    const W1 = { id: 'w1', tenantId: 't1', slug: 'general', isDefault: true };
+    const W2 = { id: 'w2', tenantId: 't1', slug: 'football', isDefault: false };
+
+    it('resolve hides a branch without access', async () => {
+      wsRepo.findOne.mockResolvedValue(W2);
+      wsRepo.find.mockResolvedValue([W1, W2]);
+      const err = await svc.resolve('t1', 'football', ['w1']).catch((e) => e);
+      expect(err).toBeInstanceOf(NotFoundException);
+      expect(err.message).toBe('Workspace "football" not found. Use one of: general.');
+    });
+
+    it('resolve with no ref and a list uses the first reachable branch', async () => {
+      wsRepo.find.mockResolvedValue([W1, W2]);
+      await expect(svc.resolve('t1', undefined, ['w2', 'w1'])).resolves.toBe(W2);
+    });
+
+    it('resolve with no ref and an empty list throws the no-branch error', async () => {
+      wsRepo.find.mockResolvedValue([]);
+      const err = await svc.resolve('t1', undefined, []).catch((e) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect(err.message).toBe('You are not a member of any branch. Ask an admin.');
+    });
+
+    it('list filters by access', async () => {
+      wsRepo.findOne.mockResolvedValue(W1);
+      wsRepo.find.mockResolvedValue([W1, W2]);
+      await expect(svc.list('t1', ['w2'])).resolves.toEqual([W2]);
+      await expect(svc.list('t1')).resolves.toEqual([W1, W2]);
+    });
+
+    it('resolveActive skips a stored ID without access', async () => {
+      wsRepo.findOne.mockImplementation(async ({ where }) => (where.id === 'w2' ? W2 : null));
+      wsRepo.find.mockResolvedValue([W1, W2]);
+      const out = await svc.resolveActive('t1', { user: { activeWorkspaceId: 'w2' } as any, access: ['w1'] });
+      expect(out).toBe(W1);
+    });
   });
 });
