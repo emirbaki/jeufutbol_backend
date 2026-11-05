@@ -61,3 +61,58 @@ describe('PostsResolver workspaces', () => {
     expect(posts.getTikTokCreatorInfo).toHaveBeenCalledWith('u1', 't1', 'w-active');
   });
 });
+
+describe('PostsResolver deletePosts', () => {
+  let posts: Record<string, jest.Mock>;
+  let access: { accessFor: jest.Mock; assertRow: jest.Mock };
+  let resolver: PostsResolver;
+
+  beforeEach(() => {
+    posts = {
+      getPost: jest.fn().mockImplementation(async (id: string) => ({ id, workspaceId: `w-${id}` })),
+      deletePost: jest.fn().mockResolvedValue(true),
+    };
+    access = { accessFor: jest.fn().mockResolvedValue('all'), assertRow: jest.fn() };
+    resolver = new PostsResolver(
+      posts as any,
+      { publish: jest.fn() } as any,
+      { resolve: jest.fn() } as any,
+      access as any,
+    );
+  });
+
+  it('deletes each post once and returns the deleted ids', async () => {
+    const result = await resolver.deletePosts(user, undefined as any, ['p1', 'p2', 'p1']);
+
+    expect(result).toEqual({ deletedIds: ['p1', 'p2'], failedIds: [] });
+    expect(posts.deletePost).toHaveBeenCalledTimes(2);
+    expect(posts.deletePost).toHaveBeenCalledWith('p1', 'u1', 't1');
+    expect(posts.deletePost).toHaveBeenCalledWith('p2', 'u1', 't1');
+  });
+
+  it('continues after a failed delete and returns the failed id', async () => {
+    posts.deletePost.mockRejectedValueOnce(new Error('storage error'));
+
+    const result = await resolver.deletePosts(user, undefined as any, ['p1', 'p2']);
+
+    expect(result).toEqual({ deletedIds: ['p2'], failedIds: ['p1'] });
+  });
+
+  it('does not delete a post in a workspace that the caller cannot reach', async () => {
+    access.assertRow.mockImplementation((_access: unknown, workspaceId: string) => {
+      if (workspaceId === 'w-p1') throw new Error('Post not found');
+    });
+
+    const result = await resolver.deletePosts(user, undefined as any, ['p1', 'p2']);
+
+    expect(result).toEqual({ deletedIds: ['p2'], failedIds: ['p1'] });
+    expect(posts.deletePost).not.toHaveBeenCalledWith('p1', 'u1', 't1');
+  });
+
+  it('rejects a request with more than 100 posts', async () => {
+    const ids = Array.from({ length: 101 }, (_, i) => `p${i}`);
+
+    await expect(resolver.deletePosts(user, undefined as any, ids)).rejects.toThrow('100');
+    expect(posts.deletePost).not.toHaveBeenCalled();
+  });
+});

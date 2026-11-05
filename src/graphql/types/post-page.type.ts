@@ -28,3 +28,12 @@ export class PostStatusCounts {
   @Field(() => Int)
   failed: number;
 }
+
+@ObjectType()
+export class DeletePostsResult {
+  @Field(() => [String])
+  deletedIds: string[];
+
+  @Field(() => [String])
+  failedIds: string[];
+}

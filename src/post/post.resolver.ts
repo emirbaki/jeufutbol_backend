@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Args, Int, Subscription } from '@nestjs/graphql';
-import { Inject, UseGuards } from '@nestjs/common';
+import { BadRequestException, Inject, Logger, UseGuards } from '@nestjs/common';
 import { PubSub } from 'graphql-subscriptions';
 import { PostsService } from './post.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -20,11 +20,15 @@ import { canReachFromContext } from '../workspaces/subscription-access';
 import { ActiveWorkspace } from '../workspaces/active-workspace.decorator';
 import { Workspace } from '../entities/workspace.entity';
 import { PostListFilter } from 'src/graphql/inputs/post-list.input';
-import { PostPage, PostStatusCounts } from 'src/graphql/types/post-page.type';
+import { DeletePostsResult, PostPage, PostStatusCounts } from 'src/graphql/types/post-page.type';
+
+const MAX_DELETE_POSTS = 100;
 
 @Resolver()
 @UseGuards(CombinedAuthGuard, ApiKeyScopeGuard)
 export class PostsResolver {
+  private readonly logger = new Logger(PostsResolver.name);
+
   constructor(
     private postsService: PostsService,
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
@@ -153,6 +157,35 @@ export class PostsResolver {
     const userId = user?.id || apiKey?.createdByUserId;
     await this.loadPost(postId, user, apiKey);
     return this.postsService.deletePost(postId, userId, tenantId);
+  }
+
+  /** Deletes the posts one by one. A failed post does not stop the other posts. */
+  @Mutation(() => DeletePostsResult)
+  @RequireScopes(ApiKeyScope.POSTS_DELETE)
+  async deletePosts(
+    @CurrentUser() user: User,
+    @CurrentApiKey() apiKey: ApiKey,
+    @Args('postIds', { type: () => [String] }) postIds: string[],
+  ): Promise<DeletePostsResult> {
+    const ids = [...new Set(postIds)];
+    if (ids.length > MAX_DELETE_POSTS) {
+      throw new BadRequestException(`You can delete a maximum of ${MAX_DELETE_POSTS} posts in one request`);
+    }
+
+    const tenantId = user?.tenantId || apiKey?.tenantId;
+    const userId = user?.id || apiKey?.createdByUserId;
+    const result: DeletePostsResult = { deletedIds: [], failedIds: [] };
+    for (const id of ids) {
+      try {
+        await this.loadPost(id, user, apiKey);
+        await this.postsService.deletePost(id, userId, tenantId);
+        result.deletedIds.push(id);
+      } catch (error) {
+        this.logger.warn(`Could not delete post ${id}: ${error instanceof Error ? error.message : error}`);
+        result.failedIds.push(id);
+      }
+    }
+    return result;
   }
 
   @Mutation(() => Post)
