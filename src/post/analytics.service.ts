@@ -82,6 +82,7 @@ export class AnalyticsService {
 
         const publishedPosts = await this.publishedPostRepo.find({
             where: { tenantId },
+            relations: ['post'],
         });
 
         for (const publishedPost of publishedPosts) {
@@ -119,12 +120,30 @@ export class AnalyticsService {
             const platformName = this.platformTypeToPlatformName(publishedPost.platform);
             if (!platformName) return null;
 
-            const credentials = await this.credentialsService.getTenantCredentials(
-                tenantId,
-                platformName,
-            );
+            // Use the credential of the workspace that owns the post.
+            // getTenantCredentials(credentials[0]) would pick another workspace's
+            // Instagram/TikTok token, and those APIs only return stats for
+            // media owned by the token's account -> some workspaces got no stats.
+            const workspaceId = (publishedPost as any).post?.workspaceId as string | undefined;
+            let credentials;
+            if (workspaceId) {
+                credentials = await this.credentialsService.listCredentials(tenantId, {
+                    workspaceId,
+                    platform: platformName,
+                });
+            } else {
+                // Legacy orphan post without workspace: fall back to tenant scope
+                // so old rows still refresh instead of being skipped.
+                this.logger.warn(
+                    `[Analytics] Post ${publishedPost.id} has no workspace, falling back to tenant credential`,
+                );
+                credentials = await this.credentialsService.getTenantCredentials(
+                    tenantId,
+                    platformName,
+                );
+            }
             if (credentials.length === 0) {
-                this.logger.warn(`[Analytics] No credential for ${publishedPost.platform}`);
+                this.logger.warn(`[Analytics] No credential for ${publishedPost.platform} in workspace ${workspaceId ?? 'unknown'}`);
                 return null;
             }
 
